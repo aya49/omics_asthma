@@ -1,6 +1,5 @@
-
 # by Yolanda Yang & Casey P Shannon
-#
+# 
 # Edit the "config.yaml" file to change the parameter values
 #    snakemake -p --cores 8      # -np instead of -p for dry run
 
@@ -88,6 +87,9 @@ rule RSEM:
                                    {input.ref}GRCh38 \
                                    {params.id} && \
         mv -v *.genes.results *.isoforms.results *.stat/ -t rsem/" #add a *.bam* between results and *.stat if you want the bam file outputs from STAR
+        mv -r fastQC ../data/RNAseq/fastQC
+        mv -r rsem ../data/RNAseq/rsem
+        mv -r benchmarks ../data/RNAseq/benchmarks
 
 
 
