@@ -16,7 +16,7 @@ result_dir = paste0(root, "/result/genotype"); dir.create(result_dir, showWarnin
 
 
 ## input directory
-data_dir = paste0(root, "/data")
+data_dir = "data"
 genotype_dir = paste0(data_dir, "/genotype")
 gt1_call_dir = paste0(genotype_dir, "/AxiomGT1.calls.txt")
 
@@ -25,33 +25,36 @@ meta_snp_temp_dir = paste0(genotype_dir, "/Axiom_PMRA.na35.annot.csv")
 gt1_meta_dir = paste0(genotype_dir, "/additional_sample_data.txt")
 meta_file_temp_dir = paste0(genotype_dir, "/meta_file_temp.csv")
 meta_file_temp2_dir = paste0(genotype_dir, "/asthmaDemo_allsite.csv")
+meta_file_extra_dir = paste0(data_dir, "/RNAseq/asthmaDemo_allsite.csv")
 
 
 ## output directory
 meta_dir = paste0(result_dir,"/meta"); dir.create(meta_dir, showWarnings=F)
 meta_file_dir = paste0(meta_dir,"/file")
 meta_col_dir = paste0(meta_dir,"/col")
-meta_colasthma_dir = paste0(meta_dir,"/colasthma")
+# meta_colasthma_dir = paste0(meta_dir,"/colasthma")
 
 feat_dir = paste0(result_dir,"/feat"); dir.create(feat_dir, showWarnings=F)
 feat_genotype_dir = paste0(feat_dir,"/snp-file-genotype")
 feat_genotypeasthma_dir = paste0(feat_dir,"/snp-file-genotypeasthma")
-
+feat_genotypegoodppl_dir = paste0(feat_dir,"/snp-file-genotypegoodppl")
 
 ## libraries
 # source("https://bioconductor.org/biocLite.R")
 # biocLite(c("affy","derfinder"))
-library(data.table)
-library(entropy)
-library(foreach)
-library(doMC)
-library(stringr)
-library(Matrix)
-source(paste0(root,"/codes/_func.R"))
+source("code/_func.R")
+libr("data.table")
+libr("entropy")
+libr("foreach")
+libr("doMC")
+libr("stringr")
+libr("Matrix")
 
 
 
 ## options
+options(stringsAsFactors=F)
+
 no_cores = 15#detectCores()-3
 registerDoMC(no_cores)
 
@@ -70,6 +73,7 @@ meta_snp_temp = fread(meta_snp_temp_dir)
 gt1_meta = fread(gt1_meta_dir, data.table=F)
 meta_file_temp = fread(meta_file_temp_dir, data.table=F)
 # meta_file_temp2 = fread(meta_file_temp2_dir, data.table=F)
+meta_file_extra = read.csv(meta_file_extra_dir)
 
 
 
@@ -129,23 +133,23 @@ ucol = col_probe(annot)
 # ChrX pseudo-autosomal region 2 :  2;  0 1       e.g. 
 # Minor Allele :  2065                            e.g. 
 # Minor Allele Frequency :  341762                e.g. 
-# OMIM :  26701                                   e.g. 
+# OMIM :  26701                                   e.g. 176804 // {Asthma, aspirin-induced, susceptibility to} // 208550 // frameshift /// 176804 // {Asthma, aspirin-induced, susceptibility to} // 208550 // intron
 # Ordered Alleles :  5015                         e.g. 
 # ClinVar VariantID :  27858                      e.g. 
 # ClinVar RSID :  27732                           e.g. 
-# ClinVar ClinicalSignificance :  282             e.g. 
+# ClinVar ClinicalSignificance :  282             e.g. "---"        "PATHOGENIC"
 # ClinVar GeneSymbol :  3121                      e.g. 
-# ClinVar Traits :  5776                          e.g. 
+# ClinVar Traits :  5776                          e.g.  [1] "---"; [2] "PLATELET-ACTIVATING FACTOR ACETYLHYDROLASE DEFICIENCY"; [3] "MENTAL RETARDATION, AUTOSOMAL RECESSIVE 51" 
 # ClinVar OMIM Gene :  11567                      e.g. 
-# ClinVar OMIM Phenotype :  2289                  e.g. 
-# ClinVar OMIM Description :  2438                e.g. 
-# ClinVar MIM :  2932                             e.g. 
+# ClinVar OMIM Phenotype :  2289                  e.g. "---"    "614278" "600807"
+# ClinVar OMIM Description :  2438                e.g. [1] "---"; [2] "Platelet-activating factor acetylhydrolase deficiency"; [3] "{Asthma, susceptibility to}"
+# ClinVar MIM :  2932                             e.g. "---"    "601690" "605238"
 # EBI PUBMEDID :  3266                            e.g. 
-# EBI DISEASE/TRAIT :  2574                       e.g. 
-# EBI MAPPED GENE(S) :  11274                     e.g. 
+# EBI DISEASE/TRAIT :  2574                       e.g. "Psoriasis // Psoriasis"
+# EBI MAPPED GENE(S) :  11274                     e.g. "LOC105373896 - EPHA4" "PLA2G7 // PLA2G7"  "LOC105379121 - TSLP // LOC105379121 - TSLP // LOC105379121 - TSLP" "SCGB1A1, LOC102723765"   
 # EBI SNPS :  17087                               e.g. 
 # EBI SNP_ID_CURRENT :  17026                     e.g. 
-# EBI MAPPED_TRAIT :  2376                        e.g. 
+# EBI MAPPED_TRAIT :  2376                        e.g. "pulmonary function measurement, forced expiratory volume, asthma // body height // prostate carcinoma // body height // body height"
 # EBI MAPPED_TRAIT_URI :  2376                    e.g. 
 ## TO BE CONTINUED
 
@@ -159,14 +163,16 @@ asthmarows = apply(annot, 1, function(x) any(grepl("asthma",paste(x,collapse="")
 sum(asthmarows)
 time_output(start1)
 
-annot_asthma = annot[asthmarows,]
-save(annot_asthma, file=paste0(meta_colasthma_dir,".Rdata"))
+annot_asthma_id = annot$probe[asthmarows] #save indices
+save(annot_asthma_id, file=paste0(meta_col_dir,"_id_asthma.Rdata"))
 
 
 
 
 
 ## save meta_file ----------------------------------
+
+
 wells = gsub(".CEL","",sapply(str_split(colnames(gt1_calls),"_"), function(x) x[length(x)]))
 
 meta_file = cbind(meta_file_temp[, !colnames(meta_file_temp)%in%c("Inferred Gender","Random order", "Number", 
@@ -198,9 +204,23 @@ meta_file0 = as.data.frame(meta_file)
 roworder = match(wells,meta_file0$well)
 meta_file1 = meta_file0[roworder[!is.na(roworder)],]
 
+meta_file_extra$NAME[grepl("WRF",meta_file_extra$NAME)] = "WRF"
+meta_file_extra1 = meta_file_extra[!duplicated(meta_file_extra$NAME),]
+
+meta_file2 = cbind(meta_file1, meta_file_extra1[match(meta_file1$sample, meta_file_extra1$NAME),c(10:12,15)])
+colnames(meta_file2)[9:12] = c("weight","height","age","allergen")
+meta_file2[meta_file2=="" | meta_file2=="NA"] = NA
+meta_file2$bmi = meta_file2$weight/(meta_file2$height^2)
+
+goodpplcols = unique(match(meta_file_extra$NAME, meta_file2$sample))
+goodpplcols = sort(goodpplcols[!is.na(goodpplcols)])
+goodpplcols_ind = as.character(meta_file2$well[goodpplcols])
+save(goodpplcols_ind, file=paste0(meta_file_dir,"_id_goodppl.Rdata"))
+
+
 # save
-save(meta_file1, file=paste0(meta_file_dir,".Rdata"))
-write.csv(meta_file1, file=paste0(meta_file_dir,".csv"))
+save(meta_file2, file=paste0(meta_file_dir,".Rdata"))
+write.csv(meta_file2, file=paste0(meta_file_dir,".csv"))
 
 
 
@@ -217,12 +237,15 @@ write.csv(meta_file1, file=paste0(meta_file_dir,".csv"))
 
 ## save matrix ---------------------------------------
 colnames(gt1_calls) = wells
-gt1_calls1 = gt1_calls[,!wells%in%setdiff(wells,meta_file$well)]
+gt1_calls1 = gt1_calls[,!wells%in%setdiff(wells,meta_file[,"well"])]
 gt1_calls1[gt1_calls1==-1] = NA
 save(gt1_calls1, file=paste0(feat_genotype_dir,".Rdata"))
 
-gt1_calls_asthma = gt1_calls1[asthmarows,]
-save(gt1_calls_asthma, file=paste0(feat_genotypeasthma_dir,".Rdata"))
+# gt1_calls_asthma = gt1_calls1[asthmarows,]
+# save(gt1_calls_asthma, file=paste0(feat_genotypeasthma_dir,".Rdata"))
+# 
+# gt1_calls_goodppl = gt1_calls1[,goodpplcols]
+# save(gt1_calls_goodppl, file=paste0(feat_genotypegoodppl_dir,".Rdata"))
 
 
 

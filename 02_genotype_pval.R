@@ -2,7 +2,6 @@
 ## output: p vaue features testing significance of ER DR correlation
 ## aya43@sfu.ca
 ## created 20180524
-## last modified 20180524
 
 
 
@@ -13,71 +12,204 @@ setwd(root)
 result_dir = paste0(root, "/result/genotype")
 
 
-asthma = "asthma" # "asthma" if only test asthma related SNP; else ""
-
 
 ## input directory
 meta_dir = paste0(result_dir,"/meta")
 meta_file_dir = paste0(meta_dir,"/file")
-meta_col_dir = paste0(meta_dir,"/col",asthma)
+meta_col_dir = paste0(meta_dir,"/col")#,asthma)
 
 feat_dir = paste0(result_dir,"/feat")
-feat_genotype_dir = paste0(feat_dir,"/snp-file-genotype",asthma)
 
 
 ## output directory
-
-
+stat_dir = paste0(result_dir,"/stat"); dir.create(stat_dir,showWarnings=F)
+gwas_dir = paste0(result_dir,"/gwas"); dir.create(gwas_dir,showWarnings=F)
 
 ## libraries
 # source("https://bioconductor.org/biocLite.R")
 # biocLite(c("affy","derfinder"))
-library(data.table)
-library(MatrixEQTL)
-library(entropy)
-library(foreach)
-library(doMC)
-library(stringr)
-library(Matrix)
-source(paste0(root,"/codes/_func.R"))
+source("code/_func.R")
+libr("data.table")
+libr("MatrixEQTL")
+libr("entropy")
+libr("foreach")
+libr("doMC")
+libr("stringr")
+libr("Matrix")
 
 
 
 ## options
-no_cores = 15#detectCores()-3
+options(stringsAsFactors=F)
+
+no_cores = 5#detectCores()-3
 registerDoMC(no_cores)
 
+overwrite = F
 writecsv = T #write results as csv on top of Rdata?
+
+pthres = .025
+padjust = p.adjust.methods
+
+tests = c("chi2")
+
+good_col = 3 #each SNP must have <good_col NA or -1; else delete from analysis
+
 id_col = "well"
 class_col = "response"
+control = "ER"
 categorical = T # is class column categorical?
-confound_col = c("sex","centre","batch","race") #"centre"
+interested_cols = c("age","bmi","sex","centre","batch","race","response") 
+interested_cont_cols = ""
+
+cid_col = "probe"
+
+#plot size
+width = 1000
+height = 500
+
+
+
+## features and indices
+feat_types = list.files(feat_dir,full.names=F,pattern=".Rdata")
+feat_types = gsub(".Rdata","",feat_types)
+
+col_inds_paths = list.files(meta_dir,pattern="col_id_",full.names=T)
+col_inds_names = sapply(str_split(gsub(".Rdata","",col_inds_paths),"_"), function(x) x[length(x)])
+col_inds = lapply(col_inds_paths, function(x) get(load(x)))
+names(col_inds) = col_inds_names
+col_inds = append(list(all=""), col_inds)
+
+file_inds_paths = list.files(meta_dir,pattern="file_id_",full.names=T)
+file_inds_names = sapply(str_split(gsub(".Rdata","",file_inds_paths),"_"), function(x) x[length(x)])
+file_inds = lapply(file_inds_paths, function(x) get(load(x)))
+names(file_inds) = file_inds_names
+file_inds = append(list(all=""), file_inds)
+
 
 
 
 start = Sys.time()
 
 
+meta_file0 = get(load(paste0(meta_file_dir,".Rdata")))
+meta_col0 = as.data.frame(get(load(paste0(meta_col_dir,".Rdata"))))
+
+for (feat_type in feat_types) {
+  m0 = get(load(paste0(feat_dir,"/",feat_type,".Rdata")))
+  if (sum(colnames(m0)%in%meta_file0[,id_col])==ncol(m0)) m0 = t(m0)
+  
+  for (file_ind_n in names(file_inds)) {
+    file_ind = file_inds[[file_ind_n]]
+    if (file_ind_n=="all") file_ind = rep(T,nrow(m0))
+    # file_ind_n = paste0("-",file_ind_n)
+    
+    for (col_ind_n in names(col_inds)) {
+      col_ind = col_inds[[col_ind_n]]
+      if (col_ind_n=="all") col_ind = rep(T,ncol(m0))
+      # col_ind_n = paste0(".",col_ind_n)
+      
+      m = m0[file_ind,col_ind]
+
+      meta_file = meta_file0[match(rownames(m),meta_file0[,id_col]),]
+      # meta_col = meta_col0[match(colnames(m),meta_col0[,cid_col]),]
+      
+      class = as.numeric(factor(meta_file[,class_col]))
+      # class = meta_file[,class_col]
+      
+      # for (i in 1:ncol(m)) {
+      #   x = m[,i]
+      #   ind = !is.na(x)
+      #   a = chisq.test(class[ind],as.numeric(x)[ind])$p.value
+      #   cat(i," ")
+      # }
+      
+      for (test in tests) {
+        pname = paste0(gwas_dir,"/",feat_type,"-",file_ind_n,"X",col_ind_n,"_test-",test)
+        
+        ## p value calculation
+        if (!overwrite & file.exists(pname)) next()
+        
+        cpname = paste0(gsub(paste0("X",col_ind_n),"Xall",pname),".Rdata")
+        if (col_ind_n!="all" & file.exists(cpname)) {
+          pvalt_temp = get(load(cpname))
+          pvalt = pvalt_temp[[grep("_none$",names(pvalt_temp))]]
+        } else {
+          
+          loop_ind = loop_ind_f(1:ncol(m),no_cores)
+          if (test=="chi2") {
+            pvalt0 = foreach(ii = loop_ind) %dopar% { 
+              pvalii = apply(m[,ii],2,function(x) {
+                ind = !is.na(x)
+                return(ifelse(length(unique(x[ind]))==1, 1, chisq.test(class[ind],x[ind])$p.value)) 
+              })
+              return(pvalii)
+            }
+            pvalt = unlist(pvalt0)
+          }
+          pvalt = unlist(pvalt)
+          names(pvalt) = colnames(m)
+        }
+        
+        
+        # pval1$chi2 = apply(m,2,function(x) { 
+        #   ind = !is.na(x)
+        #   return(ifelse(length(unique(x[ind]))==1, 1, chisq.test(class[ind],x[ind])$p.value)) 
+        # })
+        
+        # pval1$mi = apply(m,2,function(x) {
+        #   ind = !is.na(x)
+        #   return(ifelse(length(unique(x[ind]))==1, 1, mcnemar.test(factor(class[ind]),factor(x[ind]))))
+        # })
+        
+        ## p value adjust
+        pval = foreach(padj = padjust) %dopar% {
+          # pval[[paste0(pvaln,"_",padj)]] = p.adjust(pvalt,method=padj)
+          return(p.adjust(pvalt,method=padj))
+        }
+        names(pval) = paste0(test,"_",padjust)
+        
+        save(pval,file=paste0(pname,".Rdata"))
+      } #test
+    } #col_ind
+  } #row_ind
+} #feat_type
 
 
 
+## plot
 
+pval_paths = gsub(".Rdata","",list.files(gwas_dir, pattern=".Rdata", full.names=T))
 
-meta_file = get(load(paste0(meta_file_dir,".Rdata")))
-meta_col = as.data.frame(get(load(paste0(meta_col_dir,".Rdata"))))
-m = get(load(paste0(feat_genotype_dir,".Rdata")))
-
-df = data.frame(class=meta_file[,id_col])
-loop_ind = loop_ind_f(1:nrow(m),no_cores)
-result = foreach (i=loop_ind) {
-  df$val
+for (pval_path in pval_paths) {
+  
+  pval = get(load(paste0(pval_path,".Rdata")))
+  meta_col = meta_col0[match(names(pval[[1]]),meta_col0[,cid_col]),]
+  
+  
+  prow = length(pval)
+  pcol = 1#length(pval)/prow
+  png(paste0(pval_path,".png"), width=pcol*width, height=prow*height)
+  par(mfrow=c(prow,pcol))
+  
+  for (pvaln in sort(names(pval))) {
+    try({
+      pvalt = unlist(pval[[pvaln]])
+      val_max1t = 1e-4
+      if (sum(pvalt>val_max1t)>5) val_max1t = 5e-6
+      manhattan_plot(val=-log(pvalt), pos=meta_col$pos_phys, chrom=meta_col$chromosome, 
+                     val_thres=-log(pthres), val_max2=-log(1e-4), val_max1=-log(val_max1t),
+                     main=paste0(pvaln," sig=", sum(pvalt < pthres)))
+    })
+  }
+  # require(gridExtra)
+  # grid.arrange(plots,ncol=pcol,nrow=prow)
+  # plotsa = marrangeGrob(grob=plots,ncol=pcol,nrow=prow)
+  # ggexport(plotsa, filename = paste0(gwas_dir,"/snp-file-genotype_norm-NA.png"))
+  # ggsave(file=paste0(gwas_dir,"/snp-file-genotype_norm-NA.png"), plotsa)
+  graphics.off()
+  
 }
-
-
-
-
-
-
 
 
 

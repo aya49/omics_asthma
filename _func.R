@@ -58,7 +58,272 @@ col_probe = function(m,n=15) {
 ## input: file path and a file extension 
 ## output: List of all file names in given path with the given extension
 fileNames = function(pathList, ext="fcs") {
-    temp.str = sapply(str_split(pathList, "/"), function(x) x[length(x)])
-    pathList = sub(paste0(".", ext,"$"), "", temp.str, ignore.case=T)
+  temp.str = sapply(str_split(pathList, "/"), function(x) x[length(x)])
+  pathList = sub(paste0(".", ext,"$"), "", temp.str, ignore.case=T)
   return(pathList)
 }
+
+
+
+
+## input: x=vector of indices; n=cores or number of parts you want to split x into
+## ouput: list of n indices vector
+loopInd <- function(x,n) {
+  if (n==1) return(list(x))
+  return(split(x, ceiling(seq_along(x)/ceiling(length(x)/n))))
+}
+
+
+
+## input: list of package names to load
+## output: none; load/install package
+libr <- function(pkgs) {
+  for (p in pkgs) {
+    if (!is.element(p, installed.packages()[,1])) {
+      source("http://bioconductor.org/biocLite.R")
+      biocLite(p, ask=F)
+    }
+    require(p, character.only = TRUE)
+  }
+}
+
+
+
+## input:
+# chrom: chromosome
+# pos: SNP position
+# val: association p-value
+# val_max1: where "genomewide significance" threshold should be drawn
+# val_max2: a sub-genomewide-sig "grey zone" where SNPs are shown with a larger point size
+# draw_line: draw thresholds? T/F
+# val_min: p-vlaues less than val_min are forced equal to val_min
+
+## output: none; manhattan plot
+## adapted from http://bioinfo-mite.crb.wsu.edu/Rcode/wgplot.R
+
+manhattan_plot = function(val, chrom, pos, val_thres=-log(.025), val_max2=-log(1e-4), val_max1=-log(5e-8), draw_line=T, val_min=0, 
+                          xlab="chromosome/position", ylab=paste0("-ln(p value) (thres=",round(val_thres,3),")"), main="gwas", guideline_interval=1) {
+  ## prep input
+  val = as.numeric(val)
+  val[val<val_min] = val_min
+  val[val>val_max1] = val_max1
+  pos = as.numeric(pos)
+  chrom = as.character(chrom)
+  
+  ord = order(as.numeric(chrom),pos)
+  
+  
+  val = val[ord]
+  pos = pos[ord]
+  chrom = chrom[ord]
+  
+  chroml = chrom
+  chroml[chroml=="23"]="X"
+  chroml[chroml=="24"]="Y"
+  chroml[chroml=="25"]="XY"
+  chroml[chroml=="26"]="MT" 
+  
+  chrom[chrom=="X"]="23"
+  chrom[chrom=="Y"]="24"
+  chrom[chrom=="XY"]="25"
+  chrom[chrom=="MT"]="26"
+  
+  chrom_unique = as.character(sort(as.numeric(unique(chrom))))
+  
+  chrom_un = length(chrom_unique)
+  chrom_table = table(as.numeric(chrom))
+  chrom_cumsum = cumsum(chrom_table)
+  
+  ## get colours
+  require(colorspace)
+  colour = rainbow_hcl(chrom_un)
+  # colour = rainbow_hcl(25)
+  # colour = rep(colour, ceiling(chrom_un/length(colour)))
+  
+  # p = -log(p,10)
+  
+  ## make positions cumulatve
+  if ( any(diff(pos)<0) ) {
+    pos_cum = cumsum(c(0,pos[which(!duplicated(chrom))-1]))
+    pos = pos + rep(pos_cum, chrom_table)
+    mids = pos_cum + diff(c(pos_cum,max(pos)))/2
+  }
+  
+  guidelines = seq(val_min, val_max1, guideline_interval)
+  
+  
+  
+  # ## plot
+  # require(ggplot2)
+  # inds = val>val_thres
+  # df = data.frame(val=val, pos=pos, chrom=chrom, sig=inds)
+  # g = ggplot(df, aes(x=pos, y=val)) +
+  #   geom_point(aes(colour=chrom)) + #, shape=factor(inds))) + #scatterplot
+  #   # geom_point(data=df[inds,], aes(x=pos, y=val), inherit.aes=F)
+  #   coord_cartesian(ylim=c(0,9)) + #zoom in # + ylim(c(0,9)) #delete points
+  #   geom_hline(yintercept=val_max, linetype="dashed", color = "red") +
+  #   labs(title=main, subtitle="manhattan plot", y=ylab, x=xlab)
+  # # plot(g)
+  # return(g)
+  
+  
+  
+  ## plot
+  par(xaxt = "n", yaxt = "n")
+  plot(c(max(pos),min(pos)), c(val_min,val_max1), type="n", xlab=xlab, ylab=ylab,
+       axes=F, main=main, cex.lab=1.5)
+
+  for (i in 1:chrom_un) {
+    end = chrom_cumsum[i]
+    start = chrom_cumsum[i] - chrom_table[i] + 1
+
+    x = pos[start:end]
+    y = val[start:end]
+
+    inds = y>val_thres
+    # inds1 = y>val_max1
+    # inds2 = y>val_max2 & y<val_max1
+
+    points(x, y, col=colour[i], pch=16, cex=1)
+    points(x[inds], y[inds], col=colour[i], cex=2)
+    # points(x[inds2], y[inds2], col=colour[i], pch="x", cex=0.5)
+    # points(x[inds1], y[inds1], col=colour[i], pch=20)
+  }
+
+  par(xaxt="s", yaxt="s")
+  axis(side=1, at=c(0, pos[round(chrom_cumsum)], max(pos)), F)
+  text(mids, par("usr")[3] - .5, srt=0, pos=2, cex=1.1, offset=-0.2,
+       labels=chrom_unique[1:chrom_un], xpd=T)
+  axis(side=2, at=guidelines)
+
+  for (i in guidelines) abline(h=i, col="grey", lty="dotted")
+
+  if (draw_line) {
+    abline(h=(val_max2), col="black", lty="dotted")
+    abline(h=(val_thres), col="red", lty="dotted")
+  }
+}
+
+
+
+#From http://bioinfo-mite.crb.wsu.edu/Rcode/wgplot.R
+#See also https://stat.ethz.ch/pipermail/r-help/2008-November/180812.html
+###############################################################################
+###
+### Whole Genome Significance plot 
+### Matt Settles
+### Bioinformatics Core
+### Washington State University, Pullman, WA
+### 
+### Created July 7, 2008
+###
+### July 8, 2008 - fixed color goof
+###############################################################################
+##############
+### things to add
+### marker name on plot for significant markers
+##############
+
+### THERE ARE ERRORS IN GAPS MHTPLOT, SO THIS IS A FIX
+## data 	a data frame with three columns representing chromosome, position and p values logged or unlogged
+## logscale a flag to indicate if p value are to be log-transformed, FALSE means already logtransformed
+## base 	the base of the logarithm, when logscale =TRUE
+## guidelines 	the cutt-offs where horizontal line(s) are drawn
+## color 	the color for different chromosome(s), and random if unspecified
+## chrom_unique 	chrom_unique for the x-axis, length = number of chromosomes
+## xlab   label to be placed on the X axis
+## ylab   lable to be placed on the Y axis
+## ... 	other options in compatible with the R plot function
+
+## USAGE
+# source("http://bioinfo-mite.crb.wsu.edu/Rcode/wgplot.R")
+## fake example with Affy500k data
+# affy =c(40220, 41400, 33801, 32334, 32056, 31470, 25835, 27457, 22864, 28501, 26273, 
+#          24954, 19188, 15721, 14356, 15309, 11281, 14881, 6399, 12400, 7125, 6207)
+# chrom_cumsum = cumsum(affy)
+# n.markers = sum(affy)
+# chrom_un = length(affy)
+# test = data.frame(chr=rep(1:chrom_un,affy),pos=1:n.markers,p=runif(n.markers))
+# png("wgplot.png",units="in",width=8,height=5,res=300)
+# par(las="2",cex=0.6,pch=21,bg="white")
+# wgplot(test,guidelines = c(1,3, 5, 7, 9),color=palette()[2:5],chrom_unique=as.character(1:22))
+# title("Whole Genome Associaton Plot of Significance for Chromosomes 1 to 22")
+# dev.off()
+##
+# "wgplot" = function (
+#   data, 
+#   logscale = TRUE, 
+#   base = 10, 
+#   guidelines = c(3, 5, 7, 9),
+#   siglines = NULL,
+#   sigcolors = "red", 
+#   color = sample(colors(), 26),
+#   chrom = as.character(c(1:22,"X","Y","XY","MT")),
+#   startbp = NULL,
+#   endbp = NULL,
+#   chrom_unique = as.character(c(1:22,"X","Y","XY","MT")),
+#   xlab = "Chromosome",
+#   ylab = "-Log10(p-value)", ...) {
+#   if (any(is.na(data)))
+#     data = data[-unique(which(is.na(data))%%nrow(data)),]
+#   keep = which(data[,1] %in% chrom)
+#   data = data[keep,]
+#   if (!is.null(startbp) & !is.null(endbp) & length(chrom) == 1){
+#     keep = which(data[,2] >= startbp & data[,2] <= endbp) 
+#     data = data[keep,]       
+#   }
+#   
+#   
+#   chr  = data[, 1]
+#   pos  = data[, 2]
+#   p    = data[, 3]
+#   
+#   ### remove any NAs
+#   which(is.na(data[,2]))
+#   chr  = replace(chr,which(chr == "X"),"100")
+#   chr  = replace(chr,which(chr == "Y"),"101")
+#   chr  = replace(chr,which(chr == "XY"),"102")
+#   chr  = replace(chr,which(chr == "MT"),"103")	
+#   
+#   ord  = order(as.numeric(chr),as.numeric(pos))
+#   chr  = chr[ord]
+#   pos  = pos[ord]
+#   p    = p[ord]
+#   
+#   chrom_table = as.vector(table(as.numeric(chr)))
+#   chrom_cumsum = cumsum(chrom_table)
+#   n.markers = sum(chrom_table)
+#   chrom_un = length(chrom_table)
+#   id = 1:chrom_un
+#   color = rep(color,ceiling(chrom_un/length(color)))
+#   if (logscale)
+#     p = -log(p,base)        
+#   if ( any(diff(pos) < 0) ) {
+#     pos_cum =  cumsum(c(0,pos[which(!duplicated(chr))-1]))
+#     pos = pos + rep(pos_cum,chrom_table)
+#     
+#     mids = pos_cum + diff(c(pos_cum,max(pos)))/2
+#   }
+#   
+#   par(xaxt = "n", yaxt = "n")
+#   plot(c(pos,pos[1]), c(9,p), type = "n", xlab = xlab, ylab = ylab, axes = FALSE,  ...)
+#   for (i in 1:chrom_un) {
+#     u = chrom_cumsum[i]
+#     l = chrom_cumsum[i] - chrom_table[i] + 1
+#     cat("Plotting points ", l, "-", u, "\n")
+#     points(pos[l:u], p[l:u], col = color[i], ...)
+#   }
+#   par(xaxt = "s", yaxt = "s")
+#   axis(1, at = c(0, pos[round(chrom_cumsum)],max(pos)),FALSE)
+#   text(mids, par("usr")[3] - 0.5, srt = 0, pos=2,cex=0.5,offset= -0.2,
+#        chrom_unique = chrom_unique[1:chrom_un], xpd = TRUE)
+#   #axis(side=1, at =  pos[round(chrom_cumsum-chrom_table/2)],tick=FALSE, chrom_unique= chrom_unique[1:chrom_un])
+#   #abline(h = guidelines)
+#   axis(side=2, at = guidelines )
+#   if (!is.null(siglines))
+#     abline(h = -log(siglines,base),col=sigcolors)
+#   
+#   #mtext(eval(expression(guidelines)), 2, at = guidelines)
+#   
+# }
+

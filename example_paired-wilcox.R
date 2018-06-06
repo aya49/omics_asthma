@@ -12,7 +12,7 @@ my_data <- data.frame(
                 weight = c(before,  after)
                 )
 
-library("dplyr")
+libr("dplyr")
 group_by(my_data, group) %>%
   summarise(
     count = n(),
@@ -22,7 +22,7 @@ group_by(my_data, group) %>%
 
 # devtools::install_github("kassambara/ggpubr")
 
-library("ggpubr")
+libr("ggpubr")
 ggboxplot(my_data, x = "group", y = "weight", 
           color = "group", palette = c("#00AFBB", "#E7B800"),
           order = c("before", "after"),
@@ -35,7 +35,7 @@ before <- subset(my_data,  group == "before", weight,
 after <- subset(my_data,  group == "after", weight,
                 drop = TRUE)
 # Plot paired data
-library(PairedData)
+libr(PairedData)
 pd <- paired(before, after)
 plot(pd, type = "profile") + theme_bw()
 

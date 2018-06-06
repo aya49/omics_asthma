@@ -11,8 +11,7 @@ setwd(root)
 dir.create(paste0(root, "/result"), showWarnings=F)
 dir.create(paste0(root, "/result/RNAseq"), showWarnings=F)
 
-type = "isoforms" #"isoforms", "genes"
-
+type = "genes" #"isoforms", "genes"
 result_dir = paste0(root, "/result/RNAseq/",type); dir.create(result_dir, showWarnings=F)
 
 ## input directory
@@ -26,11 +25,10 @@ meta_col_tr_temp_dir = paste0(data_dir,"/HuGene-2_1-st-v1.na36.hg19.probeset.csv
 ## output directory
 meta_dir = paste0(result_dir,"/meta"); dir.create(meta_dir, showWarnings=F)
 meta_file_dir = paste0(meta_dir,"/file")
-meta_cell_dir = paste0(meta_dir,"/cell")
 meta_col_dir = paste0(meta_dir,"/col")
 
 feat_dir = paste0(result_dir,"/feat"); dir.create(feat_dir, showWarnings=F)
-feat_feature_dir = paste0(feat_dir,"/type-file-feature")
+feat_feature_dir = paste0(feat_dir,"/",type,"-file-feature")
 
 
 
@@ -60,13 +58,17 @@ if (type=="genes") {
   save(counts, file=paste0(gsub("feature","countraw",feat_feature_dir),".Rdata"))
   
 } else if (type=="isoforms")  {
+  start1 = Sys.time()
   # countsis0 = lapply(data_paths, function(x) read.table(pipe(paste0("cut -f5 ",x))))
   countsis0 = lapply(data_paths, function(x) fread(x, select=5))
-  countsis = Reduce("cbind",counts0)
+  countsis = Reduce("cbind",countsis0)
+  # countsis = foreach(x=data_paths, .combine=cbind) %dopar% { return(fread(x, select=5)) }
   
   # isopct0 = lapply(data_paths, function(x) read.table(pipe(paste0("cut -f8 ",x))))
   isopct0 = lapply(data_paths, function(x) fread(x, select=8))
-  isopct = Reduce("cbind",counts0)
+  isopct = Reduce("cbind",isopct0)
+  # isopct = foreach(x=data_paths, .combine=cbind) %dopar% { return(fread(x, select=8)) }
+  time_output(start1)
   
   # counts_rownames = read.table(pipe(paste0("cut -f1,2 ",data_paths[1])))
   counts_rownames = fread(data_paths[1], select = c(1,2), data.table=F)
@@ -89,7 +91,7 @@ time_output(start)
 
 
 
-## save meta_file ----------------------------------------
+## save meta_file; meta_col ----------------------------------------
 
 meta_file1_temp0 = fread(meta_file_temp1_dir, data.table=F)
 ucol = col_probe(meta_file1_temp0)
@@ -111,14 +113,14 @@ colnames(meta_file1_temp) = c("fileName", "sample", "response", "time", "allerge
                               "vol", "conc", "qty", "extracted")
 meta_file1_temp$fileName = gsub(".bam","",meta_file1_temp[,"fileName"])
 
-meta_cell = cbind(meta_file1_temp1[meta_file1_temp$fileName,c(31:ncol(meta_file1_temp1))])
+meta_col = cbind(meta_file1_temp1[meta_file1_temp$fileName,c(31:ncol(meta_file1_temp1))])
 
 meta_file = meta_file1_temp[match(data_filenames,meta_file1_temp$fileName),]
-meta_cell = meta_cell[match(data_filenames,meta_cell$fileName),]
+meta_col = meta_col[match(data_filenames,meta_col$fileName),]
 
 save(meta_file, file=paste0(meta_file_dir,".Rdata"))
 write.csv(meta_file, file=paste0(meta_file_dir,".csv"))
-save(meta_cell, file=paste0(meta_cell_dir,".Rdata"))
+save(meta_col, file=paste0(meta_col_dir,".Rdata"))
 
 
 
@@ -126,7 +128,6 @@ save(meta_cell, file=paste0(meta_cell_dir,".Rdata"))
 
 
 
-## save meta_col -------------------------------------------------
 
 
 

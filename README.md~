@@ -39,7 +39,7 @@
 
 #### input raw fastq > output sample x base/isoform/gene matrix of counts/abundence
 1. install packages required: **fastqc** > **star** > **rsem**
-  - one of the easiest ways to do this is via [python](https://docs.python.org/3/using/unix.html#getting-and-installing-the-latest-version-of-python) and then [conda](https://conda.io/docs/user-guide/install/index.html#installing-conda-on-a-system-that-has-other-python-installations-or-packages) after which you can create an environment to install your packages in. click on the links to see how to do this in your respective operating system. linux example below.
+  - one of the easiest ways to do this is via [python](https://docs.python.org/3/using/unix.html#getting-and-installing-the-latest-version-of-python) and then [conda](https://conda.io/docs/user-guide/install/index.html#installing-conda-on-a-system-that-has-other-python-installations-or-packages) after which you can create an environment to install your packages in. click on the links to see how to do this in your respective operating system. see below for an example in linux.
 
 ```bash
 
@@ -64,7 +64,7 @@ source activate myenv_py3
 ```
 
 
-2. given a folder of raw fastq files, run fastQC (optional if fastQC is already done), STAR (map transcripts to the organism's genome e.g. [GRC](https://www.ncbi.nlm.nih.gov/grc)), and RSEM (get abundence). to do so, first **write the raw fastq file paths into [config.yaml](./config.yaml)** (we write all the file names to keep a record, you can also specify a folder) and then run [Snakefile](./Snakefile) (adapted from the (Sakemake pipeline)[https://snakemake.readthedocs.io/en/stable/]). note: if there is more than one run of a sample (i.e. more than one fastq file per sample), put them together! linux example below.
+2. given a folder of raw fastq files, run fastQC (optional if fastQC is already done), STAR (map transcripts to the organism's genome e.g. [GRC](https://www.ncbi.nlm.nih.gov/grc)), and RSEM (get abundence). to do so, first **write the raw fastq file paths into [config.yaml](./config.yaml)** (we write all the file names to keep a record, you can also specify a folder) and then run [Snakefile](./Snakefile) (adapted from the (Sakemake pipeline)[https://snakemake.readthedocs.io/en/stable/]). see below for an example in linux. note: if there is more than one run of a sample (i.e. more than one fastq file per sample), put them together!
 
 ```bash
 #write raw fastq file paths into config.yaml
@@ -74,7 +74,7 @@ snakemake -p --cores 6 #actual run; change the number of cores as needed
 
 ```
 
-3. given the <sample>.<genes/isoforms>.results rsem output files for each fastq file, ([nice link](https://ycl6.gitbooks.io/rna-seq-data-analysis/quantification_using_rsem1.html)) consolidate them into a count matrix. linux example below.
+3. given the <sample>.<genes/isoforms>.results rsem output files for each fastq file, ([nice link](https://ycl6.gitbooks.io/rna-seq-data-analysis/quantification_using_rsem1.html)) consolidate them into a count matrix
 
 ```bash
 #run count1.sh
@@ -92,20 +92,8 @@ chmod u+x count1.sh
 
 
 #### imputation
-using **ricopili** to infer continuous probabilistic values for missing SNPs using reference HapMap data; original tutorial [here](https://sites.google.com/a/broadinstitute.org/ricopili/). there are other options such as splink2, whichever one is suitable.
-
-- install recopili into the  (replace *<version>* with latest file from the [downloads page](https://sites.google.com/a/broadinstitute.org/ricopili/download)). 
-
-```
-#download and install ricopili
-wget https://sites.google.com/a/broadinstitute.org/ricopili/download//rp_bin.<version>.tar.gz
-#wget https://sites.google.com/a/broadinstitute.org/ricopili/download//rp_bin.2018_May_28.001.tar.gz
-
-tar -xvzf rp_bin.<version>.tar.gz
-#tar -xvzf rp_bin.2018_May_28.001.tar.gz
-
-
-```
+using plink to infer continuous probabilistic values for missing SNPs using reference HapMap data; original tutorial [here](http://zzz.bwh.harvard.edu/plink/pimputation.shtml).
+- download [plink 6.1](https://www.cog-genomics.org/plink2) (linked 20180531) and unzip into the **plink** folder.
 
 - download [hapmap reference data](http://zzz.bwh.harvard.edu/plink/res.shtml) (linked 20180531) for whichever race / all races you prefer and unzip into the **hapmap** folder.
 - 

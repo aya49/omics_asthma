@@ -32,15 +32,15 @@ stat_dir = paste0(result_dir,"/stat"); dir.create(stat_dir, showWarnings=F)
 ## libraries
 # source("https://bioconductor.org/biocLite.R")
 # biocLite(c("affy","derfinder"))
-library(data.table)
-library(MatrixEQTL)
-library(RDRToolbox)
-library(entropy)
-library(foreach)
-library(doMC)
-library(stringr)
-library(Matrix)
-source(paste0(root,"/codes/_func.R"))
+libr(data.table)
+libr(MatrixEQTL)
+libr(RDRToolbox)
+libr(entropy)
+libr(foreach)
+libr(doMC)
+libr(stringr)
+libr(Matrix)
+source("code/_func.R")
 
 
 
@@ -55,7 +55,7 @@ good_col = 3 #each SNP must have <good_col NA or -1; else delete from analysis
 id_col = "well"
 class_col = "response"
 categorical = T # is class column categorical?
-interested_cols = c("sex","centre","batch","race","response") #"centre"
+interested_cols = c("age","bmi","sex","centre","batch","race","response") 
 interested_cont_cols = ""
 
 dofullPCA = F #do PCA for all cell popoulations not just first level
@@ -122,7 +122,7 @@ for (i in 1:pca_k) {
   for (col in interested_col_ind) {
     colname = colnames(meta_file)[col]
     coloursm = meta_file_factor[,col]
-    plot(pc$x[,i], pc$x[,i+1], col = coloursm, main = paste0("PCA ", colname), xlab = paste0("PC_",i), ylab = paste0("PC_",i+1))
+    plot(pc$x[,i+1], pc$x[,i], col = coloursm, main = paste0("PCA ", colname), xlab = paste0("PC_",i+1), ylab = paste0("PC_",i))
     points(0, 0, pch = 3, cex = 4, lwd = 4)
   }
   for (col in interested_col_ind) {

@@ -6,7 +6,7 @@
 # Be sure to use an up to date version of R and Matrix eQTL.
 
 # source("Matrix_eQTL_R/Matrix_eQTL_engine.r");
-library(MatrixEQTL)
+libr(MatrixEQTL)
 
 ## Location of the package with the data files.
 base.dir = find.package('MatrixEQTL');
