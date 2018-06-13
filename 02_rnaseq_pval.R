@@ -9,8 +9,8 @@
 root = "~/projects/asthma"
 setwd(root)
 
-result_dir = paste0(root, "/result/genotype")
-
+type = "genes" #"isoforms", "genes"
+result_dir = paste0(root, "/result/RNAseq/",type); dir.create(result_dir, showWarnings=F)
 
 
 ## input directory
@@ -30,7 +30,6 @@ gwas_dir = paste0(result_dir,"/gwas"); dir.create(gwas_dir,showWarnings=F)
 # biocLite(c("affy","derfinder"))
 source("code/_func.R")
 libr("data.table")
-libr("qqman")
 libr("MatrixEQTL")
 libr("entropy")
 libr("foreach")
@@ -58,6 +57,10 @@ good_col = 3 #each SNP must have <good_col NA or -1; else delete from analysis
 
 id_col = "fileName"
 class_col = "response"
+comparisons = list(c("time-pre","all","response"),
+                   c("time-post","all","response"),
+                   c("time-pre","all","response"),
+                   c("time-post","all","response")) #list of (row, col, class)
 control = "ER"
 categorical = T # is class column categorical?
 interested_cols = c("age","bmi","sex","centre","batch","race","response") 
@@ -99,6 +102,11 @@ meta_col0 = as.data.frame(get(load(paste0(meta_col_dir,".Rdata"))))
 for (feat_type in feat_types) {
   m0 = get(load(paste0(feat_dir,"/",feat_type,".Rdata")))
   if (sum(colnames(m0)%in%meta_file0[,id_col])==ncol(m0)) m0 = t(m0)
+  m0[,]
+  
+  for (comparison in comparisons) {
+    
+  }
   
   for (file_ind_n in names(file_inds)) {
     file_ind = file_inds[[file_ind_n]]

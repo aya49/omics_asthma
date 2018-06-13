@@ -35,7 +35,7 @@ meta_col_dir = paste0(meta_dir,"/col")
 # meta_colasthma_dir = paste0(meta_dir,"/colasthma")
 
 feat_dir = paste0(result_dir,"/feat"); dir.create(feat_dir, showWarnings=F)
-feat_genotype_dir = paste0(feat_dir,"/snp-file-genotype")
+feat_genotyperaw_dir = paste0(feat_dir,"_snp-file-genotyperaw")
 feat_genotypeasthma_dir = paste0(feat_dir,"/snp-file-genotypeasthma")
 feat_genotypegoodppl_dir = paste0(feat_dir,"/snp-file-genotypegoodppl")
 
@@ -59,6 +59,8 @@ no_cores = 15#detectCores()-3
 registerDoMC(no_cores)
 
 writecsv = T #write results as csv on top of Rdata?
+
+good_col = 3
 
 
 
@@ -197,11 +199,11 @@ meta_file = meta_file[, !colnames(meta_file)%in%c("Sample Type",
                                                   "Number",
                                                   "Random order") &
                         !grepl("[/]|Plate|Het|Rate|Concordance|Reproducibility|Filename",colnames(meta_file))]
-colnames(meta_file) = c("well","sex","centre","sample","response","kit","batch","race")
+colnames(meta_file) = c("fileName","sex","centre","sample","response","kit","batch","race")
 # meta_file = meta_file[,-c("kit")] #batch = 0 is a minikit; else it's a DNeasy
 
 meta_file0 = as.data.frame(meta_file)
-roworder = match(wells,meta_file0$well)
+roworder = match(wells,meta_file0[,"fileName"])
 meta_file1 = meta_file0[roworder[!is.na(roworder)],]
 
 meta_file_extra$NAME[grepl("WRF",meta_file_extra$NAME)] = "WRF"
@@ -214,7 +216,7 @@ meta_file2$bmi = meta_file2$weight/(meta_file2$height^2)
 
 goodpplcols = unique(match(meta_file_extra$NAME, meta_file2$sample))
 goodpplcols = sort(goodpplcols[!is.na(goodpplcols)])
-goodpplcols_ind = as.character(meta_file2$well[goodpplcols])
+goodpplcols_ind = as.character(meta_file2[goodpplcols,"fileName"])
 save(goodpplcols_ind, file=paste0(meta_file_dir,"_id_goodppl.Rdata"))
 
 
@@ -237,9 +239,9 @@ write.csv(meta_file2, file=paste0(meta_file_dir,".csv"))
 
 ## save matrix ---------------------------------------
 colnames(gt1_calls) = wells
-gt1_calls1 = gt1_calls[,!wells%in%setdiff(wells,meta_file[,"well"])]
+gt1_calls1 = gt1_calls[,!wells%in%setdiff(wells,meta_file[,"fileName"])]
 gt1_calls1[gt1_calls1==-1] = NA
-save(gt1_calls1, file=paste0(feat_genotype_dir,".Rdata"))
+save(gt1_calls1, file=paste0(feat_genotyperaw_dir,".Rdata"))
 
 # gt1_calls_asthma = gt1_calls1[asthmarows,]
 # save(gt1_calls_asthma, file=paste0(feat_genotypeasthma_dir,".Rdata"))

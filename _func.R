@@ -102,7 +102,8 @@ libr <- function(pkgs) {
 ## adapted from http://bioinfo-mite.crb.wsu.edu/Rcode/wgplot.R
 
 manhattan_plot = function(val, chrom, pos, val_thres=-log(.025), val_max2=-log(1e-4), val_max1=-log(5e-8), draw_line=T, val_min=0, 
-                          xlab="chromosome/position", ylab=paste0("-ln(p value) (thres=",round(val_thres,3),")"), main="gwas", guideline_interval=1) {
+                          xlab="chromosome/position", ylab=paste0("-ln(p value) (thres=",round(val_thres,3),")"), 
+                          main="gwas", guideline_interval=1, lines=NULL) {
   ## prep input
   val = as.numeric(val)
   val[val<val_min] = val_min
@@ -110,12 +111,6 @@ manhattan_plot = function(val, chrom, pos, val_thres=-log(.025), val_max2=-log(1
   pos = as.numeric(pos)
   chrom = as.character(chrom)
   
-  ord = order(as.numeric(chrom),pos)
-  
-  
-  val = val[ord]
-  pos = pos[ord]
-  chrom = chrom[ord]
   
   chroml = chrom
   chroml[chroml=="23"]="X"
@@ -127,6 +122,12 @@ manhattan_plot = function(val, chrom, pos, val_thres=-log(.025), val_max2=-log(1
   chrom[chrom=="Y"]="24"
   chrom[chrom=="XY"]="25"
   chrom[chrom=="MT"]="26"
+  
+  ord = order(as.numeric(chrom),pos)
+  
+  val = val[ord]
+  pos = pos[ord]
+  chrom = chrom[ord]
   
   chrom_unique = as.character(sort(as.numeric(unique(chrom))))
   
@@ -198,9 +199,16 @@ manhattan_plot = function(val, chrom, pos, val_thres=-log(.025), val_max2=-log(1
 
   for (i in guidelines) abline(h=i, col="grey", lty="dotted")
 
+  
   if (draw_line) {
     abline(h=(val_max2), col="black", lty="dotted")
     abline(h=(val_thres), col="red", lty="dotted")
+    
+    if (!is.null(lines)) {
+      for (lin in lines) {
+        abline(h=lin, col="blue", lty="dotted")
+      }
+    }
   }
 }
 

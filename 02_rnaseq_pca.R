@@ -10,7 +10,8 @@
 root = "~/projects/asthma"
 setwd(root)
 
-result_dir = paste0(root, "/result/genotype")
+type = "genes" #"isoforms", "genes"
+result_dir = paste0(root, "/result/RNAseq/",type); dir.create(result_dir, showWarnings=F)
 
 
 # asthma = "asthma" # "asthma" if only test asthma related SNP; else ""
@@ -55,7 +56,7 @@ good_col = 3 #each SNP must have <good_col NA or -1; else delete from analysis
 id_col = "fileName"
 class_col = "response"
 categorical = T # is class column categorical?
-interested_cols = c("age","bmi","sex","centre","batch","race","response") 
+interested_cols = c("age","bmi","sex","centre","batch","race","response","time") 
 interested_cont_cols = ""
 
 # cid_col = "probe"
@@ -110,8 +111,9 @@ meta_file0 = get(load(paste0(meta_file_dir,".Rdata")))
 # meta_col0 = as.data.frame(get(load(paste0(meta_col_dir,".Rdata"))))
 
 for (feat_type in feat_types) {
-  m0 = get(load(paste0(feat_dir,"/",feat_type,".Rdata")))
-  if (sum(colnames(m0)%in%meta_file0[,id_col])==ncol(m0)) m0 = t(m0)
+  m0 = as.matrix(get(load(paste0(feat_dir,"/",feat_type,".Rdata"))))
+  m0dn = dimnames(m0)
+  if (sum(colnames(m0)%in%meta_file0[,id_col])==ncol(m0)) m0 = t(m0) 
   
   for (file_ind_n in names(file_inds)) {
     file_ind = file_inds[[file_ind_n]]
@@ -200,6 +202,3 @@ for (feat_type in feat_types) {
 } #feat_type
 
 time_output(start)
-
-
-

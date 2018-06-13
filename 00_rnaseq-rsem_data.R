@@ -11,7 +11,7 @@ setwd(root)
 dir.create(paste0(root, "/result"), showWarnings=F)
 dir.create(paste0(root, "/result/RNAseq"), showWarnings=F)
 
-type = "genes" #"isoforms", "genes"
+type = "isoforms" #"isoforms", "genes"
 result_dir = paste0(root, "/result/RNAseq/",type); dir.create(result_dir, showWarnings=F)
 
 ## input directory
@@ -26,11 +26,13 @@ meta_col_tr_temp_dir = paste0(data_dir,"/HuGene-2_1-st-v1.na36.hg19.probeset.csv
 meta_dir = paste0(result_dir,"/meta"); dir.create(meta_dir, showWarnings=F)
 meta_file_dir = paste0(meta_dir,"/file")
 meta_col_dir = paste0(meta_dir,"/col")
+meta_cell_dir = paste0(meta_dir,"/cell")
 
 feat_dir = paste0(result_dir,"/feat"); dir.create(feat_dir, showWarnings=F)
-feat_feature_dir = paste0(feat_dir,"/",type,"-file-feature")
+feat_feature_dir = paste0(feat_dir,"_",type,"-file-feature")
 
 
+## options
 
 
 
@@ -113,14 +115,14 @@ colnames(meta_file1_temp) = c("fileName", "sample", "response", "time", "allerge
                               "vol", "conc", "qty", "extracted")
 meta_file1_temp$fileName = gsub(".bam","",meta_file1_temp[,"fileName"])
 
-meta_col = cbind(meta_file1_temp1[meta_file1_temp$fileName,c(31:ncol(meta_file1_temp1))])
+meta_cell = cbind(meta_file1_temp1[meta_file1_temp$fileName,c(31:ncol(meta_file1_temp1))])
 
 meta_file = meta_file1_temp[match(data_filenames,meta_file1_temp$fileName),]
-meta_col = meta_col[match(data_filenames,meta_col$fileName),]
+meta_cell = meta_cell[match(data_filenames,meta_cell$fileName),]
 
 save(meta_file, file=paste0(meta_file_dir,".Rdata"))
 write.csv(meta_file, file=paste0(meta_file_dir,".csv"))
-save(meta_col, file=paste0(meta_col_dir,".Rdata"))
+save(meta_cell, file=paste0(meta_cell_dir,".Rdata"))
 
 
 
