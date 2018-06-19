@@ -9,10 +9,9 @@ root = "~/projects/asthma"
 setwd(root)
 
 dir.create(paste0(root, "/result"), showWarnings=F)
-dir.create(paste0(root, "/result/RNAseq"), showWarnings=F)
 
-type = "isoforms" #"isoforms", "genes"
-result_dir = paste0(root, "/result/RNAseq/",type); dir.create(result_dir, showWarnings=F)
+type = "genes" #"isoforms", "genes"
+result_dir = paste0(root, "/result/RNAseq_",type); dir.create(result_dir, showWarnings=F)
 
 ## input directory
 data_dir = paste0(root,"/data/RNAseq")
@@ -29,7 +28,7 @@ meta_col_dir = paste0(meta_dir,"/col")
 meta_cell_dir = paste0(meta_dir,"/cell")
 
 feat_dir = paste0(result_dir,"/feat"); dir.create(feat_dir, showWarnings=F)
-feat_feature_dir = paste0(feat_dir,"_",type,"-file-feature")
+feat_feature_dir = paste0(feat_dir,"_",type,"-file-featraw")
 
 
 ## options
@@ -51,13 +50,13 @@ if (type=="genes") {
   
   # counts_rownames = read.table(pipe(paste0("cut -f1 ",data_paths[1])))[-1,c(2,1)]
   counts_rownames = fread(data_paths[1], select = c(1,2), data.table=F)
-  colnames(counts_rownames) = c("gene","transcript")
+  colnames(counts_rownames) = c("id","transcript") #g3n3=id
   save(counts_rownames, file=paste0(meta_col_dir,".Rdata"))
   
-  rownames(counts) = counts_rownames$gene
+  rownames(counts) = counts_rownames$id
   colnames(counts) = data_filenames
   
-  save(counts, file=paste0(gsub("feature","countraw",feat_feature_dir),".Rdata"))
+  save(counts, file=paste0(feat_feature_dir,".Rdata"))
   
 } else if (type=="isoforms")  {
   start1 = Sys.time()
@@ -74,14 +73,14 @@ if (type=="genes") {
   
   # counts_rownames = read.table(pipe(paste0("cut -f1,2 ",data_paths[1])))
   counts_rownames = fread(data_paths[1], select = c(1,2), data.table=F)
-  colnames(counts_rownames) = c("transcript","gene")
+  colnames(counts_rownames) = c("id","gene") #transcript=id
   save(counts_rownames, file=paste0(meta_col_dir,".Rdata"))
   
-  rownames(countsis) = rownames(isopct) = counts_rownames$transcript
+  rownames(countsis) = rownames(isopct) = counts_rownames$id
   colnames(countsis) = colnames(isopct) = data_filenames
   
-  save(counts, file=paste0(gsub("feature","countraw",feat_feature_dir),".Rdata"))
-  save(counts, file=paste0(gsub("feature","isopct",feat_feature_dir),".Rdata"))
+  save(countsis, file=paste0(feat_feature_dir,".Rdata"))
+  save(isopct, file=paste0(gsub("featraw","isopctraw",feat_feature_dir),".Rdata"))
 }
 
 time_output(start)

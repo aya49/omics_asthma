@@ -1,0 +1,15 @@
+citHeader("To cite the 'MatrixEQTL' package in publications use:")
+
+citEntry(entry="article",
+         title = "Matrix eQTL: ultra fast eQTL analysis via large matrix operations",
+         author = personList(as.person("A.A. Shabalin")),
+         address  = "University of North Carolina at Chapel Hill",
+         year     = "2012",
+         url      = "URL http://www.bios.unc.edu/research/genomic_software/Matrix_eQTL/",
+         publisher= "Oxford Univ Press",
+         journal  = "Bioinformatics",
+         volume   = "28",
+         number   = "10",
+         pages    = "1353--1358",
+         textVersion = "Shabalin, Andrey A. Matrix eQTL: ultra fast eQTL analysis via large matrix operations. Bioinformatics 28, no. 10 (2012): 1353-1358."
+)

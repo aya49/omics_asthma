@@ -57,8 +57,8 @@ tests = c("chi2")
 good_col = 3 #each SNP must have <good_col NA or -1; else delete from analysis
 
 id_col = "fileName"
-class_col = "response"
-control = "ER"
+class_cols = "response"
+controls = "ER"
 categorical = T # is class column categorical?
 interested_cols = c("age","bmi","sex","centre","batch","race","response") 
 interested_cont_cols = ""
@@ -93,93 +93,106 @@ file_inds = append(list(all=""), file_inds)
 start = Sys.time()
 
 
-meta_file0 = get(load(paste0(meta_file_dir,".Rdata")))
-meta_col0 = as.data.frame(get(load(paste0(meta_col_dir,".Rdata"))))
+meta_file00 = get(load(paste0(meta_file_dir,".Rdata")))
+meta_col00 = as.data.frame(get(load(paste0(meta_col_dir,".Rdata"))))
 
 for (feat_type in feat_types) {
   m0 = get(load(paste0(feat_dir,"/",feat_type,".Rdata")))
-  if (sum(colnames(m0)%in%meta_file0[,id_col])==ncol(m0)) m0 = t(m0)
+  if (sum(colnames(m0)%in%meta_file00[,id_col])==ncol(m0)) m0 = t(m0)
+  meta_file0 = meta_file00[match(rownames(m0),meta_file00[,id_col]),]
+  meta_col0 = meta_col00[match(colnames(m0),meta_col00[,cid_col]),]
   
-  for (file_ind_n in names(file_inds)) {
-    file_ind = file_inds[[file_ind_n]]
-    if (file_ind_n=="all") file_ind = rownames(m0)
-    # file_ind_n = paste0("-",file_ind_n)
+  for (class_coli in 1:length(class_cols)) {
+    class_col = class_cols[class_coli]
+    control = controls[class_coli]
     
-    for (col_ind_n in names(col_inds)) {
-      col_ind = col_inds[[col_ind_n]]
-      if (col_ind_n=="all") col_ind = colnames(m0)
-      # col_ind_n = paste0(".",col_ind_n)
+    for (file_ind_n in names(file_inds)) {
+      if (file_ind_n=="all") {
+        file_ind = meta_file0[,id_col]
+      } else {
+        file_ind = intersect(meta_file0[,id_col], file_inds[[file_ind_n]])
+      }
+      # file_ind_n = paste0("-",file_ind_n)
+      file_ind = file_ind[!is.na(meta_file0[match(file_ind,meta_file0[,id_col]),class_col])]
       
-      m = m0[file_ind[file_ind%in%rownames(m0)], col_ind[col_ind%in%colnames(m0)]]
-      
-      meta_file = meta_file0[match(rownames(m),meta_file0[,id_col]),]
-      # meta_col = meta_col0[match(colnames(m),meta_col0[,cid_col]),]
-      
-      class = as.numeric(factor(meta_file[,class_col]))
-      # class = meta_file[,class_col]
-      
-      # for (i in 1:ncol(m)) {
-      #   x = m[,i]
-      #   ind = !is.na(x)
-      #   a = chisq.test(class[ind],as.numeric(x)[ind])$p.value
-      #   cat(i," ")
-      # }
-      
-      for (test in tests) {
-        pname = paste0(gwas_dir,"/",feat_type,"-",file_ind_n,"X",col_ind_n,"_class-",class_col,"_test-",test)
-        
-        ## p value calculation
-        if (!overwrite & file.exists(paste0(pname,".Rdata"))) next()
-        
-        cpname = paste0(gsub(paste0("X",col_ind_n),"Xall",pname),".Rdata")
-        if (col_ind_n!="all" & file.exists(cpname)) {
-          pvalt_temp = get(load(cpname))
-          pvalt = pvalt_temp[[grep("_none$",names(pvalt_temp))]]
+      for (col_ind_n in names(col_inds)) {
+        if (col_ind_n=="all") {
+          col_ind = meta_col0[,cid_col]
         } else {
+          col_ind = intersect(meta_col0[,cid_col], col_inds[[col_ind_n]])
+        }
+        
+        m = m0[file_ind, col_ind]
+        m = m[,apply(m,2,function(x) min(table(x))>good_col & length(unique(x))>1)]
+        meta_file = meta_file0[match(rownames(m),meta_file0[,id_col]),]
+        # meta_col = meta_col0[match(colnames(m),meta_col0[,cid_col]),]
+        
+        class = as.numeric(factor(meta_file[,class_col]))
+        # class = meta_file[,class_col]
+        
+        # for (i in 1:ncol(m)) {
+        #   x = m[,i]
+        #   ind = !is.na(x)
+        #   a = chisq.test(class[ind],as.numeric(x)[ind])$p.value
+        #   cat(i," ")
+        # }
+        
+        for (test in tests) {
+          pname = paste0(gwas_dir,"/",feat_type,"-",file_ind_n,"X",col_ind_n,"_class-",class_col,"_test-",test)
           
-          loop_ind = loop_ind_f(1:ncol(m),no_cores)
-          if (test=="chi2") {
-            pvalt0 = foreach(ii = loop_ind) %dopar% { 
-              pvalii = apply(m[,ii],2,function(x) {
-                ind = !is.na(x)
-                return(ifelse(length(unique(x[ind]))==1, 1, chisq.test(class[ind],x[ind])$p.value)) 
-              })
-              for (xi in ii) {
-                x = m[,xi]
-                ind = !is.na(x)
-                a = ifelse(length(unique(x[ind]))==1, 1, chisq.test(class[ind],x[ind])$p.value)
+          ## p value calculation
+          if (!overwrite & file.exists(paste0(pname,".Rdata"))) next()
+          
+          cpname = paste0(gsub(paste0("X",col_ind_n),"Xall",pname),".Rdata")
+          if (col_ind_n!="all" & file.exists(cpname)) {
+            pvalt_temp = get(load(cpname))
+            pvalt = pvalt_temp[[grep("_none$",names(pvalt_temp))]]
+          } else {
+            
+            loop_ind = loop_ind_f(1:ncol(m),no_cores)
+            if (test=="chi2") {
+              pvalt0 = foreach(ii = loop_ind) %dopar% { 
+                pvalii = apply(m[,ii],2,function(x) {
+                  ind = !is.na(x)
+                  return(ifelse(length(unique(x[ind]))==1, 1, chisq.test(class[ind],x[ind])$p.value)) 
+                })
+                for (xi in ii) {
+                  x = m[,xi]
+                  ind = !is.na(x)
+                  a = ifelse(length(unique(x[ind]))==1, 1, chisq.test(class[ind],x[ind])$p.value)
+                }
+                
+                return(pvalii)
               }
-              
-              return(pvalii)
+              pvalt = unlist(pvalt0)
             }
-            pvalt = unlist(pvalt0)
+            pvalt = unlist(pvalt)
+            names(pvalt) = colnames(m)
           }
-          pvalt = unlist(pvalt)
-          names(pvalt) = colnames(m)
-        }
-        
-        
-        # pval1$chi2 = apply(m,2,function(x) { 
-        #   ind = !is.na(x)
-        #   return(ifelse(length(unique(x[ind]))==1, 1, chisq.test(class[ind],x[ind])$p.value)) 
-        # })
-        
-        # pval1$mi = apply(m,2,function(x) {
-        #   ind = !is.na(x)
-        #   return(ifelse(length(unique(x[ind]))==1, 1, mcnemar.test(factor(class[ind]),factor(x[ind]))))
-        # })
-        
-        ## p value adjust
-        pval = foreach(padj = padjust) %dopar% {
-          # pval[[paste0(pvaln,"_",padj)]] = p.adjust(pvalt,method=padj)
-          return(p.adjust(pvalt,method=padj))
-        }
-        names(pval) = paste0(test,"_",padjust)
-        
-        save(pval,file=paste0(pname,".Rdata"))
-      } #test
-    } #col_ind
-  } #row_ind
+          
+          
+          # pval1$chi2 = apply(m,2,function(x) { 
+          #   ind = !is.na(x)
+          #   return(ifelse(length(unique(x[ind]))==1, 1, chisq.test(class[ind],x[ind])$p.value)) 
+          # })
+          
+          # pval1$mi = apply(m,2,function(x) {
+          #   ind = !is.na(x)
+          #   return(ifelse(length(unique(x[ind]))==1, 1, mcnemar.test(factor(class[ind]),factor(x[ind]))))
+          # })
+          
+          ## p value adjust
+          pval = foreach(padj = padjust) %dopar% {
+            # pval[[paste0(pvaln,"_",padj)]] = p.adjust(pvalt,method=padj)
+            return(p.adjust(pvalt,method=padj))
+          }
+          names(pval) = paste0(test,"_",padjust)
+          
+          save(pval,file=paste0(pname,".Rdata"))
+        } #test
+      } #col_ind
+    } #row_ind
+  } #class_col
 } #feat_type
 
 

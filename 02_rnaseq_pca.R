@@ -10,8 +10,8 @@
 root = "~/projects/asthma"
 setwd(root)
 
-type = "genes" #"isoforms", "genes"
-result_dir = paste0(root, "/result/RNAseq/",type); dir.create(result_dir, showWarnings=F)
+type = "isoforms" #"isoforms", "genes"
+result_dir = paste0(root, "/result/RNAseq_",type); dir.create(result_dir, showWarnings=F)
 
 
 # asthma = "asthma" # "asthma" if only test asthma related SNP; else ""
@@ -84,7 +84,6 @@ doHC = F #do hierarchical clustering
 
 
 
-
 ## features and indices
 feat_types = list.files(feat_dir,full.names=F,pattern=".Rdata")
 feat_types = gsub(".Rdata","",feat_types)
@@ -112,8 +111,7 @@ meta_file0 = get(load(paste0(meta_file_dir,".Rdata")))
 
 for (feat_type in feat_types) {
   m0 = as.matrix(get(load(paste0(feat_dir,"/",feat_type,".Rdata"))))
-  m0dn = dimnames(m0)
-  if (sum(colnames(m0)%in%meta_file0[,id_col])==ncol(m0)) m0 = t(m0) 
+  if (sum(colnames(m0)%in%meta_file0[,id_col])==ncol(m0)) m0 = t(m0)
   
   for (file_ind_n in names(file_inds)) {
     file_ind = file_inds[[file_ind_n]]

@@ -11,9 +11,9 @@
 root = "~/projects/asthma"
 setwd(root)
 
-type = "genes" #"isoforms", "genes"
-feature = "count" #"count" or "isopct" for isoforms only
-result_dir = paste0(root, "/result/RNAseq/",type); dir.create(result_dir, showWarnings=F)
+type = "isoforms" #"isoforms", "genes"
+feature = "feat" #"count" or "isopct" for isoforms only
+result_dir = paste0(root, "/result/RNAseq_",type); dir.create(result_dir, showWarnings=F)
 
 ## input directory
 meta_dir = paste0(result_dir,"/meta"); dir.create(meta_dir, showWarnings=F)

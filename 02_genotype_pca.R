@@ -10,7 +10,7 @@
 root = "~/projects/asthma"
 setwd(root)
 
-result_dir = paste0(root, "/result/genotype")
+result_dir = paste0(root, "/result/genotype") #"genotype", "RNAseq_genes", "RNAseq_isoforms"
 
 
 # asthma = "asthma" # "asthma" if only test asthma related SNP; else ""
@@ -58,7 +58,7 @@ categorical = T # is class column categorical?
 interested_cols = c("age","bmi","sex","centre","batch","race","response") 
 interested_cont_cols = ""
 
-# cid_col = "probe"
+# cid_col = "id"
 
 dofullPCA = F #do PCA for all cell popoulations not just first level
 pca_k = 5 #number of pca pc to plot

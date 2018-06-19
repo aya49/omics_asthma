@@ -10,7 +10,7 @@ root = "~/projects/asthma"
 setwd(root)
 
 type = "genes" #"isoforms", "genes"
-result_dir = paste0(root, "/result/RNAseq/",type); dir.create(result_dir, showWarnings=F)
+result_dir = paste0(root, "/result/RNAseq_",type); dir.create(result_dir, showWarnings=F)
 
 
 ## input directory

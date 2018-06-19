@@ -45,17 +45,7 @@ m0 = get(load(paste0(feat_genotyperaw_dir,".Rdata")))
 if (sum(colnames(m0)%in%meta_file[,id_col])>=ncol(m0)) m0 = t(m0)
 
 good_col_na = good_col_nap * nrow(m0)
-col_ind = sapply(1:ncol(m0), function(xi) {
-  x = m0[,xi]
-  ind_x = !is.na(x)
-  if (sum(ind_x) >= good_col_na) {
-    x = x[ind_x]
-    a = min(table(x))>good_col & length(unique(x))>1
-  } else {
-    a = F
-  }
-  return(a)
-})
+col_ind = apply(m0, 2, function(x) sum(!is.na(x)) >= good_col_na)
 # for (xi in 1:ncol(m0)) {
 #   x = m0[,xi]
 #   ind_x = !is.na(x)

@@ -1,0 +1,27 @@
+importFrom(methods, setRefClass)
+exportPattern("^[[:alpha:]]+")
+exportClasses(
+    "SlicedData" 
+)
+S3method(plot, MatrixEQTL)
+S3method(summary, SlicedData)
+exportMethods(
+    "[[",
+    "[[<-",
+    "colnames",
+    "colnames<-",
+    "dim",
+    "length",
+    "ncol",
+    "NCOL",
+    "nrow",
+    "NROW",
+    "rownames",
+    "rownames<-",
+    "as.matrix",
+    "rowMeans",
+    "rowSums",
+    "colMeans",
+    "colSums"
+)
+

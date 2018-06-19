@@ -1,0 +1,10 @@
+a.nocvrt         Test that Matrix eQTL gives correct estimates for additive linear model. Homoscedastic case without covariates.
+b.cvrt           Test that Matrix eQTL gives correct estimates for additive linear model. Homoscedastic case with covariates.
+c.weights        Test that Matrix eQTL gives correct estimates for additive linear model. Heteroscedastic case with covariates.
+d.ANOVA          Test that Matrix eQTL gives correct estimates for ANOVA linear model with 3 groups. Heteroscedastic case with covariates.
+d.ANOVA5         Test that Matrix eQTL gives correct estimates for ANOVA linear model with 5 groups. Heteroscedastic case with covariates.
+e.interaction    Test that Matrix eQTL gives correct estimates for linear model with genotype-covariate interaction. Heteroscedastic case with covariates.
+p.hist           Sample code for plotting histogram of p-values
+q.qqplot         Sample code for plotting QQ-plot of p-values
+sample.all       Sample code for eQTL analysis of the toy data set.
+sample.cis       Sample code for eQTL analysis of the toy data set with separate p-value thresholds and FDR estimation for cis- and trans-eQTLs.

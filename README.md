@@ -94,6 +94,78 @@ chmod u+x count1.sh
 #### imputation
 using **ricopili** to infer continuous probabilistic values for missing SNPs using reference HapMap data; original tutorial [here](https://sites.google.com/a/broadinstitute.org/ricopili/). there are other options such as splink2, whichever one is suitable.
 
+ensure that you have already installed software and reference data listed [here](https://sites.google.com/a/broadinstitute.org/ricopili/installation/external-software#TOC-External-Software-Packages). In linux:
+
+```bash
+
+# Liftover
+
+    wget http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/liftOver
+
+# METAL
+
+    wget http://www.sph.umich.edu/csg/abecasis/Metal/download/Linux-metal.tar.gz
+    tar -xvzf Linux-metal.tar.gz
+
+
+# SHAPEIT
+
+    wget https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.17.linux.tar.gz
+    tar -xvzf shapeit.v2.r904.glibcv2.17.linux.tar.gz
+
+# IMPUTE2
+
+    wget https://mathgen.stats.ox.ac.uk/impute/impute_v2.3.2_x86_64_static.tgz
+    tar -xvzf impute_v2.3.2_x86_64_static.tgz
+
+
+# PLINK (v2.0)
+
+    wget http://s3.amazonaws.com/plink2-assets/alpha1/plink2_linux_avx2.zip
+    unzip plink2_linux_avx2.zip
+
+
+# EIGENSOFT
+
+    wget https://github.com/DReichLab/EIG/archive/v7.2.1.tar.gz
+    tar -xvzf v7.2.1.tar.gz
+    cd EIG5.0.2/
+    cd src/
+    # may need to edit the Makefile to specify where the correct site for LAPACK and BLAS are ***
+    # e.g. "LAPACK = -llapack" to "LAPACK = -L/com/extra/lapack/3.5.0/lib -llapack -lblas"
+    # where -L specifies the path to the LAPACK library.
+    # LAPACK can be downloaded and installed from here.
+    # Once LAPACK has been installed, run the following commands:
+    make clobber
+    make install
+
+
+# EAGLE
+
+    wget https://data.broadinstitute.org/alkesgroup/Eagle/downloads/Eagle_v2.3.2.tar.gz
+    tar -xvzf Eagle_v2.3.2.tar.gz
+
+```
+
+OR with miniconda
+
+```bash
+
+conda install -c bioconda ucsc-liftover 
+    wget http://www.sph.umich.edu/csg/abecasis/Metal/download/Linux-metal.tar.gz
+    tar -xvzf Linux-metal.tar.gz
+conda install -c bioconda shapeit
+conda install -c bioconda impute2
+conda install -c bioconda plink2
+conda install -c bioconda eigensoft
+conda install -c bioconda eagle 
+conda install -c soil eagle-phase 
+ 
+
+```
+
+
+
 - install recopili into the  (replace *<version>* with latest file from the [downloads page](https://sites.google.com/a/broadinstitute.org/ricopili/download)). 
 
 ```

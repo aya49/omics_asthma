@@ -1,0 +1,54 @@
+tissue_name	histology	SMTSD	histological_type_s	num_samples	num_samples_with_geno
+muscleskeletal	muscleskeletal	muscle	Muscle - Skeletal	Muscle	430	361
+wholeblood	wholeblood	blood	Whole Blood	Blood	393	338
+skinsunexposedlowerleg	skinsunexposedlowerleg	skin	Skin - Sun Exposed (Lower leg)	Skin	357	302
+adiposesubcutaneous	adiposesubcutaneous	adiposetissue	Adipose - Subcutaneous	Adipose Tissue	349	297
+arterytibial	arterytibial	bloodvessel	Artery - Tibial	Blood Vessel	332	285
+thyroid	thyroid	thyroid	Thyroid	Thyroid	323	278
+lung	lung	lung	Lung	Lung	320	278
+nervetibial	nervetibial	nerve	Nerve - Tibial	Nerve	304	256
+esophagusmucosa	esophagusmucosa	esophagus	Esophagus - Mucosa	Esophagus	286	241
+cellstransformedfibroblasts	cellstransformedfibroblasts	skin	Cells - Transformed fibroblasts	Skin	284	272
+skinnotsunexposedsuprapubic	skinnotsunexposedsuprapubic	skin	Skin - Not Sun Exposed (Suprapubic)	Skin	250	196
+esophagusmuscularis	esophagusmuscularis	esophagus	Esophagus - Muscularis	Esophagus	247	218
+adiposevisceralomentum	adiposevisceralomentum	adiposetissue	Adipose - Visceral (Omentum)	Adipose Tissue	227	185
+arteryaorta	arteryaorta	bloodvessel	Artery - Aorta	Blood Vessel	224	197
+heartleftventricle	heartleftventricle	heart	Heart - Left Ventricle	Heart	218	190
+breastmammarytissue	breastmammarytissue	breast	Breast - Mammary Tissue	Breast	214	183
+colontransverse	colontransverse	colon	Colon - Transverse	Colon	195	168
+heartatrialappendage	heartatrialappendage	heart	Heart - Atrial Appendage	Heart	194	159
+stomach	stomach	stomach	Stomach	Stomach	193	170
+testis	testis	testis	Testis	Testis	172	157
+pancreas	pancreas	pancreas	Pancreas	Pancreas	170	148
+esophagusgastroesophagealjunction	esophagusgastroesophagealjunction	esophagus	Esophagus - Gastroesophageal Junction	Esophagus	153	127
+colonsigmoid	colonsigmoid	colon	Colon - Sigmoid	Colon	149	124
+adrenalgland	adrenalgland	adrenalgland	Adrenal Gland	Adrenal Gland	145	126
+arterycoronary	arterycoronary	bloodvessel	Artery - Coronary	Blood Vessel	133	118
+braincerebellum	braincerebellum	brain	Brain - Cerebellum	Brain	125	103
+cellsebvtransformedlymphocytes	cellsebvtransformedlymphocytes	blood	Cells - EBV-transformed lymphocytes	Blood	118	114
+liver	liver	liver	Liver	Liver	118	96
+braincaudatebasalganglia	braincaudatebasalganglia	brain	Brain - Caudate (basal ganglia)	Brain	117	100
+braincortex	braincortex	brain	Brain - Cortex	Brain	114	96
+brainnucleusaccumbensbasalganglia	brainnucleusaccumbensbasalganglia	brain	Brain - Nucleus accumbens (basal ganglia)	Brain	113	93
+brainfrontalcortexba9	brainfrontalcortexba9	brain	Brain - Frontal Cortex (BA9)	Brain	108	92
+prostate	prostate	prostate	Prostate	Prostate	106	87
+braincerebellarhemisphere	braincerebellarhemisphere	brain	Brain - Cerebellar Hemisphere	Brain	105	89
+spleen	spleen	spleen	Spleen	Spleen	104	89
+pituitary	pituitary	pituitary	Pituitary	Pituitary	103	87
+ovary	ovary	ovary	Ovary	Ovary	97	85
+brainputamenbasalganglia	brainputamenbasalganglia	brain	Brain - Putamen (basal ganglia)	Brain	97	82
+vagina	vagina	vagina	Vagina	Vagina	96	79
+brainhypothalamus	brainhypothalamus	brain	Brain - Hypothalamus	Brain	96	81
+brainhippocampus	brainhippocampus	brain	Brain - Hippocampus	Brain	94	81
+smallintestineterminalileum	smallintestineterminalileum	smallintestine	Small Intestine - Terminal Ileum	Small Intestine	88	77
+brainanteriorcingulatecortexba24	brainanteriorcingulatecortexba24	brain	Brain - Anterior cingulate cortex (BA24)	Brain	84	72
+uterus	uterus	uterus	Uterus	Uterus	83	70
+brainamygdala	brainamygdala	brain	Brain - Amygdala	Brain	72	62
+brainspinalcordcervicalc1	brainspinalcordcervicalc1	brain	Brain - Spinal cord (cervical c-1)	Brain	71	59
+brainsubstantianigra	brainsubstantianigra	brain	Brain - Substantia nigra	Brain	63	56
+minorsalivarygland	minorsalivarygland	salivarygland	Minor Salivary Gland	Salivary Gland	57	51
+kidneycortex	kidneycortex	kidney	Kidney - Cortex	Kidney	32	26
+bladder	bladder	bladder	Bladder	Bladder	11	11
+fallopiantube	fallopiantube	fallopiantube	Fallopian Tube	Fallopian Tube	6	6
+cervixectocervix	cervixectocervix	cervixuteri	Cervix - Ectocervix	Cervix Uteri	6	6
+cervixendocervix	cervixendocervix	cervixuteri	Cervix - Endocervix	Cervix Uteri	5	5

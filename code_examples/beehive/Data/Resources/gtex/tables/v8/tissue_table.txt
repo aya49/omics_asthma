@@ -1,0 +1,55 @@
+tissue_name	SMTS	SMUBRTRM	num_samples
+muscleskeletal	Muscle	gastrocnemius medialis	803
+wholeblood	Blood	venous blood	755
+skinsunexposedlowerleg	Skin	lower leg skin	701
+adiposesubcutaneous	Adipose Tissue	subcutaneous adipose tissue	663
+arterytibial	Blood Vessel	tibial artery	663
+thyroid	Thyroid	thyroid gland	653
+nervetibial	Nerve	tibial nerve	620
+skinnotsunexposedsuprapubic	Skin	suprapubic skin	605
+lung	Lung	upper lobe of left lung	578
+esophagusmucosa	Esophagus	esophagus squamous epithelium	558
+adiposevisceralomentum	Adipose Tissue	omental fat pad	541
+esophagusmuscularis	Esophagus	esophagus muscularis mucosa	517
+cellsculturedfibroblasts	Skin	fibroblast	504
+breastmammarytissue	Breast	breast epithelium	459
+heartleftventricle	Heart	left ventricle myocardium	433
+arteryaorta	Blood Vessel	ascending aorta	432
+heartatrialappendage	Heart	right atrium auricular region	429
+colontransverse	Colon	transverse colon	407
+esophagusgastroesophagealjunction	Esophagus	gastroesophageal sphincter	375
+colonsigmoid	Colon	sigmoid colon	374
+testis	Testis	testis	361
+stomach	Stomach	stomach	359
+pancreas	Pancreas	body of pancreas	329
+pituitary	Pituitary	pituitary gland	283
+adrenalgland	Adrenal Gland	adrenal gland	258
+braincortex	Brain	frontal cortex	255
+prostate	Prostate	prostate gland	246
+braincaudatebasalganglia	Brain	caudate nucleus	246
+brainnucleusaccumbensbasalganglia	Brain	nucleus accumbens	246
+spleen	Spleen	spleen	241
+braincerebellum	Brain	cerebellum	241
+arterycoronary	Blood Vessel	coronary artery	240
+liver	Liver	right lobe of liver	226
+braincerebellarhemisphere	Brain	cerebellum	215
+brainfrontalcortexba9	Brain	dorsolateral prefrontal cortex	209
+brainputamenbasalganglia	Brain	putamen	205
+brainhypothalamus	Brain	hypothalamus	202
+brainhippocampus	Brain	Ammon's horn	197
+smallintestineterminalileum	Small Intestine	Peyer's patch	187
+ovary	Ovary	female gonad	181
+brainanteriorcingulatecortexba24	Brain	anterior cingulate cortex	176
+cellsebvtransformedlymphocytes	Blood	lymphoblast	174
+minorsalivarygland	Salivary Gland	anterior lingual gland	162
+brainspinalcordcervicalc1	Brain	first cervical spinal cord segment	159
+vagina	Vagina	vagina	156
+brainamygdala	Brain	amygdala	152
+uterus	Uterus	uterus	142
+brainsubstantianigra	Brain	substantia nigra	139
+kidneycortex	Kidney	cortex of kidney	85
+bladder	Bladder	urinary bladder	21
+cervixendocervix	Cervix Uteri	endocervix	10
+cervixectocervix	Cervix Uteri	ectocervix	9
+fallopiantube	Fallopian Tube	fallopian tube	9
+kidneymedulla	Kidney	renal medulla	4
