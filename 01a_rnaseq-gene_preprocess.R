@@ -11,7 +11,7 @@
 root = "~/projects/asthma"
 setwd(root)
 
-type = "isoforms" #"isoforms", "genes"
+type = "genes" #"isoforms", "genes"
 feature = "feat" #"count" or "isopct" for isoforms only
 result_dir = paste0(root, "/result/RNAseq_",type); dir.create(result_dir, showWarnings=F)
 

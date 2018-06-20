@@ -15,7 +15,7 @@ meta_file_dir = paste0(meta_dir,"/file")
 # meta_col_dir = paste0(meta_dir,"/col")
 
 feat_dir = paste0(result_dir,"/feat"); dir.create(feat_dir, showWarnings=F)
-feat_genotyperaw_dir = paste0(feat_dir,"_snp-file-genotyperaw")
+feat_genotyperaw_dir = list.files(feat_dir, full.names=T, recursive=F, pattern="raw.Rdata")
 
 ## output directory
 feat_genotype_dir = paste0(feat_dir,"/snp-file-genotype")
