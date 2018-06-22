@@ -9,12 +9,10 @@ output:
     toc: yes
 ---
 
-Logistics
+# logistics
 
-```{r, echo=F, results='hide', message=FALSE, warning=FALSE}
-knitr::opts_chunk$set(echo=F, warning=F, message=F)
-
-WhereAmI = "~/projects/asthma/data/RNAseq_nanostring/"
+```{r, echo = FALSE, results='hide', message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 ## input:
 ## output:
 ## aya43@sfu.ca
@@ -28,7 +26,8 @@ dir.create(paste0(root, "/result"), showWarnings=F)
 result_dir = paste0(root, "/result/RNAseq"); dir.create(result_dir, showWarnings=F)
 
 ## input directory
-data_dir = "data/RNAseq_nanostring"
+data_dir = paste0(root, "/data/RNAseq_nanostring")
+
 
 ## output directory
 
@@ -41,29 +40,33 @@ libr("stringr")
 
 ```
 
-## Compile demographics dataset
+# compile demographics dataset
 
 ```{r}
-meta_file0 = read.csv(paste0(WhereAmI, "data/allsitesDemo.csv")) %>% 
-  filter(Cohort %in% c("Discovery", "Validation")) #306 --> 280 rows
+file_name = paste0(data_dir, "/data/allsitesDemo.csv")
+meta_file0 = read.csv(file_name)
 
-## conceal subject names
+meta_file0 = filter(meta_file0, Cohort %in% c("Discovery", "Validation")) #306 --> 280 rows
+meta_file0 = meta_file0[order(meta_file0$Mac_Response),]
+
+# concealed_uniqueID = subject names _ date 
 meta_file0$concealed_uniqueID = paste("uniqueID",
-                                       as.numeric(factor(as.character(meta_file0$NAME))),
-                                       as.numeric(factor(as.character(meta_file0$AIC_YMD))), sep="_") #ID based on name + date
+                                      as.numeric(factor(as.character(meta_file0$NAME))),
+                                       as.numeric(factor(as.character(meta_file0$AIC_YMD))), sep="_")
+
+# concealed_ID = subject names 
 meta_file0$concealed_ID = paste("ID", as.numeric(factor(as.character(meta_file0$NAME))), sep="_")
-```
+meta_file0$concealed_ID = factor(meta_file0$concealed_ID)
 
-Calculate EAR (early asthmatic response) and LAR (late asthmatic response) and compare to response column
-
-```{r}
-# scale columns
+# scale breathing test at diff times columns based on BLFEV
 dropFEV1 = as.data.frame(t(100*scale(t(
   meta_file0[, c("BLFEV","F10L","F20L","F30L","F45L","F60L","F90L","F120L",
                  "F180L","F240L","F300L","F360L","F420L")]), 
   center=meta_file0$BLFEV, scale=meta_file0$BLFEV)))
 
-# EAR and LAR are maximum drops (min for negative) 
+
+
+## EAR (early asthmatic response) and LAR (late asthmatic response) are maximum drops (min for negative) 
 # at the two groups of time intervals; rounded
 ear = suppressWarnings( apply(dropFEV1, 1, function(x) {min(x[1:8], na.rm=T)}) )
 ear[ear == "Inf"] = NA
@@ -81,129 +84,114 @@ time = as.numeric(time)/60
 meta_file0$AUC = apply(dropFEV1, 1, function(y) trapz(x=time, y=y) )
 meta_file0$AUC_LAR = apply(dropFEV1, 1, function(y) trapz(x=time[9:13], y=y[9:13]) )
 
-#AIS: PC20
+#AIS: PC20 of pre/post
 ais = meta_file0[meta_file0$Time == "Pre", "PC20"] / meta_file0[meta_file0$Time == "Post", "PC20"]
 names(ais) = meta_file0$concealed_uniqueID[meta_file0$Time == "Pre"]
 meta_file0$AIS = rep(ais, each = 2)
 
+# calculate a reponse
+meta_file0$calculated_Response = rep(NA, nrow(meta_file0))
+meta_file0$calculated_Response[meta_file0$LAR > -15] = "ER"
+meta_file0$calculated_Response[meta_file0$LAR <= -15] = "DR"
+meta_file0$calculated_Response[as.character(meta_file0$Mac_Response) == "Control"] = "Control"
+
+# remove samples with missing data
+meta_file = meta_file0[!is.na(meta_file0$calculated_Response), ]
+rownames(meta_file) = paste(meta_file$concealed_uniqueID, meta_file$Time, sep=".")
+
+# make colours based on phenotype for plots
+phen = c("black","red","green","grey")[as.numeric(factor(meta_file0$Mac_Response))]
+
+# save
+save(meta_file, file=paste0(data_dir,"/data/allsitesDemo_clean.Rdata"))
+
 ```
 
-Relationship between LAR and AUC
+## plot: LAR ~ AUC(EAR + LAR) + Subject
 
 ```{r}
- #LAR as a resuls of aAUC + bSubject
 summary(lm(LAR ~ AUC + concealed_ID, data = meta_file0))
-plot(LAR ~ AUC, data = meta_file0, pch = 19, col = 2, 
+plot(LAR ~ AUC, data = meta_file0, pch = 19, col = phen, 
      ylab = "Max drop during LAR (3-7h) per subject", 
      xlab = "Area above the FEV1 time vs drop profile curve",
-     main = "subjects (red = + subject effect)")
-points(LAR ~ AUC, data = meta_file0, pch = 21, col = 1)
+     main = "LAR ~ AUC(EAR + LAR)")
+# plot(LAR ~ AUC, data = meta_file0, pch = 21, cex=1.5, col = phen)
 abline(lm(LAR ~ AUC, data = meta_file0))
 text(x = 20, y = -30, labels = paste0("Pearson r = ", round(cor(meta_file0$LAR, meta_file0$AUC, use = "pairwise.complete.obs"), 2)))
 
-## AUC of the LAR
+```
+
+## plot: LAR ~ AUC_LAR(LAR late times only) + Subject
+
+```{r}
 summary(lm(LAR ~ AUC_LAR + concealed_ID, data = meta_file0))
-plot(LAR ~ AUC_LAR, data = meta_file0, pch = 19, col = 2, ylab = "Max drop during LAR (3-7h)", 
-     xlab = "AUC (3-7h)")
-points(LAR ~ AUC_LAR, data = meta_file0, pch = 21, col = 1)
+plot(LAR ~ AUC_LAR, data = meta_file0, pch = 19, col = phen,
+     ylab = "Max drop during LAR (3-7h)", 
+     xlab = "AUC (3-7h)",
+     main = "LAR ~ AUC_LAR(LARs only)")
+# points(LAR ~ AUC_LAR, data = meta_file0, pch = 21, cex=1, col = 1)
 abline(lm(LAR ~ AUC_LAR, data = meta_file0))
 text(x = 20, y = -30, labels = paste0("Pearson r = ", round(cor(meta_file0$LAR, meta_file0$AUC_LAR, use = "pairwise.complete.obs"), 2)))
 text(x = 20, y = -40, labels = "p < 2.2e-16")
 
 ```
 
-## Relationship between LAR and AIS
+## plot: AIS=P20pre/P20post ~ LAR + Subject
 
 ```{r}
-summary(lm(AIS ~ LAR+concealed_ID, data = meta_file0))
-plot(AIS ~ LAR, data = meta_file0, pch = 19, col = "green", 
-     xlab = "Max drop during LAR (3-7h)", ylab="AIS (Allergen Induced Shift)")
-points(AIS ~ LAR, data = meta_file0, pch = 21, col = "black")
+summary(lm(AIS ~ LAR + concealed_ID, data = meta_file0))
+plot(AIS ~ LAR, data = meta_file0, pch = 19, col = phen, 
+     xlab = "Max drop during LAR (3-7h)", 
+     ylab="AIS (Allergen Induced Shift)",
+     main = "AIS=P20pre/P20post ~ LAR")
+# points(AIS ~ LAR, data = meta_file0, pch = 21, cex=1, col = "black")
 abline(lm(AIS ~ LAR, data = meta_file0))
 text(x = 5, y = 10, labels = paste0("Pearson r = ", round(cor(meta_file0$AIS, meta_file0$LAR, use = "pairwise.complete.obs"), 2)))
 text(x = 5, y = 8, labels = "p = 0.60")
 
-
-
-```
-
-## add response variable
-
-```{r}
-meta_file0$calculated_Response = rep(NA, nrow(meta_file0))
-meta_file0$calculated_Response[meta_file0$LAR > -15] = "ER"
-meta_file0$calculated_Response[meta_file0$LAR <= -15] = "DR"
-meta_file0$calculated_Response[as.character(meta_file0$Mac_Response) == "Control"] = "Control"
-
-## remove samples with missing data
-meta_file = meta_file0[!is.na(meta_file0$calculated_Response), ]
-rownames(meta_file) = paste(meta_file$concealed_uniqueID, meta_file$Time, sep=".")
-saveRDS(meta_file, paste0(WhereAmI,"/data/allsitesDemo_clean.rds"))
 ```
 
 # RNA-Seq data
 
 ```{r}
-WhereAmI2 =  "~/projects/asthma/data/RNAseq_nanostring/"
-#################################################
-#
 # 1) UCSC genes
-#
-#################################################
-fileNames = list.files(paste0(WhereAmI2, "data/discovery/rnaseq/geneCounts"), full.names=T)
-gene.eset = read.delim(fileNames[1])
-ucscGeneCounts0 = matrix(NA, nrow = nrow(gene.eset), ncol = 96)
-rownames(ucscGeneCounts0) = as.character(gene.eset$transcript_id.s.)
-colnames(ucscGeneCounts0) = list.files(paste0(WhereAmI2, "data/discovery/rnaseq/geneCounts"))
-for(i in 1 : length(fileNames)){
-  ucscGeneCounts0[, i] = read.delim(fileNames[i])[, "expected_count"]
-}
+uscsgenes_paths_g = list.files(paste0(data_dir, "/data/discovery/rnaseq/geneCounts"), full.names=T)
 
-#################################################
-#
+ucscGeneCounts0 = sapply(uscsgenes_paths_g, function(x) read.delim(x)[, "expected_count"])
+rownames(ucscGeneCounts0) = as.character(read.delim(uscsgenes_paths_g[1])$transcript_id.s.)
+colnames(ucscGeneCounts0) = unlist(gsub(".genes.results", "", gsub("rsem.UCSC_", "", fileNames(uscsgenes_paths_g))))
+
+
 # 2) UCSC gene-isoforms
-#
-#################################################
-fileNames = list.files(paste0(WhereAmI2, "data/discovery/rnaseq/geneIsoCounts"), full.names=T)
-geneIso.eset = read.delim(fileNames[1])
-ucscGeneIsoCounts0 = matrix(NA, nrow = nrow(geneIso.eset), ncol = 96)
-rownames(ucscGeneIsoCounts0) = as.character(geneIso.eset$transcript)
-colnames(ucscGeneIsoCounts0) = list.files(paste0(WhereAmI2, "data/discovery/rnaseq/geneIsoCounts"))
-for(i in 1 : length(fileNames)){
-  ucscGeneIsoCounts0[, i] = read.delim(fileNames[i])[, "expected_count"]
-}
+uscsgenes_paths_i = list.files(paste0(data_dir, "/data/discovery/rnaseq/geneIsoCounts"), full.names=T)
 
-#################################################
-#
+ucscGeneIsoCounts0 = sapply(uscsgenes_paths_i, function(x) read.delim(x)[, "expected_count"])
+rownames(ucscGeneCounts0) = as.character(read.delim(uscsgenes_paths_g[1])$transcript)
+colnames(ucscGeneIsoCounts0) = unlist(gsub(".isoforms.results", "", gsub("rsem.UCSC_", "", fileNames(uscsgenes_paths_i))))
+
+
 # 3) Ensembl dataset
-#
-#################################################
-starEnsembl = read.delim(paste0(WhereAmI2, "data/discovery/rnaseq/ensembl/asthma.GRCh38_ERCC.gencode21.trimmedCounts.txt"), header=F)
-sampleNames = as.character(as.matrix(starEnsembl[2,-c(1:6)]))
+starEnsembl = read.delim(paste0(data_dir, "/data/discovery/rnaseq/ensembl/asthma.GRCh38_ERCC.gencode21.trimmedCounts.txt"), header=F)
 dim(starEnsembl)   # 60249  x 102
+
+sampleNames = as.character(as.matrix(starEnsembl[2,-c(1:6)]))
 starEnsembl.dat = starEnsembl[-c(1,2),]
 colnames(starEnsembl.dat) = c(as.character(as.matrix(starEnsembl[2,c(1:6)])), gsub(".*(HI.*Index_[0-9]{1,2}.[0-9]{1,2}).*", "\\1", sampleNames))
 rownames(starEnsembl.dat) = starEnsembl.dat$Geneid
 starEnsemblExp00 = starEnsembl.dat[, -c(1:6)] ## 60247 (60155+92ercc) x 96
-
-starEnsemblExp0 = matrix(0, nrow = nrow(starEnsemblExp00), ncol = ncol(starEnsemblExp00))
-for(i in 1:ncol(starEnsemblExp0)){starEnsemblExp0[, i] = as.numeric(as.character(starEnsemblExp00[, i]))}
+starEnsemblExp0 = sapply(1:ncol(starEnsemblExp00), function(i) as.numeric(as.character(starEnsemblExp00[, i])))
 rownames(starEnsemblExp0) = rownames(starEnsemblExp00)
-colnames(starEnsemblExp0) = colnames(starEnsemblExp00)
-#################################################
-#
+colnames(starEnsemblExp0) = unlist(lapply(strsplit(colnames(starEnsemblExp00), split = "_"), function(i) i[2]))
+
+
 # 4) Trinity dataset
-#
-#################################################
 ## contigs-isoforms
-fileNames = list.files(paste0(WhereAmI2, "data/discovery/rnaseq/trinity"), full.names=T)
-geneIso.eset = read.delim(fileNames[1])
-trinityGeneIsoCounts0 = matrix(NA, nrow = nrow(geneIso.eset), ncol = 96)
-rownames(trinityGeneIsoCounts0) = as.character(geneIso.eset$transcript)
-colnames(trinityGeneIsoCounts0) = list.files(paste0(WhereAmI2, "data/discovery/rnaseq/trinity"))
-for(i in 1 : length(fileNames)){
-  trinityGeneIsoCounts0[, i] = read.delim(fileNames[i])[, "expected_count"]
-}
+trinity_paths = list.files(paste0(data_dir, "/data/discovery/rnaseq/trinity"), full.names=T)
+
+trinityGeneIsoCounts0 = sapply(trinity_paths, function(x) read.delim(x)[, "expected_count"])
+rownames(trinityGeneIsoCounts0) = as.character(read.delim(trinity_paths[1])$transcript)
+colnames(trinityGeneIsoCounts0) = unlist(gsub(".isoforms.results", "", gsub("rsem.UCSC_", "", fileNames(trinityGeneIsoCounts0))))
+
 
 ## dimension of datasets
 dim(ucscGeneCounts0);      #42,465 x 96
@@ -211,22 +199,15 @@ dim(ucscGeneIsoCounts0);   #89,357 x 96
 dim(starEnsemblExp0);      #60,247 x 96
 dim(trinityGeneIsoCounts0); # 258,403 x 96
 
-## change dataset colnames (sample names)
-colnames(ucscGeneCounts0) = unlist(gsub(".genes.results", "", gsub("rsem.UCSC_", "", colnames(ucscGeneCounts0))))
-colnames(ucscGeneIsoCounts0) = unlist(gsub(".isoforms.results", "", gsub("rsem.UCSC_", "", colnames(ucscGeneCounts0))))
-colnames(starEnsemblExp0) = unlist(lapply(strsplit(colnames(starEnsemblExp0), split = "_"), function(i) i[2]))
-colnames(trinityGeneIsoCounts0) = unlist(gsub(".isoforms.results", "", gsub("rsem.UCSC_", "", colnames(ucscGeneCounts0))))
-
 ## Map HiSeqID to alias
-mapHiSeqToID0 = read.csv(paste0(WhereAmI2, "data/demo/rnaseqHiSeqInfo.csv"))
-rownames(mapHiSeqToID0) = unlist(lapply(strsplit(as.character(mapHiSeqToID0$Filename.Prefix), split = "_"), function(i) i[2]))
+mapHiSeqToID0 = read.csv(paste0(data_dir, "/data/demo/rnaseqHiSeqInfo.csv"))
+rownames(mapHiSeqToID0) = unlist(lapply(strsplit(as.character(mapHiSeqToID0$Filename.Prefix), split = "_"), function(x) x[2]))
 
 mapHiSeqToID = mapHiSeqToID0[order(mapHiSeqToID0$Alias), ]
 
 ## import clinical data
 #meta_file = readRDS(paste0(WhereAmI, "data/demo/allsitesDemo.rds"))
 #rownames(meta_file) = paste(meta_file$concealedID, meta_file$Time, sep=".")
-
 
 meta_fileRNASeq00 = meta_file[meta_file$rnaseqID_quebec %in% mapHiSeqToID$Alias, ]
 meta_fileRNASeq0 = meta_fileRNASeq00[order(meta_fileRNASeq00$rnaseqID_quebec), ]
@@ -239,10 +220,12 @@ ucscGeneCounts = ucscGeneCounts0[, meta_fileRNASeq$ID]
 ucscGeneIsoCounts = ucscGeneIsoCounts0[, meta_fileRNASeq$ID]
 starEnsemblExp = starEnsemblExp0[, meta_fileRNASeq$ID]
 trinityGeneIsoCounts = trinityGeneIsoCounts0[, meta_fileRNASeq$ID]
+
 all(meta_fileRNASeq$ID2 == colnames(ucscGeneCounts))
 all(meta_fileRNASeq$ID2 == colnames(ucscGeneIsoCounts))
 all(meta_fileRNASeq$ID2 == colnames(starEnsemblExp))
 all(meta_fileRNASeq$ID2 == colnames(trinityGeneIsoCounts))
+
 colnames(ucscGeneCounts) = rownames(meta_fileRNASeq)
 colnames(ucscGeneIsoCounts) = rownames(meta_fileRNASeq)
 colnames(starEnsemblExp) = rownames(meta_fileRNASeq)
@@ -252,29 +235,26 @@ colnames(trinityGeneIsoCounts) = rownames(meta_fileRNASeq)
 # get RNA-Seq data ready for analysis
 
 ```{r}
-source(paste0(WhereAmI2, "code/discovery/functions.R"))
+# source(paste0(data_dir, "/code/discovery/functions.R"))
 
 ## describe demographics
-meta_fileRNASeq2 = meta_file[meta_file$rnaseq_coreSet_biomarkerAnalysis == "Y", ]
-meta_fileRNASeq2$Time = relevel(meta_fileRNASeq2$Time, ref = "Pre")
-
-```
+meta_fileRNASeq2 = meta_file[meta_file$rnaseq_coreSet_biomarkerAnalysis=="Y",]
+meta_fileRNASeq2$Time = relevel(factor(meta_fileRNASeq2$Time), ref = "Pre")
 
 ## Descriptive statistics (at pre-challenge)
-
-```{r}
 meta_fileRNASeq2Pre = subset(meta_fileRNASeq2, Time == "Pre")
 ## Pre-challenge
 variables = c("Wt..Kg.", "HT.cm.", "AGE", "BLFEV", "PRFEV", "Leukocyte_Counts.x10.9.",
               "Neu_percent", "lym_percent", "mono_percent", "eos_percent",
               "baso_percent", "EAR", "LAR", "PC20", "AIS")
-summaryStat = amritr::descriptiveStat(meta_fileRNASeq2Pre, groups = "calculated_Response", variables, paired=F, pairing = NULL)
+summaryStat = descriptiveStat(meta_fileRNASeq2Pre, groups="calculated_Response", variables, paired=F, pairing=NULL)
 as.data.frame(summaryStat$meanSD)
 as.data.frame(summaryStat$pval)
 
-## Categorical variables
-table(meta_fileRNASeq2Pre$calculated_Response, droplevels(meta_fileRNASeq2Pre$SEX))
-table(meta_fileRNASeq2Pre$calculated_Response, droplevels(meta_fileRNASeq2Pre$Allergen_cleanLabel))
+# ## Categorical variables
+# table(meta_fileRNASeq2Pre$calculated_Response, droplevels(meta_fileRNASeq2Pre$SEX)) # droplevels?
+# table(meta_fileRNASeq2Pre$calculated_Response, droplevels(meta_fileRNASeq2Pre$Allergen_cleanLabel))
+
 ```
 
 ## Identity lower limit of detection; filter transcripts
@@ -284,6 +264,7 @@ all(rownames(meta_fileRNASeq) == colnames(ucscGeneCounts))
 all(rownames(meta_fileRNASeq) == colnames(ucscGeneIsoCounts))
 all(rownames(meta_fileRNASeq) == colnames(starEnsemblExp))
 all(rownames(meta_fileRNASeq) == colnames(trinityGeneIsoCounts))
+
 ucscGeneCounts2 = ucscGeneCounts[, rownames(meta_fileRNASeq2)]
 ucscGeneIsoCounts2 = ucscGeneIsoCounts[, rownames(meta_fileRNASeq2)]
 starEnsemblExp2 = starEnsemblExp[, rownames(meta_fileRNASeq2)]
@@ -298,7 +279,7 @@ trinityGeneIsoCountsNorm = normalizelibSum(trinityGeneIsoCounts2)
 ## determine filtering cut-off based on linearity QC
 ercc = starEnsemblExpNorm[60156:60247, ]
 erccDat = data.frame(x = rep(as.numeric(ercc), ncol(ercc)))
-erccConc0 = read.delim(paste0(WhereAmI2, "data/discovery/rnaseq/ERCC_Controls_Analysis.txt"), row.names =2)
+erccConc0 = read.delim(paste0(data_dir, "/data/discovery/rnaseq/ERCC_Controls_Analysis.txt"), row.names =2)
 erccConc = erccConc0[rownames(ercc), ]
 erccDat2 = as.data.frame(ercc)
 erccDat2$Conc = erccConc$concentration.in.Mix.1..attomoles.ul.
@@ -360,7 +341,7 @@ rownames(rnaseq_meta_file2) = rownames(rnaseq_meta_file)
 rnaseq_meta_file = rnaseq_meta_file2
 
 save(rnaseq_meta_file=rnaseq_meta_file, rnaseq_datasets=rnaseq_datasets,
-     file = paste0(WhereAmI, "data/rnaseqDatasets.RDATA"))
+     file = paste0(WhereAmI, "/data/rnaseqDatasets.RDATA"))
 
 ```
 

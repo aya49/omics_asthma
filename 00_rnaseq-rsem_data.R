@@ -17,7 +17,7 @@ result_dir = paste0(root, "/result/RNAseq_",type); dir.create(result_dir, showWa
 data_dir = paste0(root,"/data/RNAseq")
 rsem_dir = paste0(data_dir,"/rsem")
 meta_file_temp1_dir = paste0(data_dir,"/RNASeq.asthma.clinical_sequencing_merged.csv")
-# meta_file_temp2_dir = paste0(data_dir,"/asthmaDemo_allsite.csv")
+meta_file_temp2_dir = paste0(data_dir,"/rnaseq_demo.Rdata")
 meta_col_temp_dir = paste0(data_dir,"/HuGene-2_1-st-v1.na36.hg19.transcript.csv")
 meta_col_tr_temp_dir = paste0(data_dir,"/HuGene-2_1-st-v1.na36.hg19.probeset.csv")
 
@@ -31,7 +31,18 @@ feat_dir = paste0(result_dir,"/feat"); dir.create(feat_dir, showWarnings=F)
 feat_feature_dir = paste0(feat_dir,"_",type,"-file-featraw")
 
 
-## options
+## libraries
+source("code/_func.R")
+libr("data.table")
+libr("annotables") #grch38; https://github.com/stephenturner/annotables
+
+# libr("limma")
+# libr("edgeR")
+# libr("foreach")
+# libr("doMC")
+libr("stringr")
+libr("Matrix")
+
 
 
 
@@ -51,7 +62,6 @@ if (type=="genes") {
   # counts_rownames = read.table(pipe(paste0("cut -f1 ",data_paths[1])))[-1,c(2,1)]
   counts_rownames = fread(data_paths[1], select = c(1,2), data.table=F)
   colnames(counts_rownames) = c("id","transcript") #g3n3=id
-  save(counts_rownames, file=paste0(meta_col_dir,".Rdata"))
   
   rownames(counts) = counts_rownames$id
   colnames(counts) = data_filenames
@@ -86,18 +96,27 @@ if (type=="genes") {
 time_output(start)
 
 
+by.x = ifelse("gene"%in%colnames(counts_rownames), "gene", "id")
+geneid = sapply(strsplit(counts_rownames[,by.x], ".", fixed=T), function(x) x[1])
+counts_rownames1 = cbind(counts_rownames, 
+                         as.data.frame(grch38)[match(geneid,unlist(grch38[,"ensgene"])),])
+save(counts_rownames1, file=paste0(meta_col_dir,".Rdata"))
 
 
 
 
 
 
-## save meta_file; meta_col ----------------------------------------
+
+## save meta_file; meta_cell ----------------------------------------
 
 meta_file1_temp0 = fread(meta_file_temp1_dir, data.table=F)
 ucol = col_probe(meta_file1_temp0)
 meta_file1_temp1 = meta_file1_temp0[,-ucol$u1]
 ucol = col_probe(meta_file1_temp1)
+
+meta_file1_temp2 = get(load(meta_file_temp2_dir))
+meta_file1_temp2 = data.frame(lapply(meta_file1_temp2, as.character), stringsAsFactors=FALSE)
 
 # meta_file2_temp0 = fread(meta_file_temp2_dir, data.table=F)
 # ucol = col_probe(meta_file2_temp0)
@@ -105,14 +124,19 @@ ucol = col_probe(meta_file1_temp1)
 # ucol = col_probe(meta_file2_temp1)
 
 
+# meta_file1_temp = meta_file1_temp1[,c("Filename", "Subject", "Phenotype", "Time", "Allergen", "SITE", 
+#                                       "RACE", "SEX", "HT.cm.", "AGE", "BLFEV", 
+#                                       "Volume", "Concentration", "Quantity", "Extracted")]
+# colnames(meta_file1_temp) = c("fileName", "sample", "response", "time", "allergen", "centre", 
+#                               "race", "sex", "height", "weight", "age", "blfev", 
+#                               "vol", "conc", "qty", "extracted")
 
-meta_file1_temp = meta_file1_temp1[,c("Filename", "Subject", "Phenotype", "Time", "Allergen", "SITE", 
-                                    "RACE", "SEX", "HT.cm.", "AGE", "BLFEV", 
-                                    "Volume", "Concentration", "Quantity", "Extracted")]
+meta_file1_temp = meta_file1_temp2[,c("Read.Set.Id", "UniqueID", "CorrectResponse", "Time", "Allergen_cleanLabel", "SITE",
+                                      "RACE", "SEX", "HT.cm.", "Wt..Kg.", "AGE", "PRFEV", "BLFEV", "Cohort")]
 colnames(meta_file1_temp) = c("fileName", "sample", "response", "time", "allergen", "centre", 
-                              "race", "sex", "height", "age", "blfev", 
-                              "vol", "conc", "qty", "extracted")
-meta_file1_temp$fileName = gsub(".bam","",meta_file1_temp[,"fileName"])
+                              "race", "sex", "height", "weight", "age", "prfev", "blfev","cohort")
+meta_file1_temp$sample[grepl("WRF",meta_file1_temp$sample)] = "WRF"
+# meta_file1_temp$fileName = gsub(".bam","",meta_file1_temp[,"fileName"])
 
 meta_cell = cbind(meta_file1_temp1[meta_file1_temp$fileName,c(31:ncol(meta_file1_temp1))])
 

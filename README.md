@@ -129,12 +129,13 @@ ensure that you have already installed software and reference data listed [here]
 
     wget https://github.com/DReichLab/EIG/archive/v7.2.1.tar.gz
     tar -xvzf v7.2.1.tar.gz
-    cd EIG5.0.2/
+    cd EIG-7.2.1
     cd src/
     # may need to edit the Makefile to specify where the correct site for LAPACK and BLAS are ***
     # e.g. "LAPACK = -llapack" to "LAPACK = -L/com/extra/lapack/3.5.0/lib -llapack -lblas"
     # where -L specifies the path to the LAPACK library.
-    # LAPACK can be downloaded and installed from here.
+    # LAPACK can be downloaded and installed via:
+    apt install liblapack-dev liblapack3 libopenblas-base libopenblas-dev
     # Once LAPACK has been installed, run the following commands:
     make clobber
     make install
@@ -142,8 +143,8 @@ ensure that you have already installed software and reference data listed [here]
 
 # EAGLE
 
-    wget https://data.broadinstitute.org/alkesgroup/Eagle/downloads/Eagle_v2.3.2.tar.gz
-    tar -xvzf Eagle_v2.3.2.tar.gz
+    wget https://data.broadinstitute.org/alkesgroup/Eagle/downloads/Eagle_v2.4.tar.gz
+    tar -xvzf Eagle_v2.4.tar.gz
 
 ```
 
@@ -170,8 +171,11 @@ conda install -c soil eagle-phase
 
 ```
 #download and install ricopili
-wget https://sites.google.com/a/broadinstitute.org/ricopili/download//rp_bin.<version>.tar.gz
-#wget https://sites.google.com/a/broadinstitute.org/ricopili/download//rp_bin.2018_May_28.001.tar.gz
+#wget https://sites.google.com/a/broadinstitute.org/ricopili/download//rp_bin.<version>.tar.gz
+wget https://sites.google.com/a/broadinstitute.org/ricopili/download/rp_bin.2018_Jun_6.001.tar.gz
+tar -xvzf rp_bin.2018_Jun_6.001.tar.gz
+
+
 
 tar -xvzf rp_bin.<version>.tar.gz
 #tar -xvzf rp_bin.2018_May_28.001.tar.gz

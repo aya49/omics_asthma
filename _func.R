@@ -335,3 +335,73 @@ manhattan_plot = function(val, chrom, pos, val_thres=-log(.025), val_max2=-log(1
 #   
 # }
 
+## by amrit
+## input: demo (file x col matrix); groups=class_col; variables=cols;
+## output:
+descriptiveStat = function (demo, groups, variables, paired=F, pairing=F) {
+  require(dplyr)
+  require(tidyr)
+  require(broom)
+  
+  if (all(paired)) {
+    X <- demo[, c(variables, groups, pairing), drop = FALSE]
+    colnames(X) <- c(variables, "Group", "Pairing")
+    lvls <- levels(X$Group)
+    meanSD <- X %>% gather(Variable, Value, -c(Group, Pairing)) %>% 
+      dplyr::group_by(Variable, Group) %>% dplyr::summarise(MEAN = mean(Value, 
+                                                                        na.rm = TRUE), SD = sd(Value, na.rm = TRUE))
+    pval0 <- X %>% gather(Variable, Value, -c(Group, Pairing)) %>% 
+      dplyr::group_by(Variable) %>% nest() %>% dplyr::mutate(model = purrr::map(data, 
+                                                                                ~tryCatch(lme(Value ~ Group, random = ~1 | Pairing, 
+                                                                                              data = .), error = function(e) NA)))
+    pval <- do.call(rbind, lapply(pval0$model, function(i) {
+      tryCatch(summary(i)$tTable[2, ], error = function(e) NA)
+    })) %>% data.frame %>% mutate(Variable = variables, term = paste("Group", 
+                                                                     lvls[2]), BH.FDR = p.adjust(p.value, "BH"))
+  } else {
+    X <- demo[, c(variables, groups), drop = FALSE]
+    colnames(X) <- c(variables, "Group")
+    lvls <- levels(X$Group)
+    meanSD <- X %>% gather(Variable, Value, -Group) %>% dplyr::group_by(Variable, 
+                                                                        Group) %>% dplyr::summarise(MEAN = mean(Value, na.rm = TRUE), 
+                                                                                                    SD = sd(Value, na.rm = TRUE))
+    pval <- X %>% gather(Variable, Value, -Group) %>% dplyr::group_by(Variable) %>% 
+      nest() %>% dplyr::mutate(model = purrr::map(data, 
+                                                  ~lm(Value ~ Group, data = .))) %>% unnest(model %>% 
+                                                                                              purrr::map(broom::tidy)) %>% group_by(Variable) %>% 
+      slice(2)
+    pval$BH.FDR <- p.adjust(pval$p.value, "BH")
+  }
+  return(list(meanSD = meanSD, pval = pval))
+}
+
+## by amrit
+annotateTranscripts = function (features, filter, mart, attr = c("description", "ucsc", "chromosome_name", "strand", 
+                                                                 "hgnc_symbol", "refseq_mrna")) {
+  
+  if (filter %in% c("ucsc", "trinity")) {
+    features = features
+  }
+  if (filter == "ensembl_gene_id") {
+    features <- unlist(lapply(strsplit(features, "\\."), 
+                              function(i) i[1]))
+  }
+  gene <- rep(NA, length(features))
+  if (filter %in% c("ucsc", "ensembl_gene_id")) {
+    hk.known <- getBM(attributes = attr, filters = filter, 
+                      values = features, mart = mart)$hgnc_symbol
+    gene <- unique(hk.known)
+  }
+  else {
+    trinityMapFile <- read.delim("/Users/asingh/Documents/Asthma/biomarkerPanels/data/discovery/rnaseq/asthma.trinity.blastx.outfmt6.txt")
+    trinityMapFile$Contig <- unlist(lapply(strsplit(as.character(trinityMapFile$query_id), 
+                                                    "_"), function(i) paste(i[1], i[2], sep = "_")))
+    trinityMapFile$UniProt <- unlist(lapply(strsplit(unlist(lapply(strsplit(as.character(trinityMapFile$subject_id), 
+                                                                            "\\|"), function(i) i[[2]])), split = "_"), function(x) x[1]))
+    trinityMapFile$GenSym <- unlist(lapply(strsplit(unlist(lapply(strsplit(as.character(trinityMapFile$subject_id), 
+                                                                           "\\|"), function(i) i[[3]])), split = "_"), function(x) x[1]))
+    gene <- trinityMapFile$GenSym[trinityMapFile$query_id %in% 
+                                    features]
+  }
+  gene
+}
