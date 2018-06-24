@@ -136,7 +136,7 @@ Command line tools:
 
 Simon Anders, Paul Theodor Pyl, Wolfgang Huber.
 HTSeq — A Python framework to work with high-throughput sequencing data
-bioRxiv preprint (2014), doi: [10.1101/002824](http://dx.doi.org/10.1101/002824)
+bioRxiv preprint (2014), doi: [10.1101/002824](https://doi.org/10.1101/002824)
 
 <http://www-huber.embl.de/users/anders/HTSeq/doc/count.html>
 

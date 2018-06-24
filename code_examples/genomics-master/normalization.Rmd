@@ -508,7 +508,7 @@ Wolfgang Huber, Anja von Heydebreck, Holger Sültmann, Annemarie Poustka and Mar
 
 B.P. Durbin, J.S. Hardin, D.M. Hawkins and D.M. Rocke, "A variance-stabilizing transformation for gene-expression microarray data", Bioinformatics. 2002. <http://bioinformatics.oxfordjournals.org/content/18/suppl_1/S105>
 
-Wolfgang Huber, Anja von Heydebreck, Holger Sueltmann, Annemarie Poustka, Martin Vingron, "Parameter estimation for the calibration and variance stabilization of microarray data" Stat Appl Mol Biol Genet, 2003. <http://dx.doi.org/10.2202/1544-6115.1008>
+Wolfgang Huber, Anja von Heydebreck, Holger Sueltmann, Annemarie Poustka, Martin Vingron, "Parameter estimation for the calibration and variance stabilization of microarray data" Stat Appl Mol Biol Genet, 2003. <https://doi.org/10.2202/1544-6115.1008>
 
 For NGS read counts:
 

@@ -243,7 +243,7 @@ t_N)' (1 \dots 1)')) \\\\
 \end{eqnarray}
 $$
 
-Note that when $\rho$ is positive, the variance is inflated by $\{1 + (N-1) \rho N\}$. Although in general we don't expect all the $\rho$ to be the same within a gene set, a correction factor can still be computed for each gene set that depends on the average $\rho$ in the gene set. The formula can been seen on page 295 [here] (http://dx.doi.org/10.1214/07-AOAS146). The formula for the correction for the Wald statistic is also included. 
+Note that when $\rho$ is positive, the variance is inflated by $\{1 + (N-1) \rho N\}$. Although in general we don't expect all the $\rho$ to be the same within a gene set, a correction factor can still be computed for each gene set that depends on the average $\rho$ in the gene set. The formula can been seen on page 295 [here] (https://doi.org/10.1214/07-AOAS146). The formula for the correction for the Wald statistic is also included. 
 
 These correction factor can be used to adapt the simple summary statistics described above. In fact, several methods have been published that are based on the simple mean shift approach but take correlation into account to develop summary statistics and statistical inference based on asymptotic approximations [ROAST](http://www.ncbi.nlm.nih.gov/pubmed/?term=20610611), [CAMERA](http://www.ncbi.nlm.nih.gov/pubmed/22638577). In the computer labs we will demonstrate one of these pieces of software. For simplicity, here we
 create approximation based on $\sqrt{N} \bar{t}$ and use the correction factor. Here compare the original $\sqrt{N} \bar{t}$ to the corrected version:
