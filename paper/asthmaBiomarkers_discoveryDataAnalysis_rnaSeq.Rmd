@@ -38,7 +38,7 @@ libr("igraph")
 libr("ggrepel")
 libr("biomaRt")
 libr("RColorBrewer")
-libr("sear")
+libr("sear") #devtools::install_github('cashoes/sear')
 library(amritr)
 
 ## load datasets (demographics and rnaseq data)
@@ -564,7 +564,12 @@ topPre_nonsig$Dataset[topPre_nonsig$Dataset == "ucscGeneCounts"] <- "UCSC genes"
 topPre_nonsig$Dataset[topPre_nonsig$Dataset == "ucscGeneIsoCounts"] <- "UCSC gene-isoforms"
 topPre_nonsig$Dataset <- factor(topPre_nonsig$Dataset, levels = c("UCSC genes", "UCSC gene-isoforms", "Ensembl", "Trinity"))
 
-# logFC? ~ avgexpr
+```
+
+### logFC? ~ avgexpr of top pre-challenge sig 
+
+```{r}
+
 pdf(paste0(data_dir, "/results/Figure2b.pdf"), width = 15, height = 5)
 ggplot(topPre_nonsig, aes(x = AveExpr, y = logFC)) + geom_point() +
   facet_wrap(~Dataset, ncol = 4) +
@@ -580,40 +585,47 @@ dev.off()
 
 ```
 
-## pathways enrichment
+### annotate significant in common transcripts as genes 
+
+pathways enrichment?
 
 ```{r}
 # ensembl 
-mart = useMart(biomart="ENSEMBL_MART_ENSEMBL", host="grch37.ensembl.org", path="biomart/martservice" ,dataset="hsapiens_gene_ensembl")
+mart = useMart(biomart="ensembl",  
+               # path="biomart/martservice",
+               dataset="hsapiens_gene_ensembl") 
+               # host = "www.ensembl.org", 
+               # ensemblRedirect = FALSE)
 attr = c('description', 'ucsc', 'chromosome_name', 'strand', 'hgnc_symbol', 'refseq_mrna')
+trinity_map_dir = paste0(data_dir, "/data/discovery/rnaseq/asthma.trinity.blastx.outfmt6.txt")
 
 mapID_genSym <- mapply(
-  function(x, y) { annotateTranscripts(features=rownames(x), filter = y, mart=mart, attr=attr) }, 
+  function(x, y) { annotate_transcripts(features=rownames(x), filter = y, mart=mart, attr=attr, trinity_map_dir=trinity_map_dir) }, 
   x = deg_pre_cc_common, 
   y = list("ucsc", "ucsc", "ensembl_gene_id", "trinity")
 )
+# sig genes across all data in common between with/out leuk of pre-challenge
 sigGenes <- unique(unlist(mapID_genSym))
 length(sigGenes);
-write.csv(sigGenes, paste0(data_dir, "/result/diff_Exp/significantgenes_DEanalysis.csv"))
+write.csv(sigGenes, paste0(data_dir, "/result/significantgenes_DEanalysis.csv"))
 
 ```
 
 ## determine cellular specificity
 
 ```{r}
-
-input <- sear(input=sigGenes, type = 'mrna') %>%
-  filter(collection %in% c("TISSUES")) %>% 
+# enrichment analysis using hypergeometric test
+sea00 <- sear(input=sigGenes, type = 'mrna')
+sea0 = filter(sea00, collection %in% c("TISSUES")) %>% 
   arrange(fdr)
-input$geneset <- as.character(input$geneset)
-input$geneset[input$subcollection == "CNS"] <- "CNS"
-input$geneset <- factor(input$geneset)
-input <- input %>% dplyr::group_by(subcollection, geneset) %>% dplyr::summarise(fdr = mean(fdr))
-input$subcollection <- factor(input$subcollection, 
-                              levels = toupper(c("cns", "thymus", "tonsils", "spleen", "lymph", 
-                                                 "bcells","myeloid", "nkcells","blood","rbcs","neutrophils",
-                                                 "tcells","th1cells","th2cells","tregs","cd8tcells","cd4tcells")))
-subCol <- input %>% dplyr::group_by(subcollection) %>% 
+sea0$geneset <- as.character(sea0$geneset)
+sea0$geneset[sea0$subcollection == "CNS"] <- "CNS"
+sea0$geneset <- factor(sea0$geneset)
+sea <- sea0 %>% dplyr::group_by(subcollection, geneset) %>% 
+  dplyr::summarise(fdr = mean(fdr))
+sea$subcollection <- factor(sea$subcollection, 
+                              levels = toupper(c("cns", "thymus", "tonsils", "spleen", "lymph", "bcells","myeloid", "nkcells","blood","rbcs","neutrophils", "tcells","th1cells","th2cells","tregs","cd8tcells","cd4tcells")))
+subCol <- sea %>% dplyr::group_by(subcollection) %>% 
   dplyr::arrange(subcollection) %>% dplyr::select(subcollection, geneset, fdr) %>% as.data.frame() 
 subCol$geneset <- factor(as.character(subCol$geneset), levels = unique(as.character(subCol$geneset)))
 

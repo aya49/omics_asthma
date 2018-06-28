@@ -9,14 +9,14 @@
 root = "~/projects/asthma"
 setwd(root)
 
-result_dir = paste0(root, "/result/genotype")
+result_dir = paste0(root, "/result")
 
 
 
 ## input directory
 meta_dir = paste0(result_dir,"/meta")
 meta_file_dir = paste0(meta_dir,"/file")
-meta_col_dir = paste0(meta_dir,"/col")#,asthma)
+meta_col_dir = paste0(meta_dir,"/col-genotype")#,asthma)
 
 feat_dir = paste0(result_dir,"/feat")
 

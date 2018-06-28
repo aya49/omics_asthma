@@ -1,0 +1,279 @@
+## input: features & meta_file
+## output: EQTL
+## aya43@sfu.ca
+## created 20180614
+
+
+
+## root directory
+root = "~/projects/asthma"
+setwd(root)
+
+result_dir = paste0(root, "/result")
+
+
+# asthma = "asthma" # "asthma" if only test asthma related SNP; else ""
+
+
+## input directory
+meta_dir = paste0(result_dir,"/meta")
+meta_file_dir = paste0(meta_dir,"/file")
+meta_col_dir = paste0(meta_dir,"/col")
+
+feat_dir = paste0(result_dir,"/feat")
+# feat_genotype_dir = paste0(feat_dir,"/snp-file-genotype")
+
+
+## output directory
+stat_dir = paste0(result_dir,"/stat"); dir.create(stat_dir, showWarnings=F)
+eqtl_cis_dir_ = paste0(result_dir,"/eqtl"); dir.create(eqtl_cis_dir_, showWarnings=F)
+
+
+
+## libraries
+# source("https://bioconductor.org/biocLite.R")
+# biocLite(c("affy","derfinder"))
+source("code/_func.R")
+libr("data.table")
+libr("MatrixEQTL")
+libr("foreach")
+libr("doMC")
+libr("stringr")
+libr("Matrix")
+
+
+
+## options
+no_cores = 15#detectCores()-3
+registerDoMC(no_cores)
+
+overwrite = F
+writecsv = T #write results as csv on top of Rdata?
+
+writetra = F#write all associations not only local ones
+
+good_col = 3 #each SNP must have <good_col NA or -1; else delete from analysis
+
+id_col = "id"
+class_col = "response"
+categorical = T # is class column categorical?
+# interested_cols = c("age","bmi","sex","centre","batch","race","response") 
+# interested_cont_cols = ""
+
+f2_bins = c("","01","12") # 01 make all 2s 1, 12 make all 0s 1
+# split_f1_col = "time" #there are
+
+# plotting size
+width = 800
+height = 600
+
+
+
+
+# parameters: data1 (genotype!!), data2 (rna!!),
+#  
+# # Only associations significant at this level will be saved
+# pvalthres_cis = 2e-2; # numeric. Significance threshold for all/distant tests
+# pvalthres_tra = 1e-2; # numeric. Same as pvOutputThreshold, but for local eQTLs.
+# 
+# # Model:
+# # int OR
+# # modelLINEAR to model the effect of the genotype as additive linear and test for its significance using t-statistic
+# # modelANOVA to treat genotype as a categorical variables and use ANOVA model and test for its significance using F-test. The default number of ANOVA categories is 3. Set otherwise like this: options(MatrixEQTL.ANOVA.categories=4)
+# # modelLINEAR_CROSS to add a new term to the model equal to the product of genotype and the last covariate; the significance of this term is then tested using t-statistic
+# useModel = modelLINEAR
+# 
+# # Error covariance matrix
+# # Set to numeric() for identity.
+# errorCovariance = numeric();
+# # errorCovariance = read.table("Sample_Data/errorCovariance.txt");
+# 
+# # Distance for local gene-SNP pairs
+# #  numeric. SNP-gene pairs within this distance are considered local. 
+# #  The distance is measured from the nearest end of the gene. 
+# #  SNPs within a gene are always considered local.
+# cisDist = 1e6;
+feat_types = list(c("genotype", "rnaseqgenes.pre", 2e-2, 1e-2, "modelANOVA", "NA", 1e6),
+                  c("genotype", "rnaseqgenes.post", 2e-2, 1e-2, "modelANOVA", "NA", 1e6),
+                  c("genotype", "rnaseqgenes.pre", 2e-2, 1e-2, "modelLINEAR", "NA", 1e6),
+                  c("genotype", "rnaseqgenes.post", 2e-2, 1e-2, "modelLINEAR", "NA", 1e6),
+                  c("genotype", "rnaseqgenes.diff", 2e-2, 1e-2, "modelANOVA", "NA", 1e6),
+                  c("genotype", "rnaseqgenes.diff", 2e-2, 1e-2, "modelLINEAR", "NA", 1e6),
+                  c("rnaseqgenes.pre", "rnaseqgenes.post", 2e-2, 1e-2, "modelLINEAR", "NA", 1)
+)
+
+
+
+
+
+
+
+start = Sys.time()
+
+meta_file0 = get(load(paste0(meta_file_dir,".Rdata")))
+
+for (feat_type in feat_types) {
+  
+  feat_type1 = feat_type[1]
+  feat_type2 = feat_type[2]
+  pvalthres_cis = as.numeric(feat_type[3])
+  pvalthres_tra = as.numeric(feat_type[4])
+  useModel = feat_type[5]
+  errorCovariance = numeric()
+  cisDist = as.numeric(feat_type[7])
+  
+  
+  # load data
+  f1_m0 = get(load(paste0(feat_dir,"/",feat_type1,".Rdata")))
+  f1_meta_col0 = get(load(paste0(meta_col_dir,"-",str_split(feat_type1,"[.]")[[1]][1],".Rdata")))
+  f1_meta_col0 = f1_meta_col0[match(colnames(f1_m0),f1_meta_col0[,id_col]),]
+  # if (colnames(f1_m0)[1]%in%f1_meta_file0[,id_col]) f1_m0 = t(f1_m0)
+  
+  if (grepl("genotype",feat_type1)) f1_good_col_na = f1_meta_col0$dbSNP
+  f1_meta_col0 = f1_meta_col0[!is.na(f1_good_col_na),]
+  f1_meta_file0 = meta_file0[match(rownames(f1_m0),meta_file0[,id_col]),]
+  f1_meta_file0 = f1_meta_file0[!is.na(f1_meta_file0[,class_col]),]
+  f1_m0 = f1_m0[!is.na(f1_meta_file0[,class_col]),!is.na(f1_good_col_na)]
+  
+  f2_m0 = get(load(paste0(feat_dir,"/",feat_type2,".Rdata")))
+  f2_meta_col0 = get(load(paste0(meta_col_dir,"-",str_split(feat_type2,"[.]")[[1]][1],".Rdata")))
+  f2_meta_col0 = f2_meta_col0[match(colnames(f2_m0),f2_meta_col0[,id_col]),]
+  # if (colnames(f1_m0)[1]%in%f1_meta_file0[,id_col]) f1_m0 = t(f1_m0)
+  
+  if (grepl("rna",feat_type2)) f2_good_col_na = f2_meta_col0$symbol
+  f2_m0 = f2_m0[,!is.na(f2_good_col_na)]
+  f2_meta_col0 = f2_meta_col0[!is.na(f2_good_col_na),]
+  f2_meta_file0 = meta_file0[match(rownames(f2_m0),meta_file0[,id_col]),]
+  f2_meta_file0 = f2_meta_file0[!is.na(f2_meta_file0[,class_col]),]
+  f2_m0 = f2_m0[!is.na(f2_meta_file0[,class_col]), !is.na(f2_good_col_na)]
+  
+  for (f2_bin in f2_bins) {
+    
+    # # Output file name
+    # output_file_name_cis = tempfile();
+    # output_file_name_tra = tempfile();
+    eqtl_cis_dir = paste0(eqtl_cis_dir_,"/cis_",gsub(".Rdata","",f2_m0_name),".",f2_ind,"_",gsub(".Rdata","",f1_m0_name),".","split-",split_f1_col,".",f1_split,".Rdata")
+    eqtl_tra_dir = NULL; if (writetra) eqtl_tra_dir = gsub("cis_","tra_",eqtl_cis_dir)
+    
+    if1 = file.exists(eqtl_cis_dir)
+    if2 = T; if (!is.null(eqtl_tra_dir)) if2 = file.exists(eqtl_tra_dir)
+    if (if1 & if2 & !overwrite) next()
+    print(paste0(eqtl_cis_dir))
+    
+    ## trim matrices
+    f1_meta_file = f1_meta_file0[f1_meta_file0[,split_f1_col]==f1_split,]
+    
+    samples_to_include = intersect(f2_meta_file0[,incommon_col],f1_meta_file[,incommon_col])
+    f1_meta_file = f1_meta_file[f1_meta_file[,incommon_col]%in%samples_to_include,]
+    f2_meta_file = f2_meta_file0[match(f1_meta_file[,incommon_col],f2_meta_file0[,incommon_col]),]
+    
+    f1_meta_col = f1_meta_col0
+    f1_m = f1_m0[f1_meta_file[,id_col],]
+    
+    f2_meta_file = f2_meta_file0
+    f2_meta_col = f2_meta_col0
+    f2_m = f2_m0
+    if (f2_bin=="01") f2_m[f2_m==2] = 1
+    if (f2_bin=="12") f2_m[f2_m==0] = 1
+    
+    
+    # prepare SNP and gene positions
+    #  data.frame with columns snpid (Snp_01), chr (1), pos (725123)
+    f2_pos = data.frame(snpid=f2_meta_col$dbSNP, chr=paste0("chr",f2_meta_col$chromosome), pos=f2_meta_col$pos_phys)
+    # levels(f2_pos$chr) = paste("chr", c(1:22, "X", "Y", "M"), sep="") #convert to bioconductor format
+    #  data.frame with columns geneid (Gene_01), chr (1), left (721289), right (731289)
+    cgene_col = ifelse("gene"%in%colnames(f1_meta_col),"gene","id")
+    f1_pos = data.frame(geneid=f1_meta_col$symbol, chr=paste0("chr",f1_meta_col$chr), 
+                        left=f1_meta_col$start, right=f1_meta_col$end)
+    
+    
+    # prepare genotyping and rnaseq data as SlicedData for input into MatrixEQTL()
+    #  Can be real-valued for linear models 
+    #  and must take at most 3 distinct values for ANOVA 
+    #  unless the number of ANOVA categories is set to a higher number (see useModel parameter).
+    #  Must have matching columns
+    colnames(f1_m) = f1_meta_col$symbol
+    rownames(f1_m) = f1_meta_file[,incommon_col]
+    f1_sd = SlicedData$new()
+    f1_sd$CreateFromMatrix(t(f1_m))
+    
+    colnames(f2_m) = f2_meta_col$dbSNP
+    rownames(f2_m) = f2_meta_file[,incommon_col]
+    f2_sd = SlicedData$new()
+    f2_sd$CreateFromMatrix(t(f2_m[match(rownames(f1_m),rownames(f2_m)),]))
+    # sd$ResliceCombined(sliceSize = 2L) # Slice it in pieces of 2 rows
+    # length(sd) # Show the number of slices (equivalent function calls)
+    # sd$IsCombined() # Is it all in one slice? (No)
+    # colnames(sd) # Show the column names (equivalent function calls)
+    # rownames(sd) # Show all row names (equivalent function calls)
+    # print(sd[[2]]) # Print the second slice
+    # sd$ColumnSubsample( c(1,3,4) ) # Reorder and subset columns
+    # sd$RowReorder( c(3,1) ) # Reorder and subset rows  
+    # sd$FindRow("row1") # Find the row with name "row1" (it is second in the first slice)
+    # show(sd) # Show the detail of the object (one slice again)
+    
+    
+    ## Run the analysis
+    
+    me = Matrix_eQTL_main(
+      snps = f2_sd,
+      gene = f1_sd,
+      # cvrt = cvrt, # SlicedData object with additional covariates. Can be an empty SlicedData object in case of no covariates. The constant is always included in the model and would cause an error if included in cvrt. The order of columns must match those in snps and gene.
+      
+      output_file_name = eqtl_tra_dir, # significant associations (all significant associations if pvOutputThreshold=0 or only distant if pvOutputThreshold>0). If the file with this name exists, it is overwritten.
+      output_file_name.cis = eqtl_cis_dir, #output_file_name_cis=tempfile(); significant local associations
+      
+      pvOutputThreshold = pvalthres_tra, 
+      pvOutputThreshold.cis = pvalthres_cis,
+      
+      useModel = useModel, 
+      # errorCovariance = errorCovariance, # numeric. The error covariance matrix. Use numeric() for homoskedastic independent errors.
+      verbose = T, 
+      
+      snpspos = f2_pos,
+      genepos = f1_pos, 
+      cisDist = cisDist,
+      pvalue.hist = T, # logical, numerical, or "qqplot" (faster if false); To record information for a histogram set pvalue.hist to the desired number of bins of equal size. Finally, pvalue.hist can also be set to a custom set of bin edges.
+      min.pv.by.genesnp = T, # record the minimum p-value for each SNP and each gene in the returned object. The minimum p-values are recorded even if if they are above the corresponding thresholds of pvOutputThreshold and pvOutputThreshold.cis (faster if false)
+      noFDRsaveMemory = F # save significant gene-SNP pairs directly to the output files, reduce memory footprint and skip FDR calculation. The eQTLs are not recorded
+    ) 
+    # unlink(output_file_name_tra);
+    # unlink(output_file_name_cis);
+    
+    ## Results:
+    cat('Analysis done in: ', me$time.in.sec, ' seconds', '\n');
+    cat('Detected local eQTLs:', '\n');
+    show(me$cis$eqtls)
+    cat('Detected distant eQTLs:', '\n');
+    show(me$trans$eqtls)
+    
+    ## Plot the histogram of local and distant p-values
+    png(gsub(".Rdata",".csv",gsub("tra_","",eqtl_cis_dir)), width=width, height=height)
+    plot(me)
+    graphics.off()
+    
+    
+  } # f2_bin
+} # f1_ind
+} # f2_ind
+
+
+time_output(start)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

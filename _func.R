@@ -89,6 +89,16 @@ libr <- function(pkgs) {
 
 
 
+## input: matrix
+## output: matrix without all NA col/row
+delna <- function(m)
+  m[apply(m,1,function(x) !all(is.na(x))), apply(m,2,function(x) !all(is.na(x)))]
+
+
+
+
+
+
 ## input:
 # chrom: chromosome
 # pos: SNP position
@@ -376,7 +386,7 @@ descriptiveStat = function (demo, groups, variables, paired=F, pairing=F) {
 }
 
 ## by amrit
-annotateTranscripts = function (features, filter, mart, attr = c("description", "ucsc", "chromosome_name", "strand", 
+annotate_transcripts = function (features, filter, mart, trinity_map_dir, attr = c("description", "ucsc", "chromosome_name", "strand", 
                                                                  "hgnc_symbol", "refseq_mrna")) {
   
   if (filter %in% c("ucsc", "trinity")) {
@@ -393,7 +403,7 @@ annotateTranscripts = function (features, filter, mart, attr = c("description", 
     gene <- unique(hk.known)
   }
   else {
-    trinityMapFile <- read.delim("/Users/asingh/Documents/Asthma/biomarkerPanels/data/discovery/rnaseq/asthma.trinity.blastx.outfmt6.txt")
+    trinityMapFile <- read.delim(trinity_map_dir)
     trinityMapFile$Contig <- unlist(lapply(strsplit(as.character(trinityMapFile$query_id), 
                                                     "_"), function(i) paste(i[1], i[2], sep = "_")))
     trinityMapFile$UniProt <- unlist(lapply(strsplit(unlist(lapply(strsplit(as.character(trinityMapFile$subject_id), 
@@ -404,4 +414,29 @@ annotateTranscripts = function (features, filter, mart, attr = c("description", 
                                     features]
   }
   gene
+}
+
+## by casey
+## input: vector of gene symbols
+## output: 
+sear = function (input, type = c("mrna", "mirna")) {
+  data("collections", envir = environment())
+  type <- match.arg(type)
+  tbl <- switch(type, 
+                mrna = dplyr::select(collections, collection:geneset, members = members_mrna), 
+                mirna = dplyr::select(collections, collection:geneset, members = members_mirna))
+  uni <- tbl$members %>% unlist() %>% unique()
+  recognized <- input[input %in% uni]
+  if (length(recognized) < 10) {
+    warning(sprintf("Submitted %s symbols, but only %s are recognized.", 
+                    length(input), length(recognized)))
+  }
+  input <- recognized
+  tbl %>% dplyr::rowwise(.) %>% dplyr::mutate(n_input = length(input), 
+                                              n_geneset = length(members), intersect = length(intersect(input, 
+                                                                                                        members)), p_value = phyper(intersect - 1, n_geneset, 
+                                                                                                                                    length(uni) - n_geneset, n_input, lower.tail = F)) %>% 
+    dplyr::ungroup(.) %>% dplyr::group_by(collection) %>% 
+    dplyr::mutate(fdr = p.adjust(p_value, method = "BH")) %>% 
+    dplyr::ungroup(.)
 }
