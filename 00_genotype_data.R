@@ -25,6 +25,7 @@ gt1_meta_dir = paste0(genotype_dir, "/additional_sample_data.txt")
 meta_file_temp_dir = paste0(genotype_dir, "/meta_file_temp.csv")
 meta_file_temp2_dir = paste0(genotype_dir, "/asthmaDemo_allsite.csv")
 meta_file_extra_dir = paste0(data_dir, "/RNAseq/asthmaDemo_allsite.xlsx")
+meta_file_data_dir = paste0(root,"/data/asthmaDemo_allsite_withSampleInfo_DH_v5.csv")
 
 meta_snp_idrod_dir = paste0(genotype_dir, "/rod/rod.csv")
 
@@ -93,10 +94,10 @@ wells = gsub(".CEL","",sapply(str_split(colnames(gt1_calls),"_"), function(x) x[
 
 # keep some useful? columns
 meta_file0 = cbind(meta_file_temp[, !colnames(meta_file_temp)%in%c("Inferred Gender","Random order", "Number", 
-                                                                  "1000 Genome Concordance", "Reproducibility", "Replicate Info", 
-                                                                  "Cluster CR (Axiom inlier cluster call rate)", "dishQC")], 
-                  gt1_meta[match(meta_file_temp[,"Sample ID"],gt1_meta[,"Name"]), !colnames(gt1_meta)%in%c("Name")]
-                  )
+                                                                   "1000 Genome Concordance", "Reproducibility", "Replicate Info", 
+                                                                   "Cluster CR (Axiom inlier cluster call rate)", "dishQC")], 
+                   gt1_meta[match(meta_file_temp[,"Sample ID"],gt1_meta[,"Name"]), !colnames(gt1_meta)%in%c("Name")]
+)
 
 # adjust values
 meta_file0[meta_file0[,"Kit"]=="Mini kit","Batch"] = 0
@@ -111,13 +112,13 @@ meta_file0 = meta_file0[meta_file0[, "Sample Type"]=="Normal",]
 
 # delete more columns
 meta_file0 = meta_file0[, !colnames(meta_file0)%in%c("Sample Type",
-                                                  "dishQC",
-                                                  "Cluster CR (Axiom inlier cluster call rate)",
-                                                  "Array",
-                                                  "Replicate Info",
-                                                  "Number",
-                                                  "Random order") &
-                        !grepl("[/]|Plate|Het|Rate|Concordance|Reproducibility|Filename",colnames(meta_file0))]
+                                                     "dishQC",
+                                                     "Cluster CR (Axiom inlier cluster call rate)",
+                                                     "Array",
+                                                     "Replicate Info",
+                                                     "Number",
+                                                     "Random order") &
+                          !grepl("[/]|Plate|Het|Rate|Concordance|Reproducibility|Filename",colnames(meta_file0))]
 
 # rename columns
 colnames(meta_file0) = c(paste0("filename_",type),"sex",paste0("centre_",type),id_col,"response",paste0("kit_",type),paste0("batch_",type),"race")
@@ -157,8 +158,8 @@ meta_file2 = meta_file_extra2[,c(1:3,5,7:11,13,17:21,23:35,42,48,
                                  53:65)] # data availability
 
 colnames(meta_file2)[c(7:16,30)] = c("sponsor","centre","drug","date","weight","height","age","blfev","prfev","allergen","cohort")
-meta_file2[meta_file2=="" | meta_file2=="NA"] = NA
-meta_file2$bmi = meta_file2$weight/(meta_file2$height^2)
+# meta_file2[meta_file2=="" | meta_file2=="NA"] = NA
+meta_file2$bmi = as.numeric(meta_file2$weight)/(meta_file2$height^2)
 
 
 # save
@@ -210,6 +211,8 @@ tx.by.gene = transcriptsBy(txdb, "gene") #list names are Entrez gene ID's
 # apoe.i <- findOverlaps(tx.by.gene["348"], my.snps) #RangesMatching class; if don't give chr name, warning sequence names don't match
 
 colnames(annot)[1:6] = c(id_col,"affySNP","dbSNP","dbSNPloctype","chromosome","pos_phys")
+annot = apply(annot,2,function(x) { x[x=="---"] = NA; x })
+
 save(annot, file=paste0(meta_col_dir,".raw.Rdata"))
 if (writecsv) write.csv(annot, file=paste0(meta_col_dir,".raw.csv"))
 
@@ -252,7 +255,8 @@ col_ind = apply(gt1_calls1, 2, function(x) {
   sum(!is.na(x)) >= good_col_na & 
     min(a)>good_col & length(a)>1
 })
-row_ind = meta_file2$batch_genotype!="0" # make patient name the unique id
+row_ind = ! ((duplicated(meta_file2$id) | duplicated(meta_file2$id, fromLast=T)) & 
+  meta_file2$batch_genotype=="0" | grepl("Normal",meta_file2$id,ignore.case=T)) # make patient name the unique id
 
 # for (xi in 1:ncol(m0)) {
 #   x = m0[,xi]
@@ -265,7 +269,7 @@ row_ind = meta_file2$batch_genotype!="0" # make patient name the unique id
 #   }
 # }
 
-meta_file = meta_file2[row_ind,!colnames(meta_file2)%in%c("kit_genotype")]
+meta_file = meta_file2[row_ind,]
 meta_col = annot[col_ind,]
 m = gt1_calls1[rownames(gt1_calls1)%in%meta_file[,paste0("filename_",type)],col_ind]
 rownames(m) = meta_file[match(rownames(m),meta_file[,paste0("filename_",type)]),id_col]
@@ -323,6 +327,14 @@ save(goodpplcols_ind, file=paste0(meta_file_dir,"_id_goodppl.Rdata"))
 
 
 
+## check if all subjects are recorded --------------------
+
+# :( not recorded for genotype
+# # load data availability, ensure all subjects with rnaseq data are recorded in this script
+# meta_file_data = read.csv(meta_file_data_dir)
+# length(meta_file_data$UniqueID[meta_file_data$rnaseq=="Y"]) = 
+#   sum(meta_file_data$UniqueID[meta_file_data$rnaseq=="Y"] %in% 
+#         meta_file$id[!is.na(meta_file$filename_genotype)])
 
 
 

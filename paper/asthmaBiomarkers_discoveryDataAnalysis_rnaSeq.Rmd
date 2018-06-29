@@ -24,7 +24,7 @@ dir.create(paste0(root, "/result"), showWarnings=F)
 result_dir = paste0(root, "/result/RNAseq"); dir.create(result_dir, showWarnings=F)
 
 ## input directory
-data_dir = paste0(root, "/data/RNAseq_nanostring")
+data_dir = paste0(root, "/data/RNAelements")
 
 
 ## output directory
@@ -39,7 +39,7 @@ libr("ggrepel")
 libr("biomaRt")
 libr("RColorBrewer")
 libr("sear") #devtools::install_github('cashoes/sear')
-library(amritr)
+library("amritr")
 
 ## load datasets (demographics and rnaseq data)
 load(paste0(data_dir, "/data/rnaseqDatasets.RDATA"))

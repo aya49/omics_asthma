@@ -25,16 +25,16 @@ library(amritr) # devtools::install_github("singha53/amritr")
 library(mixOmics)
 
 ## load list of biomarker candidates
-load("~/projects/asthma/data/RNAseq_nanostring/results/biomarkerCandidateSelection/rnaseq_to_nanoString_biomarkers.RDATA")
+load("~/projects/asthma/data/RNAelements/results/biomarkerCandidateSelection/rnaseq_to_nanoString_biomarkers.RDATA")
 
-source("~/projects/asthma/data/RNAseq_nanostring/src/functions.R")
+source("~/projects/asthma/data/RNAelements/src/functions.R")
 #----------------------------------------------
 # 1) HBA attenutation (Discovery cohort)
 #----------------------------------------------
-filePaths <- c("~/projects/asthma/data/RNAseq_nanostring/data/validation/HBA2_attenuation_rediscovery/20160114_test0 max fovjan14-2016 _RCC",
-               "~/projects/asthma/data/RNAseq_nanostring/data/validation/HBA2_attenuation_rediscovery/20160116_set2 jan 16-2016 max fov_RCC",
-               "~/projects/asthma/data/RNAseq_nanostring/data/validation/HBA2_attenuation_rediscovery/20160116_set 3 3-1 to 3-12 jan16 2016 max fov_RCC",
-               "~/projects/asthma/data/RNAseq_nanostring/data/validation/HBA2_attenuation_rediscovery/20160116_set 4 4-1 to 4-12 maxfov jan 16-2016_RCC")
+filePaths <- c("~/projects/asthma/data/RNAelements/data/validation/HBA2_attenuation_rediscovery/20160114_test0 max fovjan14-2016 _RCC",
+               "~/projects/asthma/data/RNAelements/data/validation/HBA2_attenuation_rediscovery/20160116_set2 jan 16-2016 max fov_RCC",
+               "~/projects/asthma/data/RNAelements/data/validation/HBA2_attenuation_rediscovery/20160116_set 3 3-1 to 3-12 jan16 2016 max fov_RCC",
+               "~/projects/asthma/data/RNAelements/data/validation/HBA2_attenuation_rediscovery/20160116_set 4 4-1 to 4-12 maxfov jan 16-2016_RCC")
 setName <- paste("Set", 1:length(filePaths))
 date <- c("2016-01-14","2016-01-16","2016-01-16", "2016-01-16")
 cartridgeLotNum <- rep("31020635468_exp02.2016", length(filePaths))
@@ -56,15 +56,15 @@ for(h in 1 : length(filePaths)){
   DatList[[h]] <- dat
 }
 Dat <- do.call(rbind, DatList)
-write.csv(Dat, "~/projects/asthma/data/RNAseq_nanostring/data/HBA2Attenutation_asthmaBiomarkersDiscovery.csv")
+write.csv(Dat, "~/projects/asthma/data/RNAelements/data/HBA2Attenutation_asthmaBiomarkersDiscovery.csv")
 
 #------------
 # import data 
 #------------
-sampleMap0 <- read.csv("~/projects/asthma/data/RNAseq_nanostring/validation/reCalibration/attenuation/AttenuationnanoElementsDemo_labSheet.csv")
+sampleMap0 <- read.csv("~/projects/asthma/data/RNAelements/validation/reCalibration/attenuation/AttenuationnanoElementsDemo_labSheet.csv")
 sampleMap <- c(paste0("E", sampleMap0$EorV_number))
 names(sampleMap) <- paste(sampleMap0$fileName, unlist(lapply(strsplit(as.character(sampleMap0$Set_lane), "_"), function(i) i[2])), sep = "_")
-data <- read.csv("~/projects/asthma/data/RNAseq_nanostring/reAnalysis/data/HBA2Attenutation_asthmaBiomarkersDiscovery.csv", row.names = 1)
+data <- read.csv("~/projects/asthma/data/RNAelements/reAnalysis/data/HBA2Attenutation_asthmaBiomarkersDiscovery.csv", row.names = 1)
 data$Sample <- sampleMap[gsub(".RCC", "", unlist(lapply(strsplit(as.character(data$fileName), "/"), function(i) i[length(i)])))]
 GeneNames <- as.character(data$Name)
 GeneNames[data$Accession == "NM_001788.5"] <- "SEPT7"
@@ -79,12 +79,12 @@ asthmaDis <- data
 #----------------------------------------------
 # 2) HBA attenutation (confirmatory phase)
 #----------------------------------------------
-filePaths <- c("~/projects/asthma/data/RNAseq_nanostring/data/validation/HBA2_attenuation_replication/20160210_asthma biomarkersvalidation set1 v1-v12 maxFOV Feb-10-2016_RCC",
-               "~/projects/asthma/data/RNAseq_nanostring/data/validation/HBA2_attenuation_replication/20160210_asthma biomarkersvalidation set2 v13-v24 maxFOV Feb-10-2016_RCC",
-               "~/projects/asthma/data/RNAseq_nanostring/data/validation/HBA2_attenuation_replication/20160210_asthma biomarkersvalidation set3 v25-v36 maxFOV Feb-10-2016_RCC",
-               "~/projects/asthma/data/RNAseq_nanostring/data/validation/HBA2_attenuation_replication/20160211_asthma biomarkersvalidation set4 v37-v48 maxFOV Feb-11-2016_RCC",
-               "~/projects/asthma/data/RNAseq_nanostring/data/validation/HBA2_attenuation_replication/20160211_asthma biomarkersvalidation set5 v49-v60 maxFOV Feb-11-2016_RCC",
-               "~/projects/asthma/data/RNAseq_nanostring/data/validation/HBA2_attenuation_replication/20160211_asthma biomarkersvalidation set6 v61-v72 maxFOV Feb-11-2016_RCC")
+filePaths <- c("~/projects/asthma/data/RNAelements/data/validation/HBA2_attenuation_replication/20160210_asthma biomarkersvalidation set1 v1-v12 maxFOV Feb-10-2016_RCC",
+               "~/projects/asthma/data/RNAelements/data/validation/HBA2_attenuation_replication/20160210_asthma biomarkersvalidation set2 v13-v24 maxFOV Feb-10-2016_RCC",
+               "~/projects/asthma/data/RNAelements/data/validation/HBA2_attenuation_replication/20160210_asthma biomarkersvalidation set3 v25-v36 maxFOV Feb-10-2016_RCC",
+               "~/projects/asthma/data/RNAelements/data/validation/HBA2_attenuation_replication/20160211_asthma biomarkersvalidation set4 v37-v48 maxFOV Feb-11-2016_RCC",
+               "~/projects/asthma/data/RNAelements/data/validation/HBA2_attenuation_replication/20160211_asthma biomarkersvalidation set5 v49-v60 maxFOV Feb-11-2016_RCC",
+               "~/projects/asthma/data/RNAelements/data/validation/HBA2_attenuation_replication/20160211_asthma biomarkersvalidation set6 v61-v72 maxFOV Feb-11-2016_RCC")
 setName <- paste("Set", 1:length(filePaths))
 date <- rep(c("2016-02-10","2016-02-11"), each = 3)
 cartridgeLotNum <- rep("31020635467_exp12.2016", length(filePaths))
@@ -106,13 +106,13 @@ for(h in 1 : length(filePaths)){
   DatList[[h]] <- dat
 }
 Dat <- do.call(rbind, DatList)
-write.csv(Dat, "~/projects/asthma/data/RNAseq_nanostring/reAnalysis/data/HBA2Attenutation_asthmaBiomarkersValidation.csv")
+write.csv(Dat, "~/projects/asthma/data/RNAelements/reAnalysis/data/HBA2Attenutation_asthmaBiomarkersValidation.csv")
 
 #------------
 # import data 
 #------------
-mappingFile <- read.csv("~/projects/asthma/data/RNAseq_nanostring/data/validation/HBA2_attenuation_replication/validationCohort_mappngFile.csv", row.names = 7)
-data <- read.csv("~/projects/asthma/data/RNAseq_nanostring/reAnalysis/data/HBA2Attenutation_asthmaBiomarkersValidation.csv", row.names = 1)
+mappingFile <- read.csv("~/projects/asthma/data/RNAelements/data/validation/HBA2_attenuation_replication/validationCohort_mappngFile.csv", row.names = 7)
+data <- read.csv("~/projects/asthma/data/RNAelements/reAnalysis/data/HBA2Attenutation_asthmaBiomarkersValidation.csv", row.names = 1)
 sampleMap <- gsub(".RCC", "", paste(unlist(lapply(strsplit(as.character(data$fileName), " "), function(i) i[3])),
                                     unlist(lapply(strsplit(as.character(data$fileName), "_"), function(i) i[8])), sep = "_"))
 data$Sample <- mappingFile[sampleMap, "V.ID"]
@@ -142,7 +142,7 @@ asthmaDat <- subset(asthmaDat, Name %in% c(unique(grep("POS|NEG", asthmaDat$Name
 # import demographics
 
 ```{r}
-demo0 <- readRDS("~/projects/asthma/data/RNAseq_nanostring/reAnalysis/data/allsitesDemo_clean.rds")
+demo0 <- readRDS("~/projects/asthma/data/RNAelements/reAnalysis/data/allsitesDemo_clean.rds")
 demo0 <- demo0[as.character(demo0$EorV_number) %in% unique(asthmaDat$Sample), ]
 rownames(demo0) <- as.character(demo0$EorV_number)
 demo0$rnaseq_coreSet_biomarkerAnalysis <- as.character(demo0$rnaseq_coreSet_biomarkerAnalysis)
@@ -594,7 +594,7 @@ save(demo1_dis=demo1_dis, demo1_val=demo1_val, y.train=y.train, y.test=y.test,
   pos_hk_demo1_val_repeatDifferentResponseList=pos_hk_demo1_val_repeatDifferentResponseList,
   demo1_val_repeatDR=demo1_val_repeatDR, 
   pos_hk_demo1_val_repeatDRList=pos_hk_demo1_val_repeatDRList,
-  file = "~/projects/asthma/data/RNAseq_nanostring/reAnalysis/data/demo_eset_nanoString.RDATA")
+  file = "~/projects/asthma/data/RNAelements/reAnalysis/data/demo_eset_nanoString.RDATA")
 
 
 

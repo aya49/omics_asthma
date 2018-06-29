@@ -26,7 +26,7 @@ dir.create(paste0(root, "/result"), showWarnings=F)
 result_dir = paste0(root, "/result/RNAseq"); dir.create(result_dir, showWarnings=F)
 
 ## input directory
-data_dir = paste0(root, "/data/RNAseq_nanostring")
+data_dir = paste0(root, "/data/RNAelements")
 
 
 ## output directory

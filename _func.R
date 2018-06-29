@@ -107,13 +107,18 @@ delna <- function(m)
 # val_max2: a sub-genomewide-sig "grey zone" where SNPs are shown with a larger point size
 # draw_line: draw thresholds? T/F
 # val_min: p-vlaues less than val_min are forced equal to val_min
+# label.x: threshold; if there's more than label.x elements in val, label xx axis
 
 ## output: none; manhattan plot
 ## adapted from http://bioinfo-mite.crb.wsu.edu/Rcode/wgplot.R
 
-manhattan_plot = function(val, chrom, pos, val_thres=-log(.025), val_max2=-log(1e-4), val_max1=-log(5e-8), draw_line=T, val_min=0, 
+manhattan_plot = function(val, chrom=rep(1,length(val)), pos=c(1:length(val)), label.x=40,
+                          val_thres=-log(.025), val_max2=-log(1e-4), val_max1=-log(5e-8), 
+                          draw_line=T, val_min=0, guideline_interval=1, lines=NULL,
                           xlab="chromosome/position", ylab=paste0("-ln(p value) (thres=",round(val_thres,3),")"), 
-                          main="gwas", guideline_interval=1, lines=NULL) {
+                          main="gwas") {
+  # val's name can be label
+  
   ## prep input
   val = as.numeric(val)
   val[val<val_min] = val_min
@@ -121,7 +126,7 @@ manhattan_plot = function(val, chrom, pos, val_thres=-log(.025), val_max2=-log(1
   pos = as.numeric(pos)
   chrom = as.character(chrom)
   
-  
+  chrom = as.character(chrom)
   chroml = chrom
   chroml[chroml=="23"]="X"
   chroml[chroml=="24"]="Y"
@@ -183,7 +188,7 @@ manhattan_plot = function(val, chrom, pos, val_thres=-log(.025), val_max2=-log(1
   par(xaxt = "n", yaxt = "n")
   plot(c(max(pos),min(pos)), c(val_min,val_max1), type="n", xlab=xlab, ylab=ylab,
        axes=F, main=main, cex.lab=1.5)
-
+  
   for (i in 1:chrom_un) {
     end = chrom_cumsum[i]
     start = chrom_cumsum[i] - chrom_table[i] + 1
@@ -202,7 +207,11 @@ manhattan_plot = function(val, chrom, pos, val_thres=-log(.025), val_max2=-log(1
   }
 
   par(xaxt="s", yaxt="s")
-  axis(side=1, at=c(0, pos[round(chrom_cumsum)], max(pos)), F)
+  if (length(val)<label.x) {
+    axis(side=1, at=1:length(val), labels=names(val))
+  } else {
+    axis(side=1, at=c(0, pos[round(chrom_cumsum)], max(pos)), F)
+  }
   text(mids, par("usr")[3] - .5, srt=0, pos=2, cex=1.1, offset=-0.2,
        labels=chrom_unique[1:chrom_un], xpd=T)
   axis(side=2, at=guidelines)
@@ -344,6 +353,34 @@ manhattan_plot = function(val, chrom, pos, val_thres=-log(.025), val_max2=-log(1
 #   #mtext(eval(expression(guidelines)), 2, at = guidelines)
 #   
 # }
+
+
+## by amrit
+# sizeStripFont	font of size of facet labels
+# xAngle	angle of x-axis labels
+# hjust	horizontal justification 0-left, 0.5-center, 1-right
+# vjust	vertical justification 0-low, 0.5-middle, 1-high
+# xSize	font size of x-axis label
+# ySize	font size of y-axis label
+# xAxisSize	font size of x-axis label title
+# yAxisSize	fotn size of y-axis label title
+# weights	are the predicted scores/probablities of test data
+# trubeLabels	are the true labels associated with the test data
+# direction	= "auto", ">", "<"
+customTheme = function (sizeStripFont, xAngle, hjust, vjust, xSize, ySize, 
+                        xAxisSize, yAxisSize) {
+  theme(strip.background = element_rect(colour = "black", fill = "white", 
+                                        size = 1), strip.text.x = element_text(size = sizeStripFont), 
+        strip.text.y = element_text(size = sizeStripFont), axis.text.x = element_text(angle = xAngle, 
+                                                                                      hjust = hjust, vjust = vjust, size = xSize, color = "black"), 
+        axis.text.y = element_text(size = ySize, color = "black"), 
+        axis.title.x = element_text(size = xAxisSize, color = "black"), 
+        axis.title.y = element_text(size = yAxisSize, color = "black"), 
+        panel.background = element_rect(fill = "white", color = "black"))
+}
+
+
+
 
 ## by amrit
 ## input: demo (file x col matrix); groups=class_col; variables=cols;

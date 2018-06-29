@@ -22,7 +22,7 @@ feat_dir = paste0(result_dir,"/feat")
 
 ## output directory
 stat_dir = paste0(result_dir,"/stat"); dir.create(stat_dir, showWarnings=F)
-pca_dir = paste0(stat_dir,"/pca_plot"); dir.create(pca_dir, showWarnings=F)
+pca_dir = paste0(stat_dir,"/pca"); dir.create(pca_dir, showWarnings=F)
 
 
 ## libraries
@@ -201,10 +201,11 @@ for (feat_type in feat_types) {
           cor = cor(attribute, pc$x[,i])
           
           if (colname%in%interested_cont_cols) {
-            plot(attribute, pc$x[,i], col=coloursm, main=paste0("PCA ", colname," Pearson Cor = ", cor), xlab = colname, ylab = paste0("PC_",i))
+            plot(attribute, pc$x[,i], main=paste0("PCA ", colname," Pearson Cor = ", cor), 
+                 xlab = colname, ylab = paste0("PC_",i)) #, col=coloursm
           } else {
             xy_boxplot = lapply(attributenames, function(x) pc$x[attributen==x,i])
-            boxplot(pc$x[,i]~, lwd = 1, outline=F, ylim=c(min(pc$x[,i]),max(pc$x[,i])),
+            boxplot(xy_boxplot, lwd = 1, outline=F, ylim=c(min(pc$x[,i]),max(pc$x[,i])),
                     main = paste0("PCA ", colname," Pearson Cor (ok if 2 var values) = ", round(cor,3)),
                     xaxt = 'n', xlab=colname, ylab = paste0("PC_",i)) #,xaxt ='n', xlab=testcol
             axis(1, at=1:length(attributenames), labels=attributenames, las=2)

@@ -19,6 +19,7 @@ data_dir = paste0(root,"/data/RNAseq")
 rsem_dir = paste0(data_dir,"/rsem")
 meta_file_temp1_dir = paste0(data_dir,"/RNASeq.asthma.clinical_sequencing_merged.csv")
 meta_file_temp2_dir = paste0(data_dir,"/rnaseq_demo.Rdata")
+meta_file_data_dir = paste0(root,"/data/asthmaDemo_allsite_withSampleInfo_DH_v5.csv")
 meta_col_temp_dir = paste0(data_dir,"/HuGene-2_1-st-v1.na36.hg19.transcript.csv")
 meta_col_tr_temp_dir = paste0(data_dir,"/HuGene-2_1-st-v1.na36.hg19.probeset.csv")
 
@@ -32,7 +33,7 @@ feat_feature_dir = paste0(feat_dir,"/rnaseq")
 feat_cell_dir = paste0(feat_dir,"/cell")
 
 stat_dir = paste0(result_dir,"/stat"); dir.create(stat_dir, showWarnings=F)
-
+preprocess_dir = paste0(stat_dir,"/stat"); dir.create(preprocess_dir, showWarnings=F)
 
 ## libraries
 source("code/_func.R")
@@ -41,6 +42,7 @@ libr("annotables") #grch38; https://github.com/stephenturner/annotables
 libr("limma")
 libr("edgeR")
 libr("stringr")
+libr("gdata") #read xls
 libr("Matrix")
 
 
@@ -70,15 +72,16 @@ good_count = 10 #each gene must have >10 abundence in more than half the samples
 
 start = Sys.time()
 
-data_paths = list.files(rsem_dir, pattern=paste0(type_,".results"), full.names=T)
-data_filenames = fileNames(data_paths, ext=paste0(type_,".results"))
-
-
 
 ## load & save matrix -----------------------------------
 
 feats = list()
 meta_cols = list()
+
+# genes
+
+data_paths = list.files(rsem_dir, pattern=paste0("genes.results"), full.names=T)
+data_filenames = fileNames(data_paths, ext=paste0("genes.results"))
 
 # counts0 = lapply(data_paths, function(x) read.table(pipe(paste0("cut -f5 ",x))))
 counts0 = lapply(data_paths, function(x) fread(x, select=5))
@@ -98,6 +101,11 @@ feats$genes = counts
 meta_cols$genes = counts_rownames
 
 
+# isoforms
+
+data_paths = list.files(rsem_dir, pattern=paste0("isoforms.results"), full.names=T)
+data_filenames = fileNames(data_paths, ext=paste0("isoforms.results"))
+
 start1 = Sys.time()
 # countsis0 = lapply(data_paths, function(x) read.table(pipe(paste0("cut -f5 ",x))))
 countsis0 = lapply(data_paths, function(x) fread(x, select=5))
@@ -111,8 +119,8 @@ isopct = Reduce("cbind",isopct0)
 time_output(start1)
 
 # counts_rownames = read.table(pipe(paste0("cut -f1,2 ",data_paths[1])))
-counts_rownames = fread(data_paths[1], select = c(2,1), data.table=F)
-colnames(counts_rownames) = c("gene",id_col) #transcript=id
+counts_rownames = fread(data_paths[1], select = c(1,2), data.table=F)
+colnames(counts_rownames) = c(id_col,"gene") #transcript=id
 # save(counts_rownames, file=paste0(meta_col_dir,"isoforms.raw.Rdata"))
 # save(counts_rownames, file=paste0(meta_col_dir,"isopct.raw.Rdata"))
 
@@ -123,7 +131,7 @@ rownames(countsis) = rownames(isopct) = data_filenames
 colnames(countsis) = colnames(isopct) = counts_rownames[,id_col]
 
 save(countsis,file=paste0(feat_feature_dir,"isoforms.raw.Rdata"))
-save(isopct,file=paste0(feat_feature_dir,"pct.raw.Rdata"))
+save(isopct,file=paste0(feat_feature_dir,"isopct.raw.Rdata"))
 feats$isoforms = countsis
 feats$isopct = isopct
 meta_cols$isoforms = meta_cols$isopct = counts_rownames
@@ -173,21 +181,21 @@ meta_file1_temp2 = data.frame(lapply(meta_file1_temp2, as.character), stringsAsF
 # meta_file1_temp = meta_file1_temp1[,c("Filename", "Subject", "Phenotype", "Time", "Allergen", "SITE", 
 #                                       "RACE", "SEX", "HT.cm.", "AGE", "BLFEV", 
 #                                       "Volume", "Concentration", "Quantity", "Extracted")]
-# colnames(meta_file1_temp) = c("fileName", "sample", "response", "time", "allergen", "centre", 
+# colnames(meta_file1_temp) = c("filename", "sample", "response", "time", "allergen", "centre", 
 #                               "race", "sex", "height", "weight", "age", "blfev", 
 #                               "vol", "conc", "qty", "extracted")
 
 meta_file1_temp = meta_file1_temp2[,c("Read.Set.Id", "UniqueID", "CorrectResponse", "Time", "Allergen_cleanLabel", "SITE",
                                       "RACE", "SEX", "HT.cm.", "Wt..Kg.", "AGE", "PRFEV", "BLFEV", "Cohort")]
-colnames(meta_file1_temp) = c("fileName", id_col, "response", "time", "allergen", "centre", 
+colnames(meta_file1_temp) = c("filename", id_col, "response", "time", "allergen", "centre", 
                               "race", "sex", "height", "weight", "age", "prfev", "blfev","cohort")
 meta_file1_temp[grepl("WRF",meta_file1_temp[,id_col]),id_col] = "WRF"
-# meta_file1_temp[,id_col] = gsub(".bam","",meta_file1_temp[,"fileName"])
+# meta_file1_temp[,id_col] = gsub(".bam","",meta_file1_temp[,"filename"])
 
-cell = meta_file1_temp1[match(meta_file1_temp[,"fileName"],meta_file1_temp1[,"Filename"]),c(31:ncol(meta_file1_temp1))]
-rownames(cell) = meta_file1_temp[,"fileName"]
+cell = meta_file1_temp1[match(meta_file1_temp[,"filename"],meta_file1_temp1[,"Filename"]),c(31:ncol(meta_file1_temp1))]
+rownames(cell) = meta_file1_temp[,"filename"]
 
-mfc_order = match(data_filenames,meta_file1_temp[,"fileName"])
+mfc_order = match(data_filenames,meta_file1_temp[,"filename"])
 meta_fileraw = meta_file1_temp[mfc_order,]
 
 
@@ -195,13 +203,13 @@ cell = cell[mfc_order,]
 cell = delna(cell)
 save(cell, file=paste0(feat_cell_dir,".raw.Rdata"))
 
-cell_pre = cell[meta_fileraw[match(rownames(cell), meta_fileraw[,"fileName"]),"time"]=="Pre",]
-rownames(cell_pre) = meta_fileraw[match(rownames(cell_pre), meta_fileraw[,"fileName"]),id_col]
+cell_pre = cell[meta_fileraw[match(rownames(cell), meta_fileraw[,"filename"]),"time"]=="Pre",]
+rownames(cell_pre) = meta_fileraw[match(rownames(cell_pre), meta_fileraw[,"filename"]),id_col]
 save(cell_pre, file=paste0(feat_cell_dir,".pre.Rdata"))
 if (writecsv) write.csv(cell_pre, file=paste0(feat_cell_dir,".pre.csv"))
 
-cell_post = cell[meta_fileraw[match(rownames(cell), meta_fileraw[,"fileName"]),"time"]=="Post",]
-rownames(cell_post) = meta_fileraw[match(rownames(cell_post), meta_fileraw[,"fileName"]),id_col]
+cell_post = cell[meta_fileraw[match(rownames(cell), meta_fileraw[,"filename"]),"time"]=="Post",]
+rownames(cell_post) = meta_fileraw[match(rownames(cell_post), meta_fileraw[,"filename"]),id_col]
 save(cell_post, file=paste0(feat_cell_dir,".post.Rdata"))
 if (writecsv) write.csv(cell_post, file=paste0(feat_cell_dir,".post.csv"))
 
@@ -237,7 +245,7 @@ for (m0n in names(feats)) {
   # # the 1 added to log function is to avoid log 0 values
   # log.cpm = log(cpm + 1, 2)
   median_log2_cpm = apply(cpm_log, 1, median)
-  png(file=paste0(stat_dir,"/", fileNames(feat_feature_dir),m0n, "_hist.png"), width=wdth, height=ht)
+  png(file=paste0(preprocess_dir,"/", fileNames(feat_feature_dir),m0n, "_rawhist.png"), width=wdth, height=ht)
   hist(median_log2_cpm)
   abline(v=expr_cutoff[[m0n]], col = "red")
   graphics.off()
@@ -254,7 +262,7 @@ for (m0n in names(feats)) {
   # recalculate cutoff after filtering
   cpm_log = cpm(m1, log=T)
   
-  png(file=paste0(stat_dir,"/", fileNames(feat_feature_dir),m0n, "_cpmfiltered-heat.png"), width=wdth, height=ht)
+  png(file=paste0(preprocess_dir,"/", fileNames(feat_feature_dir),m0n, "_cpmfiltered-heat.png"), width=wdth, height=ht)
   heatmap(cor(cpm_log[,order(meta_fileraw[class_col,])]))
   graphics.off()
   
@@ -265,7 +273,7 @@ for (m0n in names(feats)) {
   # summary(pca)
   
   # 2 group comparison
-  group = meta_fileraw[match(meta_fileraw[,"fileName"],colnames(m1)),class_col]
+  group = meta_fileraw[match(meta_fileraw[,"filename"],colnames(m1)),class_col]
   mdge = DGEList(counts=m1, group=group)
   
   
@@ -288,12 +296,12 @@ for (m0n in names(feats)) {
   
   # m3 = estimateDisp(m2,design)
   # sqrt(m4$common.dispersion) # biological coefficient of variation
-  # png(file=paste0(stat_dir,"/", fileNames(feat_feature_dir),ifelse(m0n=="isopct","pct",""), "_cpmfiltered-disper.png"), width=width, height=height)
+  # png(file=paste0(preprocess_dir,"/", filenames(feat_feature_dir),ifelse(m0n=="isopct","pct",""), "_cpmfiltered-disper.png"), width=width, height=height)
   # plotBCV(m4)
   # graphics.off()
   
   # confounders: age sex bmi race
-  png(file=paste0(stat_dir,"/", fileNames(feat_feature_dir),m0n, "_cpmfiltered-voom.png"), width=wdth, height=ht)
+  png(file=paste0(preprocess_dir,"/", fileNames(feat_feature_dir),m0n, "_cpmfiltered-voom.png"), width=wdth, height=ht)
   m3 = voom(m2,design,plot=T)
   graphics.off()
   
@@ -303,7 +311,7 @@ for (m0n in names(feats)) {
   
   # m3log = log2(as.matrix(m3))
   # 
-  # png(file=paste0(stat_dir,"/", fileNames(feat_feature_dir),ifelse(m0n=="isopct","pct",""), "_hist_2.png"), width=width, height=height)
+  # png(file=paste0(preprocess_dir,"/", fileNames(feat_feature_dir),ifelse(m0n=="isopct","pct",""), "_hist_2.png"), width=width, height=height)
   # hist(m3log)
   # abline(v=expr_cutoff_2, col = "red")
   # graphics.off()
@@ -330,7 +338,7 @@ for (m0n in names(feats)) {
     #  versus the average log2 counts-per-million on the x-axis. 
     #  The red dots are genes with an FDR less than 10%. 
     #  The blue lines represent a four-fold change in expression.
-    png(file=paste0(stat_dir,"/", fileNames(feat_feature_dir),ifelse(m0n=="isopct","pct",""), "_cpmfiltered-smear.png"), width=wdth, height=hy)
+    png(file=paste0(preprocess_dir,"/", fileNames(feat_feature_dir), "_cpmfiltered-smear.png"), width=wdth, height=hy)
     plotSmear(et, de.tags = rownames(results_edgeR)[results_edgeR$table$FDR < .1])
     abline(h = c(-2, 2), col = "blue")
     graphics.off()
@@ -378,16 +386,17 @@ meta_file_post = meta_fileraw[meta_fileraw[,"time"]=="Post",]
 
 if (file.exists(paste0(meta_file_dir,".Rdata"))) {
   meta_file_old = get(load(paste0(meta_file_dir,".Rdata")))
+  meta_file_old$id[meta_file_old$rnaseq_coreSet_biomarkerAnalysis=="Y"]
   meta_file_pre = merge.data.frame(meta_file_pre[,append(id_col,setdiff(colnames(meta_file_pre),colnames(meta_file_old)))],meta_file_old,all=T,by=id_col)
   meta_file_post = merge.data.frame(meta_file_post[,append(id_col,setdiff(colnames(meta_file_post),colnames(meta_file_old)))],meta_file_old,all=T,by=id_col)
 }
 meta_file_pre = meta_file_pre[order(meta_file_pre[,id_col]),]
 meta_file_post = meta_file_post[order(meta_file_post[,id_col]),]
 meta_file = meta_file_post
-meta_file$fileName_rnaseq.pre = meta_file_pre[,"fileName"]
-meta_file$fileName_rnaseq.post = meta_file_post[,"fileName"]
+meta_file$filename_rnaseq.pre = meta_file_pre[,"filename"]
+meta_file$filename_rnaseq.post = meta_file_post[,"filename"]
 
-meta_file = meta_file[,!colnames(meta_file)%in%c("fileName","time")]
+meta_file = meta_file[,!colnames(meta_file)%in%c("filename","time")]
 
 
 save(meta_file, file=paste0(meta_file_dir,".Rdata"))
@@ -395,15 +404,12 @@ if (writecsv) write.csv(meta_file, file=paste0(meta_file_dir,".csv"))
 
 
 
-
-
-
 ## save -----------------------------
 for (m0n in names(feats)) {
   m0 = feats[[m0n]]
-  counts_pre = m0[meta_file$fileName_rnaseq.pre[!is.na(meta_file$fileName_rnaseq.pre)],]
-  counts_post = m0[meta_file$fileName_rnaseq.post[!is.na(meta_file$fileName_rnaseq.post)],]
-  rownames(counts_pre) = rownames(counts_post) = meta_file[!is.na(meta_file$fileName_rnaseq.post),id_col]
+  counts_pre = m0[meta_file$filename_rnaseq.pre[!is.na(meta_file$filename_rnaseq.pre)],]
+  counts_post = m0[meta_file$filename_rnaseq.post[!is.na(meta_file$filename_rnaseq.post)],]
+  rownames(counts_pre) = rownames(counts_post) = meta_file[!is.na(meta_file$filename_rnaseq.post),id_col]
   
   counts_diff = counts_post - counts_pre
   
@@ -416,3 +422,13 @@ for (m0n in names(feats)) {
   if (writecsv) write.csv(counts_diff, file=paste0(feat_feature_dir,m0n,".diff.csv"))
 }
 
+
+
+
+## check if all subjects are recorded --------------------
+
+# load data availability, ensure all subjects with rnaseq data are recorded in this script
+meta_file_data = read.csv(meta_file_data_dir)
+length(meta_file_data$UniqueID[meta_file_data$rnaseq=="Y"]) = 
+  sum(meta_file_data$UniqueID[meta_file_data$rnaseq=="Y"] %in% 
+        meta_file$id[!is.na(meta_file$filename_rnaseq.pre)])
