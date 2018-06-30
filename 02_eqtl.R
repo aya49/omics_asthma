@@ -140,11 +140,13 @@ for (feat_type in feat_types) {
   # if (colnames(f1_m0)[1]%in%f1_meta_file0[,id_col]) f1_m0 = t(f1_m0)
   
   # get col genotype & rna features
+  f1_meta_col_ind = apply(f1_meta_col0[,c("dbSNP","chromosome","pos_phys")],1,function(x) any(is.na(x)))
+  f1_meta_col = f1_meta_col0[f1_meta_col_ind,]
   f1_good_col_na = f1_meta_col0$dbSNP #SNP ONLY
-  f1_meta_col = f1_meta_col0[!is.na(f1_good_col_na),]
   
+  f2_meta_col_ind = apply(f2_meta_col0[,c("symbol","chr","start","end")],1,function(x) any(is.na(x)))
+  f2_meta_col = f2_meta_col0[f2_meta_col_ind,]
   f2_good_col_na = f2_meta_col0$symbol #GENE ONLY
-  f2_meta_col = f2_meta_col0[!is.na(f2_good_col_na),]
   
   # get row files/samples & covariate
   samples_to_include = intersect(rownames(f2_m0), rownames(f1_m0))
@@ -156,8 +158,8 @@ for (feat_type in feat_types) {
   
   
   # trim matrices
-  f2_m = f2_m0[meta_file[,id_col], !is.na(f2_good_col_na)]
-  f1_m = f1_m0[meta_file[,id_col], !is.na(f1_good_col_na)]
+  f1_m = f1_m0[meta_file[,id_col], f2_meta_col_ind]
+  f2_m = f2_m0[meta_file[,id_col], f1_meta_col_ind]
   
   for (f1_bin in f1_bins) {
     for (useModel in useModels) {
@@ -183,7 +185,6 @@ for (feat_type in feat_types) {
       if (useModel=="modelANOVA") useModel = modelANOVA # assume genotype to have both additive and dominant effects (ANOVA model). In this case genotype data set musts take at most 3 distinct values (i.e. 0/1/2/NA)
       if (useModel=="modelLINEAR_CROSS") useModel = modelLINEAR_CROSS
       
-      "dbSNP", "chromosome", "pos_phys"
       ## prepare meta_col
       #  data.frame with columns snpid (Snp_01), chr (1), pos (725123)
       f1_pos = data.frame(snpid=f1_meta_col$dbSNP, chr=paste0("chr",f1_meta_col$chromosome), pos=f1_meta_col$pos_phys)
