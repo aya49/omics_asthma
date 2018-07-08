@@ -1,0 +1,154 @@
+---
+title: "preprocessGEOdataset"
+author: "Amrit Singh"
+date: "December 16, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(devtools); install_github("singha53/amritr");
+library(amritr);
+library(dplyr);
+library(mixOmics);
+```
+
+# import GEO dataset
+Pathways Activated during Human Asthma Exacerbation as Revealed by Gene Expression Patterns in Blood^[[PLOS ONE 2011](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0021902)]
+
+```{r}
+WhereAmI <- "~/Documents/Manuscript/panCancerAsthma/"
+
+#library(GEOquery)
+#g <- getGEO("GSE19301")
+#names(g)
+#e1 <- g[["GSE19301_series_matrix.txt.gz"]]
+
+## assy data
+#phenoData <- pData(e1)
+#ann <- e1@featureData@data
+#exp <- log2(exprs(e1))
+#dim(phenoData); dim(ann); dim(exp);
+#save(phenoData=phenoData, ann=ann, exp=exp,
+#  file = paste0(WhereAmI, "data/preprocessedData/asthmaExacerbations_plosone.RDATA"))
+```
+
+## Data cleaning
+
+```{r}
+#load(paste0(WhereAmI, "data/preprocessedData/asthmaExacerbations_plosone.RDATA"))
+load("~/Documents/Manuscript/panCancerAsthma_BigFilesNotOnGitHub/asthmaExacerbations_plosone.RDATA")
+
+
+## clean phenotypic data
+phenotype <- unlist(lapply(strsplit(as.character(phenoData$title), ";"), function(i) gsub(" Visit Type: ", "", i[3])))  # keep
+table(phenotype)
+## donor
+donor <- gsub("Donor: ", "", unlist(lapply(strsplit(as.character(phenoData$title), ";"), function(i) gsub(" Visit Type: ", ": ", i[1]))))  # keep
+table(phenotype, donor)
+## history of acid reflux
+acidReflux <- unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1), ": "), function(i) i[2]))
+table(phenotype, acidReflux) ## keep
+
+## bactin-gapdh 5' 3' ratio
+hkRatio <- as.numeric(unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.2), ": "), function(i) i[2])))
+## sample collection date
+sampleCollectionDate <- unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.4), " "), function(i) i[4]))
+table(phenotype, unlist(lapply(strsplit(sampleCollectionDate, "-"), function(i) i[1]))) ## keep
+year <- unlist(lapply(strsplit(sampleCollectionDate, "-"), function(i) i[1]))
+## relevant respiratory infections
+respiratoryInfections <- unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.5), ": "), function(i) i[2]))
+table(phenotype, respiratoryInfections) ## keep
+## atopic
+atopicStatus <- unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.6), ": "), function(i) i[2]))
+table(phenotype, atopicStatus) ## keep
+## bmi
+bmi <- as.numeric(unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.9), ": "), function(i) i[2])))
+bmi2 <- bmi
+bmi2[!is.na(bmi2)] <- "available"
+table(bmi2, phenotype) ## keep
+# maximum steroid exposure (4=systemic  3=inhaled  2=intranasal  1)
+steroids <- as.numeric(unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.11), ": "), function(i) i[2])))
+table(steroids, phenotype)  ## keep
+## ratio of monocytes to lymphocytes  whole blood
+mono.lym <- as.numeric(unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.13), ": "), function(i) i[2]))) ## keep
+## ige level
+igelevel <- as.numeric(unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.15), ": "), function(i) i[2])))
+sum(!is.na(igelevel))  ## remove   
+## any inhaled cs use  0=no  1=yes
+ics <- as.numeric(unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.16), ": "), function(i) i[2])))
+table(ics, phenotype)  ## keep
+## any intranasal cs use  0=no  1=yes
+ncs <- as.numeric(unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.17), ": "), function(i) i[2])))
+table(ncs, phenotype)  ## keep
+## baseline severity  nih guideline
+severity <- unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.20), ": "), function(i) i[2]))
+table(severity, phenotype)  ## keep
+## any systemic cs use  0=no  1=yes
+scs <- as.numeric(unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.22), ": "), function(i) i[2])))
+### change 912083903 to NA
+scs[scs == "912083903"] <- NA
+table(scs, phenotype)  ## keep
+## Race
+race <- unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.24), ": "), function(i) i[2]))
+table(race, phenotype)  ## keep
+## visit number
+visitNumber <- as.numeric(unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.26), ": "), function(i) i[2])))
+plot(visitNumber ~ factor(phenotype))
+table(visitNumber, phenotype)  ## keep
+## country: AUS country: GBR country: IRL country: ISL country: USA
+country <- unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.27), ": "), function(i) i[2]))
+table(country, phenotype)  ## keep
+## fev1 predicted
+fev1Pred <- as.numeric(unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.28), ": "), function(i) i[2])))
+fev1Pred1 <- fev1Pred
+fev1Pred1[!is.na(fev1Pred1)] <- "available"
+table(fev1Pred1, phenotype)  ## keep
+## leukotriene receptor antagonist use  0=no  1=yes
+lra <- as.numeric(unlist(lapply(strsplit(as.character(phenoData$characteristics_ch1.29), ": "), function(i) i[2])))
+table(lra, phenotype)
+
+all(rownames(phenoData) == colnames(exp))
+
+demoGEO <- data.frame(phenotype, donor, acidReflux, hkRatio, sampleCollectionDate,  year, respiratoryInfections, atopicStatus, bmi, steroids, mono.lym, igelevel, ics, ncs, severity, scs, race, visitNumber, country, fev1Pred, lra)
+rownames(demo) <- rownames(phenoData)
+
+
+#In these analyses, log2-transformed signal was the response variable,
+#and asthma severity, sex, age category, race, geographical location,
+#visit type, corticosteroid exposure, leukotriene receptor antagonist
+#use, RNA quality and monocyte to lymphocyte ratio were the
+#explanatory variables.
+
+## condense probe set by n dataset to gene symbol by n dataset
+nrow(exp)
+all(rownames(exp) == rownames(ann))
+
+genSym <- as.character(ann$`Gene Symbol`)
+names(genSym) <- rownames(ann)
+#genSym <- genSym[!is.na(genSym)]
+
+exp2 <- exp[names(genSym), ] %>% data.frame %>%  mutate(genSym = genSym) %>% 
+  dplyr::group_by(genSym) %>% dplyr::summarise_each(funs(mean))
+exp3 <- as.matrix(exp2[-1, -1])
+rownames(exp3) <- as.character(exp2$genSym)[-1]
+
+geoEset_summarized <- exp3 %>% t %>% as.data.frame %>% 
+        mutate(phenotype = phenotype, donor = donor) %>% 
+        dplyr::group_by(phenotype, donor) %>% 
+        dplyr::summarise_each(funs(mean))
+        
+```
+
+## write dataset to file
+
+```{r}
+latePhasePanel <- readRDS(paste0(WhereAmI, "results/latePhaseBiomarkerPanel.rds"))
+length(latePhasePanel$panel)  # 208 genes
+latePhasePanel <- intersect(latePhasePanel$panel, colnames(geoEset_summarized))
+length(latePhasePanel)  # 185 genes
+geoPanelGenes <- geoEset_summarized[ , c("phenotype", "donor", latePhasePanel)]
+
+save(geoPanelGenes = geoPanelGenes,
+  file = paste0(WhereAmI, "data/preprocessedData/geneExp_geo_plosone.RDATA"))
+```

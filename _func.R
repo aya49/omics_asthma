@@ -82,6 +82,7 @@ libr <- function(pkgs) {
     if (!is.element(p, installed.packages()[,1])) {
       source("http://bioconductor.org/biocLite.R")
       biocLite(p, ask=F)
+      # install.packages(p)
     }
     require(p, character.only = TRUE)
   }
@@ -385,7 +386,7 @@ customTheme = function (sizeStripFont, xAngle, hjust, vjust, xSize, ySize,
 ## by amrit
 ## input: demo (file x col matrix); groups=class_col; variables=cols;
 ## output:
-descriptiveStat = function (demo, groups, variables, paired=F, pairing=F) {
+descriptiveStat = function(demo, groups, variables, paired=F, pairing=F) {
   require(dplyr)
   require(tidyr)
   require(broom)
@@ -420,6 +421,13 @@ descriptiveStat = function (demo, groups, variables, paired=F, pairing=F) {
     pval$BH.FDR <- p.adjust(pval$p.value, "BH")
   }
   return(list(meanSD = meanSD, pval = pval))
+}
+
+## by amrit
+normalizelibSum = function(genExp) {
+  lib.size <- colSums(genExp)
+  genExpNorm <- t(log2(t(genExp + 0.5)/(lib.size + 1) * 1e+06))
+  return(genExpNorm)
 }
 
 ## by amrit
@@ -476,4 +484,14 @@ sear = function (input, type = c("mrna", "mirna")) {
     dplyr::ungroup(.) %>% dplyr::group_by(collection) %>% 
     dplyr::mutate(fdr = p.adjust(p_value, method = "BH")) %>% 
     dplyr::ungroup(.)
+}
+
+## by amrit
+plotSampleHist = function (data = data, main = NULL, xlim = NULL, ylim = NULL) {
+  for (i in 1:ncol(data)) {
+    idx <- data[, i] > -1
+    shist(data[idx, i], unit = 0.25, col = i, plotHist = FALSE, 
+          add = i != 1, main = main, ylim = ylim, xlim = xlim, 
+          xlab = expression("log"[2] ~ "cpm"))
+  }
 }

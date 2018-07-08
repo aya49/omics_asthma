@@ -1,16 +1,29 @@
 ---
-title: "asthmaBiomarkers_discoveryDataAnalysis_rnaSeq"
-author: "Amrit Singh"
-date: '2017-08-07'
+title: "discovery analysis rnaSeq"
+author: "Amrit Singh; Alice Yue"
+date: "2017-08-07; 2018-06-14"
 output:
   html_document:
-    toc: yes
+    theme: yeti
+    highlight: "neon"
+    number_sections: true
+    toc: true
+    toc_float: 
+      collapsed: true
+      smooth_scroll: false
+    df_print: paged
   pdf_document:
-    toc: yes
+    toc: true
 ---
 
 ```{r, echo = FALSE, results='hide', message=FALSE, warning=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# logistics
+
+```{r}
+
 ## input:
 ## output:
 ## aya43@sfu.ca
@@ -20,7 +33,6 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 ## root directory
 root = "~/projects/asthma"
 setwd(root)
-dir.create(paste0(root, "/result"), showWarnings=F)
 result_dir = paste0(root, "/result"); dir.create(result_dir, showWarnings=F)
 
 ## input directory
@@ -39,26 +51,27 @@ libr("ggrepel")
 libr("biomaRt")
 libr("RColorBrewer")
 libr("sear") #devtools::install_github('cashoes/sear')
-library("amritr")
-
-## load datasets (demographics and rnaseq data)
-load(paste0(data_dir, "/data/rnaseqDatasets.RDATA"))
+# library("amritr")
 
 ```
 
-prepare demographics
+prepare meta_filegraphics
 
 ```{r}
-# time=Pre demo and data
-rnaseq_demo_pre <- subset(rnaseq_demo, Time == "Pre")
+
+## load datasets (meta_filegraphics and rnaseq data)
+load(paste0(data_dir, "/rnaseqDatasets.RDATA"))
+
+# time=Pre meta_file and data
+rnaseq_meta_file_pre <- subset(rnaseq_meta_file, time == "Pre")
 rnaseq_datasets_pre <- lapply(rnaseq_datasets, function(i){
-  i[, rownames(rnaseq_demo_pre)]
+  i[,rownames(rnaseq_meta_file_pre)]
 })
 
-# time=Post demo and data
-rnaseq_demo_post <- subset(rnaseq_demo, Time == "Post")
+# time=Post meta_file and data
+rnaseq_meta_file_post <- subset(rnaseq_meta_file, time == "Post")
 rnaseq_datasets_post <- lapply(rnaseq_datasets, function(i){
-  i[,rownames(rnaseq_demo_post)]
+  i[,rownames(rnaseq_meta_file_post)]
 })
 
 # check if both pre and post are in the same order
@@ -76,8 +89,8 @@ rnaseq_datasets_diff <- mapply(function(pre, post){
 ## response vs cell counts
 
 ```{r}
-# cell=non/leucocytes demo; make response a factor, choose 7 columns, except response collate all cell types into a col and their freq into a col
-cc_pre <- rnaseq_demo_pre %>% 
+# cell=non/leucocytes meta_file; make response a factor, choose 7 columns, except response collate all cell types into a col and their freq into a col
+cc_pre <- rnaseq_meta_file_pre %>% 
   mutate(Response = factor(calculated_Response, levels = c("ER", "DR"))) %>% 
   dplyr::select(Response, Leukocyte_Counts.x10.9., Neu_percent, 
                 lym_percent, mono_percent, eos_percent, baso_percent) %>% 
@@ -119,49 +132,22 @@ a2 <- filter(cc_pre, Cells != "Leukocytes") %>%
 
 ```{r}
 ## which cell frequencies signficantly changes between er and dr at pre-challenge
-# Leukocytes
-fit <- lm(rnaseq_demo_pre$Leukocyte_Counts.x10.9. ~ rnaseq_demo_pre$calculated_Response)
-plot(fit, main="Leukocytes ~ response")
-shapiro.test(fit$residuals) # normal
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-summary(fit) # Pt=0.31
 
-# Neutrophils
-fit <- lm(rnaseq_demo_pre$Neu_percent ~ rnaseq_demo_pre$calculated_Response)
-plot(fit, main="neutrophils ~ response")
-shapiro.test(fit$residuals) # null = not normal distri
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-summary(fit) # Pt=0.19
+for (cell_col in c("Leukocyte_Counts.x10.9.",  # NOT normal! # pw=0.36 # Pt=0.31
+                   "Neu_percent",  # null = not normal distri # Pt=0.19
+                   "lym_percent",  # normal # Pt=0.70
+                   "mono_percent",  # normal # Pt=0.24
+                   "eos_percent",  # NOT normal!  # pw=0.27
+                   "baso_percent") # NOT normal!  # pw=0.36
+     ) {
+  fit <- lm(rnaseq_meta_file_pre[,cell_col] ~ rnaseq_meta_file_pre$calculated_Response)
+  plot(fit, main=paste0(cell_col," ~ response"))
+  shapiro.test(fit$residuals) 
+  qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
+  wilcox.test(x = rnaseq_meta_file_pre[rnaseq_meta_file_pre$calculated_Response == "ER", cell_col],
+              y = rnaseq_meta_file_pre[rnaseq_meta_file_pre$calculated_Response == "DR", cell_col]) 
+}
 
-# Lymphocytes
-fit <- lm(rnaseq_demo_pre$lym_percent ~ rnaseq_demo_pre$calculated_Response)
-plot(fit, main="lymph ~ response")
-shapiro.test(fit$residuals) # normal
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-summary(fit) # Pt=0.70
-
-# Monocytes
-fit <- lm(rnaseq_demo_pre$mono_percent ~ rnaseq_demo_pre$calculated_Response)
-plot(fit, main="mono ~ response")
-shapiro.test(fit$residuals) # normal
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-summary(fit) # Pt=0.24
-
-# Eosinophils
-fit <- lm(rnaseq_demo_pre$eos_percent ~ rnaseq_demo_pre$calculated_Response)
-plot(fit, main="eos ~ response")
-shapiro.test(fit$residuals)  # NOT normal!
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-wilcox.test(x = rnaseq_demo_pre$eos_percent[rnaseq_demo_pre$calculated_Response == "ER"], 
-            y = rnaseq_demo_pre$eos_percent[rnaseq_demo_pre$calculated_Response == "DR"])  # pw=0.27
-
-# Basophils
-fit <- lm(rnaseq_demo_pre$baso_percent ~ rnaseq_demo_pre$calculated_Response)
-plot(fit, main="baso ~ response")
-shapiro.test(fit$residuals)  # NOT normal!
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-wilcox.test(x = rnaseq_demo_pre$baso_percent[rnaseq_demo_pre$calculated_Response == "ER"], 
-            y = rnaseq_demo_pre$baso_percent[rnaseq_demo_pre$calculated_Response == "DR"])  # pw=0.36
 
 ```
 
@@ -169,13 +155,13 @@ wilcox.test(x = rnaseq_demo_pre$baso_percent[rnaseq_demo_pre$calculated_Response
 
 ```{r}
 # variables that are normally distributed
-rnaseq_demo_pre %>% dplyr::select(Leukocyte_Counts.x10.9., Neu_percent, lym_percent, mono_percent, calculated_Response) %>% 
+rnaseq_meta_file_pre %>% dplyr::select(Leukocyte_Counts.x10.9., Neu_percent, lym_percent, mono_percent, calculated_Response) %>% 
   gather(Cells, freq, -calculated_Response) %>% 
   group_by(Cells, calculated_Response) %>% 
   summarise(Mean = round(mean(freq, na.rm = TRUE), 2), SD = round(sd(freq, na.rm = TRUE), 2))
 
 # variables that are NOT normally distributed
-rnaseq_demo_pre %>% dplyr::select(eos_percent, baso_percent, calculated_Response) %>% 
+rnaseq_meta_file_pre %>% dplyr::select(eos_percent, baso_percent, calculated_Response) %>% 
   gather(Cells, freq, -calculated_Response) %>% 
   group_by(Cells, calculated_Response) %>% 
   dplyr::summarise(Median = round(median(freq, na.rm = TRUE), 2), 
@@ -184,107 +170,58 @@ rnaseq_demo_pre %>% dplyr::select(eos_percent, baso_percent, calculated_Response
 
 ```
 
-## response ~ demographics
+## response ~ meta_filegraphics
 
 tables
 
 ```{r}
-table(rnaseq_demo_pre$calculated_Response)
-table(rnaseq_demo_pre$SEX, rnaseq_demo_pre$calculated_Response)
+table(rnaseq_meta_file_pre$calculated_Response)
+table(rnaseq_meta_file_pre$sex, rnaseq_meta_file_pre$calculated_Response)
 # 13/19 # proporiton of female (ER)
 # 11/17 # proporiton of female (DR)
-table(droplevels(rnaseq_demo_pre$Allergen_cleanLabel), rnaseq_demo_pre$calculated_Response)
-table(droplevels(rnaseq_demo_pre$SITE), rnaseq_demo_pre$calculated_Response)
+table(droplevels(rnaseq_meta_file_pre$Allergen_cleanLabel), rnaseq_meta_file_pre$calculated_Response)
+table(droplevels(rnaseq_meta_file_pre$SITE), rnaseq_meta_file_pre$calculated_Response)
 
 ```
 
-### response ~ demo
+### response ~ meta_file
 
 ```{r}
-# Weight
-fit <- lm(rnaseq_demo_pre$Wt..Kg. ~ rnaseq_demo_pre$calculated_Response)
+
+for (cell_col in c("weight",  # not normal # pw=0.23
+                   "height",  # normal #pt = 0.91
+                   "age", # not normal  # pw=0.65
+                   "blfev",# normal #pt = 0.95
+                   "prfev",  # not normal  # pw=0.91
+                   "ear", # normal # pw=0.12
+                   "lar", #not normal # Pt=2.86e-14
+                   "PC20_pre", # NOT normal! # pw=0.11
+                   "AIS") # normal  # Pt = 0.01
+     ) {
+fit <- lm(rnaseq_meta_file_pre[,cell_col] ~ rnaseq_meta_file_pre$calculated_Response)
 plot(fit)
 shapiro.test(fit$residuals) ## not normal
 qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-wilcox.test(x = rnaseq_demo_pre$Wt..Kg.[rnaseq_demo_pre$calculated_Response == "ER"], 
-            y = rnaseq_demo_pre$Wt..Kg.[rnaseq_demo_pre$calculated_Response == "DR"])  # pw=0.23
-
-# height
-fit <- lm(rnaseq_demo_pre$HT.cm. ~ rnaseq_demo_pre$calculated_Response)
-plot(fit)
-shapiro.test(fit$residuals) ## normal
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-summary(fit) #pt = 0.91
-
-# Age
-fit <- lm(rnaseq_demo_pre$AGE ~ rnaseq_demo_pre$calculated_Response)
-plot(fit)
-shapiro.test(fit$residuals) ## not normal
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-wilcox.test(x = rnaseq_demo_pre$AGE[rnaseq_demo_pre$calculated_Response == "ER"], 
-            y = rnaseq_demo_pre$AGE[rnaseq_demo_pre$calculated_Response == "DR"])  # pw=0.65
-
-# BLFEV 
-fit <- lm(rnaseq_demo_pre$BLFEV ~ rnaseq_demo_pre$calculated_Response)
-plot(fit)
-shapiro.test(fit$residuals) ## normal
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-summary(fit) #pt = 0.95
-
-# PRFEV
-fit <- lm(rnaseq_demo_pre$PRFEV ~ rnaseq_demo_pre$calculated_Response)
-plot(fit)
-shapiro.test(fit$residuals) ## not normal
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-wilcox.test(x = rnaseq_demo_pre$PRFEV[rnaseq_demo_pre$calculated_Response == "ER"], 
-            y = rnaseq_demo_pre$PRFEV[rnaseq_demo_pre$calculated_Response == "DR"])  # pw=0.91
-
-# EAR 
-fit <- lm(rnaseq_demo_pre$EAR ~ rnaseq_demo_pre$calculated_Response)
-plot(fit)
-shapiro.test(fit$residuals) ## not normal
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-wilcox.test(x = rnaseq_demo_pre$EAR[rnaseq_demo_pre$calculated_Response == "ER"], 
-            y = rnaseq_demo_pre$EAR[rnaseq_demo_pre$calculated_Response == "DR"])  # pw=0.12
-
-# LAR 
-fit <- lm(rnaseq_demo_pre$LAR ~ rnaseq_demo_pre$calculated_Response) 
-plot(fit)
-shapiro.test(fit$residuals) ## normal
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-summary(fit) # Pt=2.86e-14
-
-# PC20
-fit <- lm(rnaseq_demo_pre$PC20 ~ rnaseq_demo_pre$calculated_Response)
-plot(fit)
-shapiro.test(fit$residuals) ## not normal
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-wilcox.test(x = rnaseq_demo_pre$PC20[rnaseq_demo_pre$calculated_Response == "ER"], 
-            y = rnaseq_demo_pre$PC20[rnaseq_demo_pre$calculated_Response == "DR"])  # pw=0.11
-
-# AIS
-fit <- lm(rnaseq_demo_pre$AIS ~ rnaseq_demo_pre$calculated_Response)
-plot(fit)
-shapiro.test(fit$residuals) ## normal
-qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-summary(fit) # Pt = 0.01
+wilcox.test(x = rnaseq_meta_file_pre[rnaseq_meta_file_pre$calculated_Response == "ER", cell_col], 
+            y = rnaseq_meta_file_pre[rnaseq_meta_file_pre$calculated_Response == "DR", cell_col])  # pw=0.23
+}
 
 ```
 
-### non/normally distributed demo only
+### non/normally distributed meta_file only
 
 ```{r}
 # variables that are NOT normally distributed
-rnaseq_demo_pre %>% dplyr::select(Wt..Kg.,AGE,PRFEV, EAR, PC20, calculated_Response) %>% 
+rnaseq_meta_file_pre %>% dplyr::select(Wt..Kg.,AGE,PRFEV, EAR, PC20, calculated_Response) %>% 
   gather(Cells, freq, -calculated_Response) %>% 
   group_by(Cells, calculated_Response) %>% 
   dplyr::summarise(Median = round(median(freq, na.rm = TRUE), 2), 
                    Q1 = quantile(freq, 0.25, na.rm = TRUE), Q3 = quantile(freq, 0.75, na.rm = TRUE))
 
 # variables that are normally distributed
-rnaseq_demo_pre %>% dplyr::select(HT.cm., BLFEV, LAR, AIS, calculated_Response) %>% 
-  gather(DEMO, freq, -calculated_Response) %>% 
-  group_by(DEMO, calculated_Response) %>% 
+rnaseq_meta_file_pre %>% dplyr::select(HT.cm., BLFEV, LAR, AIS, calculated_Response) %>% 
+  gather(meta_file, freq, -calculated_Response) %>% 
+  group_by(meta_file, calculated_Response) %>% 
   summarise(Mean = round(mean(freq, na.rm = TRUE), 2), SD = round(sd(freq, na.rm = TRUE), 2))
 
 
@@ -295,8 +232,8 @@ rnaseq_demo_pre %>% dplyr::select(HT.cm., BLFEV, LAR, AIS, calculated_Response) 
 
 ```{r}
 # genes ~ response
-design_resp <- model.matrix(~factor(rnaseq_demo_pre$calculated_Response, levels = c("ER", "DR")))
-nrow(rnaseq_demo_pre); table(rnaseq_demo_pre$calculated_Response)
+design_resp <- model.matrix(~factor(rnaseq_meta_file_pre$calculated_Response, levels = c("ER", "DR")))
+nrow(rnaseq_meta_file_pre); table(rnaseq_meta_file_pre$calculated_Response)
 deg_pre <- lapply(1 : length(rnaseq_datasets_pre), function(i){
   fit <- eBayes(lmFit(rnaseq_datasets_pre[[i]], design_resp))
   top <- topTable(fit, coef = 2, adjust.method = "BH", n = nrow(fit)) #top genes
@@ -309,9 +246,9 @@ deg_pre <- lapply(1 : length(rnaseq_datasets_pre), function(i){
 names(deg_pre) <- names(rnaseq_datasets_pre)
 
 # genes ~ response + leukocytes
-design_resp.leuk <- model.matrix(~factor(rnaseq_demo_pre$calculated_Response, levels = c("ER", "DR"))
-                                 + Leukocyte_Counts.x10.9., data = rnaseq_demo_pre)
-nrow(rnaseq_demo_pre[rownames(design_resp.leuk), ]); table(rnaseq_demo_pre[rownames(design_resp.leuk), "calculated_Response"])
+design_resp.leuk <- model.matrix(~factor(rnaseq_meta_file_pre$calculated_Response, levels = c("ER", "DR"))
+                                 + Leukocyte_Counts.x10.9., data = rnaseq_meta_file_pre)
+nrow(rnaseq_meta_file_pre[rownames(design_resp.leuk), ]); table(rnaseq_meta_file_pre[rownames(design_resp.leuk), "calculated_Response"])
 deg_pre_cc <- lapply(1 : length(rnaseq_datasets_pre), function(i){
   fit <- eBayes(lmFit(rnaseq_datasets_pre[[i]][, rownames(design_resp.leuk)], design_resp.leuk))
   top <- topTable(fit, coef = 2, adjust.method = "BH", n = nrow(fit))
@@ -331,7 +268,7 @@ names(deg_pre_cc) <- names(rnaseq_datasets_pre)
 
 ```{r}
 # gene counts ~ response
-design_resp <- model.matrix(~factor(rnaseq_demo_post$calculated_Response, levels = c("ER", "DR")))
+design_resp <- model.matrix(~factor(rnaseq_meta_file_post$calculated_Response, levels = c("ER", "DR")))
 
 deg_diff <- lapply(1 : length(rnaseq_datasets_diff), function(i){
   fit <- eBayes(lmFit(rnaseq_datasets_diff[[i]], design_resp))
@@ -345,11 +282,11 @@ deg_diff <- lapply(1 : length(rnaseq_datasets_diff), function(i){
 names(deg_diff) <- names(rnaseq_datasets_diff)
 
 # gene counts ~ response + leukocyte(post - pre)
-design_respDat <- data.frame(response = rnaseq_demo_post$calculated_Response,
-                             cc = rnaseq_demo_post[, "Leukocyte_Counts.x10.9."] - rnaseq_demo_pre[, "Leukocyte_Counts.x10.9."])
-rownames(design_respDat) <- rownames(rnaseq_demo_post)
-nrow(rnaseq_demo_post[rownames(na.omit(design_respDat)),])
-table(rnaseq_demo_post[rownames(na.omit(design_respDat)), "calculated_Response"])
+design_respDat <- data.frame(response = rnaseq_meta_file_post$calculated_Response,
+                             cc = rnaseq_meta_file_post[, "Leukocyte_Counts.x10.9."] - rnaseq_meta_file_pre[, "Leukocyte_Counts.x10.9."])
+rownames(design_respDat) <- rownames(rnaseq_meta_file_post)
+nrow(rnaseq_meta_file_post[rownames(na.omit(design_respDat)),])
+table(rnaseq_meta_file_post[rownames(na.omit(design_respDat)), "calculated_Response"])
 
 design_resp.cc <- model.matrix(~response+cc, data = design_respDat)
 table(design_resp.cc[,"responseER"])
@@ -371,12 +308,12 @@ names(deg_diff_cc) <- names(rnaseq_datasets_diff)
 
 ```{r}
 # PC20 ~ response; wilcox(P20postER, P20postDR)
-fit <- lm(rnaseq_demo_post$PC20 ~ rnaseq_demo_post$calculated_Response)
+fit <- lm(rnaseq_meta_file_post$PC20 ~ rnaseq_meta_file_post$calculated_Response)
 plot(fit)
 shapiro.test(fit$residuals) ## not normal
 qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-wilcox.test(x = rnaseq_demo_post$PC20[rnaseq_demo_post$calculated_Response == "ER"], 
-            y = rnaseq_demo_post$PC20[rnaseq_demo_post$calculated_Response == "DR"])  # pw=0.11
+wilcox.test(x = rnaseq_meta_file_post$PC20[rnaseq_meta_file_post$calculated_Response == "ER"], 
+            y = rnaseq_meta_file_post$PC20[rnaseq_meta_file_post$calculated_Response == "DR"])  # pw=0.11
 ```
 
 ### non/normal variables
@@ -384,7 +321,7 @@ wilcox.test(x = rnaseq_demo_post$PC20[rnaseq_demo_post$calculated_Response == "E
 ```{r}
 
 # variables that are NOT normally distributed
-rnaseq_demo_post %>% dplyr::select(PC20, calculated_Response) %>% 
+rnaseq_meta_file_post %>% dplyr::select(PC20, calculated_Response) %>% 
   gather(Cells, freq, -calculated_Response) %>% 
   group_by(Cells, calculated_Response) %>% 
   dplyr::summarise(Median = round(median(freq, na.rm = TRUE), 2), 
@@ -397,12 +334,12 @@ prepare cell types
 
 ```{r}
 ## Cell-types
-cbc_diff <- rnaseq_demo_post[, c("Leukocyte_Counts.x10.9.", "Neu_percent", 
-                                 "lym_percent", "mono_percent", "eos_percent", "baso_percent")] - rnaseq_demo_pre[, c("Leukocyte_Counts.x10.9.", "Neu_percent", 
+cbc_diff <- rnaseq_meta_file_post[, c("Leukocyte_Counts.x10.9.", "Neu_percent", 
+                                 "lym_percent", "mono_percent", "eos_percent", "baso_percent")] - rnaseq_meta_file_pre[, c("Leukocyte_Counts.x10.9.", "Neu_percent", 
                                                                                                                       "lym_percent", "mono_percent", "eos_percent", "baso_percent")]
 
 cc_diff <- cbc_diff %>% 
-  mutate(Response = factor(rnaseq_demo_pre$calculated_Response, levels = c("ER", "DR"))) %>% 
+  mutate(Response = factor(rnaseq_meta_file_pre$calculated_Response, levels = c("ER", "DR"))) %>% 
   dplyr::select(Response, Leukocyte_Counts.x10.9., Neu_percent, 
                 lym_percent, mono_percent, eos_percent, baso_percent) %>% 
   gather(Cells, freq, -Response)
@@ -444,43 +381,43 @@ a2 <- filter(cc_diff, Cells != "Leukocytes") %>%
 ## which cell frequencies signficantly changes between er and dr at pre-challenge
 
 # Leukocytes
-fit <- lm(cbc_diff$Leukocyte_Counts.x10.9. ~ rnaseq_demo_post$calculated_Response)
+fit <- lm(cbc_diff$Leukocyte_Counts.x10.9. ~ rnaseq_meta_file_post$calculated_Response)
 plot(fit)
 shapiro.test(fit$residuals)
 qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
 summary(fit) # Pt=0.57
 
 # Neutrophils
-fit <- lm(cbc_diff$Neu_percent ~ rnaseq_demo_post$calculated_Response)
+fit <- lm(cbc_diff$Neu_percent ~ rnaseq_meta_file_post$calculated_Response)
 plot(fit)
 shapiro.test(fit$residuals)
 qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
 summary(fit) # Pt=0.85
 
 # Lymphocytes
-fit <- lm(cbc_diff$lym_percent ~ rnaseq_demo_post$calculated_Response)
+fit <- lm(cbc_diff$lym_percent ~ rnaseq_meta_file_post$calculated_Response)
 plot(fit)
 shapiro.test(fit$residuals)
 qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
 summary(fit) # Pt=0.80
 
 # Monocytes
-fit <- lm(cbc_diff$mono_percent ~ rnaseq_demo_post$calculated_Response)
+fit <- lm(cbc_diff$mono_percent ~ rnaseq_meta_file_post$calculated_Response)
 plot(fit)
 shapiro.test(fit$residuals)
 qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
 summary(fit) # Pt=0.65
 
 # Eosinophils
-fit <- lm(cbc_diff$eos_percent ~ rnaseq_demo_post$calculated_Response)
+fit <- lm(cbc_diff$eos_percent ~ rnaseq_meta_file_post$calculated_Response)
 plot(fit)
 shapiro.test(fit$residuals)  # NOT normal!
 qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
-wilcox.test(x = cbc_diff$eos_percent[rnaseq_demo_post$calculated_Response == "ER"], 
-            y = cbc_diff$eos_percent[rnaseq_demo_post$calculated_Response == "DR"])  # pw=0.33
+wilcox.test(x = cbc_diff$eos_percent[rnaseq_meta_file_post$calculated_Response == "ER"], 
+            y = cbc_diff$eos_percent[rnaseq_meta_file_post$calculated_Response == "DR"])  # pw=0.33
 
 # Basophils
-fit <- lm(cbc_diff$baso_percent ~ rnaseq_demo_post$calculated_Response)
+fit <- lm(cbc_diff$baso_percent ~ rnaseq_meta_file_post$calculated_Response)
 plot(fit)
 shapiro.test(fit$residuals) 
 qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
@@ -716,8 +653,8 @@ covMat = NULL
 alpha <- c(0.9, 0.9, 0.9, 0.9)
 # first run preSelectFolds=NULL, then import folds.iter
 folds.iter <- lapply(readRDS(paste0(data_dir, "/data/prePerfNoCov.rds")), function(i) i$folds.iter) 
-response <- factor(rnaseq_demo_pre$calculated_Response, levels = c("ER", "DR"))
-names(response) <- rownames(rnaseq_demo_pre)
+response <- factor(rnaseq_meta_file_pre$calculated_Response, levels = c("ER", "DR"))
+names(response) <- rownames(rnaseq_meta_file_pre)
 source("~/Dropbox/Asthma/biomarkerPanels/reAnalysis/src/crossValidationPerf.R")
 
 #t0 <- proc.time()
@@ -772,7 +709,7 @@ for(j in 1:nfolds){
 }
 
 ## add performance of CBC panel only
-cc_pre <- na.omit(rnaseq_demo_pre[, c("BLFEV", "PC20", "Leukocyte_Counts.x10.9.","Neu_percent","lym_percent","mono_percent","eos_percent","baso_percent")])
+cc_pre <- na.omit(rnaseq_meta_file_pre[, c("BLFEV", "PC20", "Leukocyte_Counts.x10.9.","Neu_percent","lym_percent","mono_percent","eos_percent","baso_percent")])
 response_cc <- response[rownames(cc_pre)]
 table(response_cc)
 fitEnet <- enet(X = as.matrix(cc_pre), Y = response_cc, alpha = 0, lambda = NULL, 
@@ -1101,9 +1038,9 @@ mrnaNames <- list(ucscGenes = rownames(rnaseq_datasets_biomarkers_ucscGenes),
 ## pre-challenge
 
 ```{r}
-all(colnames(rnaseqBiomarkers) == rownames(rnaseq_demo))
-rnaseqBiomarkers_pre <- rnaseqBiomarkers[, rnaseq_demo$Time == "Pre"]
-design_resp <- model.matrix(~factor(rnaseq_demo_pre$calculated_Response, c("ER", "DR")))
+all(colnames(rnaseqBiomarkers) == rownames(rnaseq_meta_file))
+rnaseqBiomarkers_pre <- rnaseqBiomarkers[, rnaseq_meta_file$time == "Pre"]
+design_resp <- model.matrix(~factor(rnaseq_meta_file_pre$calculated_Response, c("ER", "DR")))
 fit <- eBayes(lmFit(rnaseqBiomarkers_pre, design_resp))
 top <- topTable(fit, coef = 2, adjust.method = "BH", n = nrow(fit), sort.by = "none")
 
@@ -1138,8 +1075,8 @@ dev.off()
 ## apply pre-challenge panels applied to post-challenge data
 
 ```{r}
-response <- factor(rnaseq_demo_pre$calculated_Response, levels = c("ER", "DR"))
-names(response) <- gsub(".Pre", "", rownames(rnaseq_demo_pre))
+response <- factor(rnaseq_meta_file_pre$calculated_Response, levels = c("ER", "DR"))
+names(response) <- gsub(".Pre", "", rownames(rnaseq_meta_file_pre))
 
 sapply(rnaseq_datasets_pre, function(i){all(gsub(".Pre", "", colnames(i)) == names(response))})
 sapply(rnaseq_datasets_post, function(i){all(gsub(".Post", "", colnames(i)) == names(response))})
@@ -1201,10 +1138,10 @@ dev.off()
 ## Volcano plot ERvsDR (post-minus)
 
 ```{r}
-rnaseqBiomarkers_post <- rnaseqBiomarkers[, rnaseq_demo$Time == "Post"]
-all(rnaseq_demo[colnames(rnaseqBiomarkers_post), "NAME"] == rnaseq_demo[colnames(rnaseqBiomarkers_pre), "NAME"])
+rnaseqBiomarkers_post <- rnaseqBiomarkers[, rnaseq_meta_file$time == "Post"]
+all(rnaseq_meta_file[colnames(rnaseqBiomarkers_post), "NAME"] == rnaseq_meta_file[colnames(rnaseqBiomarkers_pre), "NAME"])
 rnaseqBiomarkers_diff <- rnaseqBiomarkers_post - rnaseqBiomarkers_pre
-design_resp <- model.matrix(~factor(rnaseq_demo_pre$calculated_Response, c("ER", "DR")))
+design_resp <- model.matrix(~factor(rnaseq_meta_file_pre$calculated_Response, c("ER", "DR")))
 fit_int <- eBayes(lmFit(rnaseqBiomarkers_diff, design_resp))
 top_int <- topTable(fit_int, coef = 2, adjust.method = "BH", n = nrow(fit_int), sort.by = "none")
 

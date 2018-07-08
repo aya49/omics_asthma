@@ -31,8 +31,19 @@ gwas_dir = paste0(stat_dir,"/gwas"); dir.create(gwas_dir,showWarnings=F)
 source("code/_func.R")
 libr("data.table")
 libr("qqman")
+
+libr("traseR")
+data(taSNP) #subset of below
+data(taSNPLD)
+# data(Tcell)
+taSNP0 = as.data.frame(taSNP)
+taSNPLD0 = as.data.frame(taSNPLD)
+
+libr("FunciSNP")
+
 libr("ggplot2")
 libr("entropy")
+libr("limma")
 libr("foreach")
 libr("doMC")
 libr("stringr")
@@ -49,7 +60,7 @@ registerDoMC(no_cores)
 overwrite = F
 writecsv = T #write results as csv on top of Rdata?
 
-pthres = .05
+pthres = .01
 padjust = p.adjust.methods
 padjust = padjust[!padjust%in%c("none")]
 val_max1t = 5e-8 #comment out if just want default, large large p value threshold guideline value
@@ -61,6 +72,7 @@ tests_cate = c("chi2")
 good_col = 3 #each SNP must have <good_col NA or -1; else delete from analysis
 cont_col = 15 #if a column has more than this unique values, it's continuous
 scale_cont = F #if a column is continuous, scale it
+good_na = .75 #proportion of na more than this, then delete the column in matrix
 
 id_col = "id"
 class_cols = "response"
@@ -135,6 +147,7 @@ for (feat_type in feat_types) {
         control = controls[class_coli]
         
         file_ind = file_inds[[file_ind_n]]
+        if (file_ind_n!="all" & all(rownames(m0)%in%file_ind)) next()
         if (file_ind_n=="all") file_ind = rownames(m0)
         # file_ind_n = paste0("-",file_ind_n)
         
@@ -142,12 +155,17 @@ for (feat_type in feat_types) {
         file_ind = file_ind[!is.na(meta_file0[match(file_ind,meta_file0[,id_col]),class_col])]
         
         col_ind = col_inds[[col_ind_n]]
+        if (file_ind_n!="all" & all(colnames(m0)%in%col_ind)) next()
         if (col_ind_n=="all") col_ind = colnames(m0)
         # col_ind_n = paste0(".",col_ind_n)
         
         m = m0[rownames(m0)%in%file_ind, colnames(m0)%in%col_ind]
-        m = delna(m)
-        if (any(dim(m)==0) | sum(!is.na(m))<sum(is.na(m))) next()
+        m = m[apply(m,1,function(x) any(!is.na(x))), 
+              apply(m,2,function(x) sum(is.na(x))<(good_na*length(x)))]
+        if (any(dim(m)==0) | sum(!is.na(m))<sum(is.na(m))) {
+          cat(" (empty or too many NA's skipped!)")
+          next()
+        }
         
         m_del_col = apply(m,2,function(x) length(unique(x[!is.na(x)]))>1)
         m = m[,m_del_col]
@@ -179,13 +197,23 @@ for (feat_type in feat_types) {
           if ((test%in%tests_cont & sum(m_cont_col)==0) |
               (test%in%tests_cate & sum(!m_cont_col)==0) |
               !overwrite & file.exists(paste0(pname,".Rdata"))) next()
-
+          
           ## p value calculation
           cpname = paste0(gsub(paste0("X",col_ind_n),"Xall",pname),".Rdata")
           if (col_ind_n!="all" & file.exists(cpname)) {
             pvalt_temp = get(load(cpname))
-            pvalt_temp = pvalt_temp[rownames(pvalt_temp)%in%colnames(m),]
-            pval11 = pvalt_temp[,!grepl(paste(padjust,collapse="|"),colnames(pvalt_temp))]
+            if (!is.null(dim(pvalt_temp))) {
+              pvalt_temp = pvalt_temp[rownames(pvalt_temp)%in%colnames(m),]
+            } else {
+              cat(" Xall a vector...")
+              next()
+              # # added this because... might have saved pval from an older ver that didn't make tables
+              # pvalt_temp1 = data.frame(pvalt_temp)
+              # rownames(pvalt_temp1) = names(pvalt_temp1)
+              # colnames(pvalt_temp1) = paste0(test,"_p_none")
+              # save(pvalt_temp1, file=cpname)
+            }
+            pval11 = pvalt_temp[,!grepl(paste(padjust,collapse="|"),colnames(pvalt_temp)),drop=F]
           } else {
             
             loop_ind = loop_ind_f(1:ncol(m),no_cores)
@@ -209,8 +237,9 @@ for (feat_type in feat_types) {
             
             if (test=="lmbayes") {
               design_resp <- model.matrix(~factor(meta_file[,class_col], unique(meta_file[,class_col])))
+              mfit = t(as.matrix(apply(m,2,as.numeric)))
               fit = NULL
-              try({ fit <- eBayes(lmFit(t(m), design_resp)) })
+              try({ fit <- eBayes(lmFit(mfit, design_resp)) })
               if (is.null(fit)) next()
               top <- topTable(fit, coef=2, adjust.method="none", n=nrow(fit), sort.by="none")
               pval11 = data.frame(lmbayes_p_none=top$P.Value, logoddsDE=top$B)
@@ -232,7 +261,7 @@ for (feat_type in feat_types) {
               
               # df <- data.frame(FC = top$logFC,
               #                  AveExpr = top$AveExpr)
-                               # , datasets = datasetLabels)
+              # , datasets = datasetLabels)
               # colPalette <- c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854")
               # png(paste0(pname, "_avg.v.fc.png"), width = 6, height = 4)
               # ggplot(df, aes(x = AveExpr, y = FC)) + #color=datasets
@@ -257,7 +286,8 @@ for (feat_type in feat_types) {
           colnames(pval1) = paste0(test,"_p_",padjust)
           pv_table = as.matrix(cbind(pval11, pval1))
           rownames(pv_table) = rownames(pval11)
-          pv_table = pv_table[apply(pv_table[,grepl("_p_",colnames(pv_table))],1,function(x) any(x<1)),apply(pv_table,2,function(x) any(x<1))]
+          pv_table = pv_table[apply(pv_table[,grepl("_p_",colnames(pv_table))],1,function(x) any(x<1)),
+                              apply(pv_table,2,function(x) any(x<1)), drop=F]
           
           save(pv_table,file=paste0(pname,".Rdata"))
           
@@ -277,17 +307,26 @@ for (feat_type in feat_types) {
     } #row_ind
   } #class_col
 } #feat_type
+
 time_output(start)
 
 
 
-## plot
+## plot / enrichment
 start = Sys.time()
 
-pval_paths = gsub(".Rdata","",list.files(gwas_dir, pattern=".Rdata", full.names=T))
-feat_types = sapply(str_split(fileNames(pval_paths),"[.]"),function(x) x[1])
+# enrichment data
+data(taSNP) #from dbGaP and NHGRI
+data(taSNPLD) #linkage disequilibrium trait-associated SNP
+data(CEU) #system("plink -file plink.file -freq -out chr"); to retrieve all SNPs withcorresponding MAF (minor allele frequency) from the CEU vcf files downloaded
 
-for (pi in pval_paths) {
+
+pval_paths = gsub(".Rdata","",list.files(gwas_dir, pattern=".Rdata", full.names=T))
+feat_types = sapply(str_split(fileNames(pval_paths),"[.]"),function(x) str_split(x[1],"[-]")[[1]][1])
+
+for (pi in 1:length(pval_paths)) {
+  start1 = Sys.time()
+  
   pval_path = pval_paths[pi]
   feat_type = feat_types[pi]
   
@@ -344,8 +383,9 @@ for (pi in pval_paths) {
   graphics.off()
   
   
-  # manhattan plot
   if (mcf) {
+    # manhattan plot
+    
     png(paste0(pval_path,"_manhattan.png"), width=pcol*width, height=prow*height)
     par(mfcol=c(prow,pcol))
     
@@ -384,8 +424,240 @@ for (pi in pval_paths) {
     # plotsa = marrangeGrob(grob=plots,ncol=pcol,nrow=prow)
     # ggexport(plotsa, filename = paste0(gwas_dir,"/snp-file-genotype_norm-NA.png"))
     # ggsave(file=paste0(gwas_dir,"/snp-file-genotype_norm-NA.png"), plotsa)
+    
   }
   
+  
+  
+  
+  # snp enrichment: traseR
+  if (mcf & grepl("genotype",feat_type) & grepl("Xall",pval_path)) {
+    
+    
+    png(paste0(pval_path,"_traseR.png"), width=pcol*width, height=prow*height)
+    par(mfcol=c(prow,pcol))
+    
+    for (pvaln in sort(colnames(pval0))) {
+      pvalt = pval0[,pvaln]
+      # if (sum(pvalt>val_max1t)>5) val_max1t = 5e-6
+      
+      pv_ind = pvalt<pthres & meta_col[,"dbSNP"]%in%taSNPLD0$SNP_ID
+      pv_ind1 = pvalt<pthres & meta_col[,"dbSNP"]%in%taSNP0$SNP_ID
+      if (sum(pv_ind)==0) next()
+      pvalt_pv = pvalt[pv_ind]
+      pvalt_pv1 = pvalt[pv_ind1]
+      meta_col_pv = meta_col[pv_ind,]
+      meta_col_pv1 = meta_col[pv_ind1,]
+      taSNPLD0_pv = taSNPLD0[match(meta_col_pv$dbSNP,taSNPLD0$SNP_ID),]
+      taSNP0_pv = taSNP0[match(meta_col_pv1$dbSNP,taSNP0$SNP_ID),]
+      
+      # chr, start, end
+      snps = taSNPLD0_pv[,c("seqnames","start","end")]#, pvalt_pv[taSNPLD0_ind])
+      snps$end = snps$end + 1
+      snps1 = taSNP0_pv[,c("seqnames","start","end")]
+      snps1$end = snps1$end + 1
+      colnames(snps)[c(1)] = colnames(snps1)[c(1)] = c("chr")
+      
+      plotContext(snpdb=taSNP, region=snps1)#, pvalue=pvalt[pv_ind1])
+      mtext(side=1, text=paste0("sig snps in SNP db: ", nrow(taSNP0_pv), " | + lin diseq ", nrow(taSNPLD0_pv), "\n",
+                                      "sig snps w/ p <",pthres," : ", sum(pvalt<pthres), "\n",
+                                      "total snps: ", nrow(pval0)))
+      
+      # binomial
+      x1 = traseR(snpdb=taSNP, region=snps1, snpdb.bg=CEU)
+      x2 = traseR(snpdb=taSNPLD, region=snps, snpdb.bg=CEU)
+      
+      x1$tb1$Trait = sapply(str_split(x1$tb1$Trait,"[(]"), function(x) x[1])
+      x2$tb1$Trait = sapply(str_split(x2$tb1$Trait,"[(]"), function(x) x[1])
+      
+      write.csv(x1$tb1, file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNP.png"))
+      write.csv(x2$tb1, file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNPLD.png"))
+      
+      
+      
+      # enrichment analysis using hypergeometric test
+      sea00 <- sear(input=sigGenes, type = 'mrna')
+      sea0 = filter(sea00, collection %in% c("TISSUES")) %>% 
+        arrange(fdr)
+      sea0$geneset <- as.character(sea0$geneset)
+      sea0$geneset[sea0$subcollection == "CNS"] <- "CNS"
+      sea0$geneset <- factor(sea0$geneset)
+      sea <- sea0 %>% dplyr::group_by(subcollection, geneset) %>% 
+        dplyr::summarise(fdr = mean(fdr))
+      sea$subcollection <- factor(sea$subcollection, 
+                                  levels = toupper(c("cns", "thymus", "tonsils", "spleen", "lymph", "bcells","myeloid", "nkcells","blood","rbcs","neutrophils", "tcells","th1cells","th2cells","tregs","cd8tcells","cd4tcells")))
+      subCol <- sea %>% dplyr::group_by(subcollection) %>% 
+        dplyr::arrange(subcollection) %>% dplyr::select(subcollection, geneset, fdr) %>% as.data.frame() 
+      subCol$geneset <- factor(as.character(subCol$geneset), levels = unique(as.character(subCol$geneset)))
+      
+      #dev.off(); dev.off();
+      cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7",
+                     brewer.pal(9, "Set1"))
+      pdf(paste0(data_dir, "/results/Figures/Figure2/Figure2c.pdf"), width = 8, height = 5.5)
+      ggplot(subCol, aes(x = geneset, y = -log10(fdr), fill = subcollection)) + 
+        geom_bar(stat = "identity") +
+        customTheme(sizeStripFont=10, xAngle=90, hjust=1, vjust=0.5, 
+                    xSize=10, ySize=10, xAxisSize=10, yAxisSize=10) +
+        ylab(expression("-log"[10]~"(BH-FDR)")) + xlab("") + scale_fill_manual(values=cbPalette, name = "Tissue")
+      dev.off()
+      
+      
+      
+      
+      
+      
+      library(InterMineR)
+      
+      # get HumanMine instance
+      im.human = initInterMine(listMines()["HumanMine"])
+      
+      # retrieve data model for HumanMine
+      hsa_model = getModel(im.human)
+      
+      # all targets of HumanMine enrichment widgets possess InterMine ids
+      subset(hsa_model, type %in% c("Gene", "Protein", "SNP") & child_name == "id")
+      
+      data("PL_DiabetesGenes")
+      head(PL_DiabetesGenes, 3)
+      
+      # get Gene.symbol
+      hsa_gene_names = as.character(PL_DiabetesGenes$Gene.symbol)
+      head(hsa_gene_names, 3)
+      
+      # get Gene.primaryIdentifiers (ENTREZ Gene identifiers)
+      hsa_gene_entrez = as.character(PL_DiabetesGenes$Gene.primaryIdentifier)
+      head(hsa_gene_entrez, 3)
+      
+      # get all HumanMine widgets
+      human.widgets = as.data.frame(getWidgets(im.human))
+      human.widgets
+      
+      # get enrichment, gene-related widgets for HumanMine
+      subset(human.widgets, widgetType == 'enrichment' & targets == "SNP")
+      
+      # Perform enrichment analysis
+      # returns: a data.frame with the results of the enrichment analysis which was performed in the defined InterMine platform. p-values are given after applying the correction algorithm. Count and populationAnnotationCount columns contain the number of genes that belong to each GO term in the list and in the background population respectively.
+
+      GO_enrichResult = doEnrichment(
+        im = im.human,
+        ids = hsa_gene_entrez,
+        widget = "go_enrichment_for_gene"
+        # organism = "Homo sapiens" # optional if results from more than one organism are retrieved
+      )
+      
+      head(GO_enrichResult$data)
+      dim(GO_enrichResult$data)
+      GO_enrichResult$populationCount # size of the reference background population (populationCount)
+      GO_enrichResult$notAnalysed #number of input features that were not included in the enrichment analysis (notAnalyzed)
+      GO_enrichResult$im # name and url of the Mine (im)
+      
+      
+      
+      
+      ## get available filter values for Gene Ontology Enrichment widget
+      as.character(subset(human.widgets, name == "go_enrichment_for_gene")$filters)
+      
+      # Perform enrichment analysis for GO molecular function terms
+      GO_MF_enrichResult = doEnrichment(
+        im = im.human,
+        ids = hsa_gene_entrez,
+        widget = "go_enrichment_for_gene",
+        filter = "molecular_function")
+      
+      head(GO_MF_enrichResult$data)
+      
+      ## multiple testing adjustment
+      
+      # Perform enrichment analysis for Protein Domains in list of genes
+      PD_FDR_enrichResult = doEnrichment(
+        im = im.human,
+        ids = hsa_gene_entrez,
+        widget = "prot_dom_enrichment_for_gene",
+        correction = "Benjamini Hochberg"
+      ) 
+      
+      head(PD_FDR_enrichResult$data)
+      
+      # Perform enrichment analysis for Protein Domains in list of genes
+      # but without a correction algoritm this time
+      PD_None_enrichResult = doEnrichment(
+        im = im.human,
+        ids = hsa_gene_entrez,
+        widget = "prot_dom_enrichment_for_gene",
+        correction = "None"
+      )
+      
+      head(PD_None_enrichResult$data)
+      
+      ## visualize
+      library(GeneAnswers)
+      # convert InterMineR Gene Ontology Enrichment analysis results to GeneAnswers object
+      geneanswer_object = convertToGeneAnswers(
+        
+        # assign with doEnrichment result:
+        enrichmentResult = GO_enrichResult,
+        
+        # assign with list of genes:
+        geneInput = data.frame(GeneID = as.character(hsa_gene_entrez), 
+                               stringsAsFactors = FALSE),
+        
+        # assign with the type of gene identifier
+        # in our example we use Gene.primaryIdentifier values (ENTREZ IDs):
+        geneInputType = "Gene.primaryIdentifier",
+        
+        # assign with Bioconductor annotation package:
+        annLib = 'org.Hs.eg.db',
+        
+        # assign with annotation category type
+        # in our example we use Gene Ontology (GO) terms:
+        categoryType = "GO"
+        
+        #optional define manually if 'enrichIdentifier' is missing from getWidgets:
+        #enrichCategoryChildName = "Gene.goAnnotation.ontologyTerm.parents.identifier"
+      )
+      
+      class(geneanswer_object)
+      summary(geneanswer_object)
+      
+      # convert to GeneAnswers results for GO terms associated with molecular function
+      geneanswer_MF_object = convertToGeneAnswers(
+        enrichmentResult = GO_MF_enrichResult,
+        geneInput = data.frame(GeneID = as.character(hsa_gene_entrez), 
+                               stringsAsFactors = FALSE),
+        geneInputType = "Gene.primaryIdentifier",
+        annLib = 'org.Hs.eg.db',
+        categoryType = "GO.MF"
+        #enrichCategoryChildName = "Gene.goAnnotation.ontologyTerm.parents.identifier"
+      )
+      
+      class(geneanswer_MF_object)
+      
+      
+      
+      
+      
+      
+      # GeneAnswers barplot
+      geneAnswersChartPlots(geneanswer_object, 
+                            chartType='barPlot',
+                            sortBy = 'correctedPvalue',
+                            top = 5)
+      # generate concept-gene network
+      geneAnswersConceptNet(geneanswer_object, 
+                            colorValueColumn=NULL,
+                            centroidSize='correctedPvalue', 
+                            output='interactive',
+                            catTerm = FALSE,
+                            catID = FALSE,
+                            showCats = 1:5)
+    }
+  }
+  
+  
+  
+  
+  
+  time_output(start1)
 } #pi
 time_output(start)
 

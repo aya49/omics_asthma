@@ -26,7 +26,7 @@ feat_dir = paste0(result_dir,"/feat")
 
 ## output directory
 stat_dir = paste0(result_dir,"/stat"); dir.create(stat_dir, showWarnings=F)
-eqtl_dir = paste0(result_dir,"/eqtl"); dir.create(eqtl_dir, showWarnings=F)
+eqtl_dir = paste0(stat_dir,"/eqtl"); dir.create(eqtl_dir, showWarnings=F)
 
 
 
@@ -39,6 +39,7 @@ libr("MatrixEQTL")
 libr("foreach")
 libr("doMC")
 libr("stringr")
+libr("qdapTools") # make dummy variables
 libr("Matrix")
 
 
@@ -97,12 +98,12 @@ height = 600
 # #  The distance is measured from the nearest end of the gene. 
 # #  SNPs within a gene are always considered local.
 # cisDist = 1e6;
-feat_types = list(c("genotype", "rnaseqgenes.pre", 2e-2, 1e-2, 1e6),
-                  c("genotype", "rnaseqgenes.post", 2e-2, 1e-2, 1e6),
-                  c("genotype", "rnaseqgenes.pre", 2e-2, 1e-2, 1e6),
-                  c("genotype", "rnaseqgenes.post", 2e-2, 1e-2, 1e6),
-                  c("genotype", "rnaseqgenes.diff", 2e-2, 1e-2, 1e6),
-                  c("genotype", "rnaseqgenes.diff", 2e-2, 1e-2, 1e6)
+feat_types = list(c("genotype", "rnaseqgenes.pre", 2e-6, 1e-6, 1e6),
+                  c("genotype", "rnaseqgenes.post", 2e-6, 1e-6, 1e6),
+                  c("genotype", "rnaseqgenes.diff", 2e-6, 1e-6, 1e6),
+                  c("genotype", "rnaseqisoforms.pre", 2e-6, 1e-6, 1e6),
+                  c("genotype", "rnaseqisoforms.post", 2e-6, 1e-6, 1e6),
+                  c("genotype", "rnaseqisoforms.diff", 2e-6, 1e-6, 1e6)
                   # c("rnaseqgenes.pre", "rnaseqgenes.post", 2e-2, 1e-2, "modelLINEAR", "NA", 1)
 )
 
@@ -140,11 +141,11 @@ for (feat_type in feat_types) {
   # if (colnames(f1_m0)[1]%in%f1_meta_file0[,id_col]) f1_m0 = t(f1_m0)
   
   # get col genotype & rna features
-  f1_meta_col_ind = apply(f1_meta_col0[,c("dbSNP","chromosome","pos_phys")],1,function(x) any(is.na(x)))
+  f1_meta_col_ind = apply(f1_meta_col0[,c("dbSNP","chromosome","pos_phys")],1,function(x) !any(is.na(x)))
   f1_meta_col = f1_meta_col0[f1_meta_col_ind,]
   f1_good_col_na = f1_meta_col0$dbSNP #SNP ONLY
   
-  f2_meta_col_ind = apply(f2_meta_col0[,c("symbol","chr","start","end")],1,function(x) any(is.na(x)))
+  f2_meta_col_ind = apply(f2_meta_col0[,c("symbol","chr","start","end")],1,function(x) !any(is.na(x)))
   f2_meta_col = f2_meta_col0[f2_meta_col_ind,]
   f2_good_col_na = f2_meta_col0$symbol #GENE ONLY
   
@@ -158,11 +159,38 @@ for (feat_type in feat_types) {
   
   
   # trim matrices
-  f1_m = f1_m0[meta_file[,id_col], f2_meta_col_ind]
-  f2_m = f2_m0[meta_file[,id_col], f1_meta_col_ind]
+  f1_m = f1_m0[meta_file[,id_col], f1_meta_col_ind]
+  f2_m = f2_m0[meta_file[,id_col], f2_meta_col_ind]
+  
+  
+  
+  ## prepare meta_col
+  #  data.frame with columns snpid (Snp_01), chr (1), pos (725123)
+  f1_pos = data.frame(snpid=f1_meta_col$dbSNP, chr=paste0("chr",f1_meta_col$chromosome), pos=f1_meta_col$pos_phys)
+  # levels(f1_pos$chr) = paste("chr", c(1:22, "X", "Y", "M"), sep="") #convert to bioconductor format
+  #  data.frame with columns geneid (Gene_01), chr (1), left (721289), right (731289)
+  cgene_col = ifelse("gene"%in%colnames(f2_meta_col),"gene","id")
+  f2_pos = data.frame(geneid=f2_meta_col$symbol, chr=paste0("chr",f2_meta_col$chr), 
+                      left=f2_meta_col$start, right=f2_meta_col$end)
+  
+  ## prepare meta_file
+  cvrt00 = meta_file[,interested_cols,drop=F]
+  cvrt_num_ind = apply(cvrt00,2, function(x)
+    all(!is.na(as.numeric(x[!is.na(x) & x!=""]))) )
+  cvrt0 = as.data.frame(lapply(append(which(cvrt_num_ind),which(!cvrt_num_ind)), function(x) {
+    if (cvrt_num_ind[x]) return(as.numeric(cvrt00[,x]))
+    if (length(unique(cvrt00[,x]))>2) return(mtabulate(cvrt00[,x]))
+    return(as.numeric(factor(cvrt00[,x]))-1)
+  }))
+  rownames(cvrt0) = rownames(meta_file)
+  # colnames(cvrt0)[1:sum(cvrt_num_ind)] = colnames(cvrt00)[cvrt_num_ind]
+  # cvrt1 = model.matrix(~cvrt0)
+  
+  cvrt = SlicedData$new()
+  cvrt$CreateFromMatrix(t(as.numeric(as.matrix(cvrt0))))
   
   for (f1_bin in f1_bins) {
-    for (useModel in useModels) {
+    for (useModel_ in useModels) {
       
       # # Output file name
       # output_file_name_cis = tempfile();
@@ -177,26 +205,15 @@ for (feat_type in feat_types) {
       if1 = file.exists(eqtl_cis_dir)
       if2 = T; if (!is.null(eqtl_tra_dir)) if2 = file.exists(eqtl_tra_dir)
       if ((if1 & if2 & !overwrite) | 
-          (f1_bin!="" & useModel=="modelLINEAR_CROSS")) next()
+          (f1_bin!="" & useModel_=="modelLINEAR_CROSS")) next()
       print(paste0(eqtl_cis_dir))
       
       # set model
-      if (useModel=="modelLINEAR") useModel = modelLINEAR # genotype is assumed to have only additive effect on expression
-      if (useModel=="modelANOVA") useModel = modelANOVA # assume genotype to have both additive and dominant effects (ANOVA model). In this case genotype data set musts take at most 3 distinct values (i.e. 0/1/2/NA)
-      if (useModel=="modelLINEAR_CROSS") useModel = modelLINEAR_CROSS
+      useModel = NULL
+      if (useModel_=="modelLINEAR") useModel = modelLINEAR # genotype is assumed to have only additive effect on expression
+      if (useModel_=="modelANOVA") useModel = modelANOVA # assume genotype to have both additive and dominant effects (ANOVA model). In this case genotype data set musts take at most 3 distinct values (i.e. 0/1/2/NA)
+      if (useModel_=="modelLINEAR_CROSS") useModel = modelLINEAR_CROSS
       
-      ## prepare meta_col
-      #  data.frame with columns snpid (Snp_01), chr (1), pos (725123)
-      f1_pos = data.frame(snpid=f1_meta_col$dbSNP, chr=paste0("chr",f1_meta_col$chromosome), pos=f1_meta_col$pos_phys)
-      # levels(f1_pos$chr) = paste("chr", c(1:22, "X", "Y", "M"), sep="") #convert to bioconductor format
-      #  data.frame with columns geneid (Gene_01), chr (1), left (721289), right (731289)
-      cgene_col = ifelse("gene"%in%colnames(f2_meta_col),"gene","id")
-      f2_pos = data.frame(geneid=f2_meta_col$symbol, chr=paste0("chr",f2_meta_col$chr), 
-                          left=f2_meta_col$start, right=f2_meta_col$end)
-      
-      ## prepare meta_file
-      cvrt = SlicedData$new()
-      cvrt$CreateFromMatrix(t(meta_file)[interested_cols,,drop=F])
       
       
       ## prepare m genotyping and rnaseq data as SlicedData for input into MatrixEQTL()
@@ -229,43 +246,49 @@ for (feat_type in feat_types) {
       
       ## Run the analysis
       
-      me = Matrix_eQTL_main(
-        snps = f1_sd,
-        gene = f2_sd,
-        cvrt = cvrt, # SlicedData object with additional covariates. Can be an empty SlicedData object in case of no covariates. The constant is always included in the model and would cause an error if included in cvrt. The order of columns must match those in snps and gene.
+      try({
+        # eqtl_cis_dir = tempfile()
+        me = Matrix_eQTL_main(
+          snps = f1_sd,
+          gene = f2_sd,
+          cvrt = cvrt, # SlicedData object with additional covariates. Can be an empty SlicedData object in case of no covariates. The constant is always included in the model and would cause an error if included in cvrt. The order of columns must match those in snps and gene.
+          
+          output_file_name = eqtl_tra_dir, # significant associations (all significant associations if pvOutputThreshold=0 or only distant if pvOutputThreshold>0). If the file with this name exists, it is overwritten.
+          output_file_name.cis = eqtl_cis_dir, #output_file_name_cis=tempfile(); significant local associations
+          
+          pvOutputThreshold = pvalthres_tra, 
+          pvOutputThreshold.cis = pvalthres_cis,
+          
+          useModel = useModel, 
+          # errorCovariance = errorCovariance, # numeric. The error covariance matrix. Use numeric() for homoskedastic independent errors.
+          verbose = F, 
+          
+          snpspos = f1_pos,
+          genepos = f2_pos, 
+          cisDist = cisDist,
+          pvalue.hist = "qqplot", # logical, numerical, or "qqplot" (faster if false); To record information for a histogram set pvalue.hist to the desired number of bins of equal size. Finally, pvalue.hist can also be set to a custom set of bin edges.
+          min.pv.by.genesnp = T, # record the minimum p-value for each SNP and each gene in the returned object. The minimum p-values are recorded even if if they are above the corresponding thresholds of pvOutputThreshold and pvOutputThreshold.cis (faster if false)
+          noFDRsaveMemory = F # save significant gene-SNP pairs directly to the output files, reduce memory footprint and skip FDR calculation. The eQTLs are not recorded
+        ) 
+        # unlink(output_file_name_tra);
+        # unlink(eqtl_cis_dir);
         
-        output_file_name = eqtl_tra_dir, # significant associations (all significant associations if pvOutputThreshold=0 or only distant if pvOutputThreshold>0). If the file with this name exists, it is overwritten.
-        output_file_name.cis = eqtl_cis_dir, #output_file_name_cis=tempfile(); significant local associations
+        save(me, file=gsub("_cis","",eqtl_cis_dir))
         
-        pvOutputThreshold = pvalthres_tra, 
-        pvOutputThreshold.cis = pvalthres_cis,
+        ## Results:
+        cat('Analysis done in: ', me$time.in.sec, ' seconds', '\n');
+        cat('Detected local eQTLs:', '\n');
+        write.csv(me$cis$eqtls, file=gsub(".Rdata",".csv",eqtl_cis_dir))
+        # write.csv(me$trans$eqtls, file=gsub(".Rdata",".csv",gsub("cis","tra",eqtl_cis_dir)))
+        cat('Detected distant eQTLs:', '\n');
+        show(me$trans$eqtls)
         
-        useModel = useModel, 
-        # errorCovariance = errorCovariance, # numeric. The error covariance matrix. Use numeric() for homoskedastic independent errors.
-        verbose = F, 
+        ## Plot the histogram of local and distant p-values
+        png(gsub(".Rdata","_qq.png",eqtl_cis_dir), width=width, height=height)
+        plot(me)
+        graphics.off()
         
-        snpspos = f1_pos,
-        genepos = f2_pos, 
-        cisDist = cisDist,
-        pvalue.hist = T, # logical, numerical, or "qqplot" (faster if false); To record information for a histogram set pvalue.hist to the desired number of bins of equal size. Finally, pvalue.hist can also be set to a custom set of bin edges.
-        min.pv.by.genesnp = T, # record the minimum p-value for each SNP and each gene in the returned object. The minimum p-values are recorded even if if they are above the corresponding thresholds of pvOutputThreshold and pvOutputThreshold.cis (faster if false)
-        noFDRsaveMemory = F # save significant gene-SNP pairs directly to the output files, reduce memory footprint and skip FDR calculation. The eQTLs are not recorded
-      ) 
-      # unlink(output_file_name_tra);
-      # unlink(output_file_name_cis);
-      
-      ## Results:
-      cat('Analysis done in: ', me$time.in.sec, ' seconds', '\n');
-      cat('Detected local eQTLs:', '\n');
-      show(me$cis$eqtls)
-      cat('Detected distant eQTLs:', '\n');
-      show(me$trans$eqtls)
-      
-      ## Plot the histogram of local and distant p-values
-      png(gsub(".Rdata",".csv",gsub("tra_","",eqtl_cis_dir)), width=width, height=height)
-      plot(me)
-      graphics.off()
-      
+      })
     } # useModel
   } # f1_bin
 } # feat_type

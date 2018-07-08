@@ -58,10 +58,11 @@ ht=500
 
 pthres = .025
 
+#match with amrit's analysis
 expr_cutoff = list()
-expr_cutoff$genes = -3 #log2 expression sum across samples must be above expr_cutoff
-expr_cutoff$isoforms = -3 
-expr_cutoff$isopct = -3 
+expr_cutoff$genes = 3 #log2 expression sum across samples must be above expr_cutoff
+expr_cutoff$isoforms = 3 
+expr_cutoff$isopct = 3 
 
 
 good_col = 3 #each gene must have > good_col samples with >0 abundence; else delete
@@ -80,7 +81,7 @@ meta_cols = list()
 
 # genes
 
-data_paths = list.files(rsem_dir, pattern=paste0("genes.results"), full.names=T)
+data_paths = sort(list.files(rsem_dir, pattern=paste0("genes.results"), full.names=T))
 data_filenames = fileNames(data_paths, ext=paste0("genes.results"))
 
 # counts0 = lapply(data_paths, function(x) read.table(pipe(paste0("cut -f5 ",x))))
@@ -103,7 +104,7 @@ meta_cols$genes = counts_rownames
 
 # isoforms
 
-data_paths = list.files(rsem_dir, pattern=paste0("isoforms.results"), full.names=T)
+data_paths = sort(list.files(rsem_dir, pattern=paste0("isoforms.results"), full.names=T))
 data_filenames = fileNames(data_paths, ext=paste0("isoforms.results"))
 
 start1 = Sys.time()
@@ -149,8 +150,8 @@ for (feat_type in names(meta_cols)) {
   geneid = sapply(strsplit(counts_rownames[,by.x], ".", fixed=T), function(x) x[1])
   counts_rownames1 = cbind(counts_rownames, 
                            as.data.frame(grch38)[match(geneid,unlist(grch38[,"ensgene"])),])
-  save(counts_rownames1, file=paste0(meta_col_dir,feat_type,".Rdata"))
-  if (writecsv) write.csv(counts_rownames1, file=paste0(meta_col_dir,feat_type,".csv"))
+  save(counts_rownames1, file=paste0(meta_col_dir,feat_type,".raw.Rdata"))
+  if (writecsv) write.csv(counts_rownames1, file=paste0(meta_col_dir,feat_type,"raw.csv"))
 }
 
 
@@ -223,7 +224,7 @@ if (writecsv) write.csv(cell_post, file=paste0(feat_cell_dir,".post.csv"))
 
 ## preprocess ------------------------------------------------------------------------------------------------------
 
-design = model.matrix(~response * centre + sex + age + time, data=meta_fileraw)
+design = model.matrix(~response * centre + sex + time, data=meta_fileraw)
 
 for (m0n in names(feats)) {
   m0 = t(feats[[m0n]])
@@ -252,6 +253,9 @@ for (m0n in names(feats)) {
   
   large_count_ind = median_log2_cpm > expr_cutoff[[m0n]]
   m1 = m0[large_count_ind,]
+  m1[m1<3] = NA
+  meta_cols[[m0n]] = meta_cols[[m0n]][large_count_ind,]
+  
   rownames(m1) = rownames(m0)[large_count_ind]
   
   # after removing all genes with a median log2 cpm below r expr_cutoff, 
@@ -261,6 +265,8 @@ for (m0n in names(feats)) {
   
   # recalculate cutoff after filtering
   cpm_log = cpm(m1, log=T)
+  # m1[cpm_log<expr_cutoff[[m0n]]] = NA
+  # m1 = na.omit(m1)
   
   png(file=paste0(preprocess_dir,"/", fileNames(feat_feature_dir),m0n, "_cpmfiltered-heat.png"), width=wdth, height=ht)
   heatmap(cor(cpm_log[,order(meta_fileraw[class_col,])]))
@@ -301,11 +307,11 @@ for (m0n in names(feats)) {
   # graphics.off()
   
   # confounders: age sex bmi race
-  png(file=paste0(preprocess_dir,"/", fileNames(feat_feature_dir),m0n, "_cpmfiltered-voom.png"), width=wdth, height=ht)
-  m3 = voom(m2,design,plot=T)
-  graphics.off()
+  # png(file=paste0(preprocess_dir,"/", fileNames(feat_feature_dir),m0n, "_cpmfiltered-voom.png"), width=wdth, height=ht)
+  # m3 = voom(m2,design,plot=T)
+  # graphics.off()
   
-  rownames(m3) = rownames(m1)
+  rownames(m2) = rownames(m1)
   
   
   
@@ -316,8 +322,8 @@ for (m0n in names(feats)) {
   # abline(v=expr_cutoff_2, col = "red")
   # graphics.off()
   
-  m4 = m3
-  
+  m4 = m2
+  m4[m4<expr_cutoff[[m0n]]] = NA
   feats[[m0n]] = t(as.matrix(m4))
   
   # save(m4, file=paste0(feat_feature_dir,".Rdata"))
@@ -420,6 +426,11 @@ for (m0n in names(feats)) {
   
   save(counts_diff, file=paste0(feat_feature_dir,m0n,".diff.Rdata"))
   if (writecsv) write.csv(counts_diff, file=paste0(feat_feature_dir,m0n,".diff.csv"))
+
+  mcol = meta_cols[[m0n]]
+  save(mcol, file=paste0(meta_col_dir,m0n,".Rdata"))
+  if (writecsv) write.csv(mcol, file=paste0(meta_col_dir,m0n,".csv"))
+  
 }
 
 
