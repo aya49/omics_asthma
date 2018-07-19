@@ -1,0 +1,470 @@
+---
+title: "preprocess nanoString data"
+subtitle: "import and normalize data"
+author: "Amrit Singh"
+date: "December 12th, 2016"
+output:
+  tufte::tufte_html: default
+  tufte::tufte_handout:
+    citation_package: natbib
+    latex_engine: xelatex
+  tufte::tufte_book:
+    citation_package: natbib
+    latex_engine: xelatex
+bibliography: skeleton.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+library(tufte)
+# invalidate cache when the tufte version changes
+knitr::opts_chunk$set(tidy = TRUE, echo = FALSE, cache = FALSE, warning = FALSE, message = FALSE)
+options(htmltools.dir.version = FALSE)
+```
+
+# Purpose of this analysis:
+
+1. import nanoString data
+1. perform quality control assessment based on Data Analysis Guildelines by NanoString^[[nCounter Expression Data Analysis Guide](http://www.nanostring.com/media/pdf/MAN_nCounter_Gene_Expression_Data_Analysis_Guidelines.pdf)]
+1. dfgd
+
+```{r loadLibraries}
+## input:
+## output:
+## aya43@sfu.ca
+## created 20170807
+## last modified 20180614
+
+## root directory
+root = "~/projects/asthma"
+# setwd(root)
+result_dir = paste0(root, "/result"); dir.create(result_dir, showWarnings=F)
+
+
+## input directory
+data_dir = paste0(root, "/data/RNApancancer")
+
+library(devtools); #install_github("singha53/amritr")
+library(amritr); 
+library(dplyr); 
+library(tidyr);
+library(psych); # geometric.mean()
+library(affy); #mv.pairs()
+library(ggbiplot); #ggbiplot() #devtools::install_github("vqv/ggbiplot")
+library(NormqPCR) # geNorm
+library(GGally) # ggpairs()
+library(limma) # lmFit, eBayes
+```
+
+# 1) import nanoString data
+
+```{r}
+filePaths <- c(paste0(data_dir, "/data/rawdata/nanoString/20150703_asingh - pancancer MAXset A_RCC"),
+               paste0(data_dir, "/data/rawdata/nanoString/20150709_setB max fov - ykw n amrit_RCC"),
+               paste0(data_dir, "/data/rawdata/nanoString/20150709_Set3-C-AMRIT-KYW-MAX_RCC"))
+
+#----------------------------------------------
+# import RC files and compile into a dataframe
+#----------------------------------------------
+setName <- paste("Set", 1:length(filePaths))
+date <- c("2015-07-03","2015-07-03","2015-07-03")
+DatList <- list()
+for(h in 1 : length(filePaths)){
+  files <- list.files(filePaths[h], full.names = TRUE)
+  dat <- lapply(as.list(files), function(i){
+    rccToDat(fileName = i)
+  }) %>% do.call(rbind, .)
+  dat$Set <- setName[h]
+  dat$Date <- date[h]
+  DatList[[h]] <- dat
+}
+Dat <- do.call(rbind, DatList)
+## Fix gene Names for some genes
+Dat$Name[Dat$Accession == "NM_014512.1"] <- "KIR2DS1" ## KIR_Activating_Subgroup_2
+Dat$Name[Dat$Accession == "NM_014218.2"] <- "KIR2DL1" ## KIR_Inhibiting_Subgroup_1
+Dat$Name[Dat$Accession == "NM_001083539.1"] <- "KIR3DS1" ## KIR_Activating_Subgroup_1
+Dat$Name[Dat$Accession == "NM_014511.3"] <- "KIR2DL3" ## KIR_Inhibiting_Subgroup_2
+Dat$Name[Dat$Name == "IL8"] <- "CXCL8" 
+write.csv(Dat, paste0(data_dir, "/data/preprocessedData/cleanedRawData_panCancerDiscovery.csv"))
+
+#------------
+# import data 
+#------------
+sampleMap <- c(paste0("E", 1:36))
+data <- read.csv(paste0(data_dir, "/data/preprocessedData/cleanedRawData_panCancerDiscovery.csv"), row.names = 1)
+names(sampleMap) <- unique(data$fileName)
+data$Sample <- sampleMap[as.character(data$fileName)]
+write.csv(data, paste0(data_dir, "/data/preprocessedData/cleanedRawData_panCancerDiscovery.csv"))
+
+
+## Demographics
+demo <- readRDS(paste0(root, "/data/RNAseq/demo/allsitesDemo.rds"))
+rownames(demo) <- paste(demo$concealedID, demo$Time, sep = "_")
+demoPre0 <- demo[!is.na(demo$EorV_number) , ]
+rownames(demoPre0) <- demoPre0$EorV_number
+dim(demoPre0)
+demoPre <- demoPre0[sampleMap, ]
+```
+
+# 2) Quality Control / Quality Assessment
+
+## 2a. Fields of View (FOV)
+* each lane is imaged in discrete units called FOVs
+* FOV Count = # of FOVs for which imaging was attempted
+* FOV Counted = # of FOVs sucessfully imaged
+* Causes of discrepancy between FOV Count & FOV Counted: optical issues such as bubbles or insufficient oiling of cartridge
+* *Imaging QC (nSolver default)*: Flag lanes when percent FOV registration is less than 75
+
+## 2b. Binding Density
+* the Digital analyzer does not count codes that overlap
+* if too many codes overlap, there can be significant data loss
+* Binding densitiy (image saturation) = measure of the # of optical features per square micron
+* binding density > 2: significant numbers of codes ignored, affects quantification and linearity of the assay
+* *Binding Density QC (nSolver default)*: Flag lanes when binding density is outside of 0.005-2.25 range
+
+```{r positiveControls, fig.width = 10, fig.height = 6, fig.fullwidth = TRUE, fig.cap = "FOV ratio and Binding density.", warning=FALSE, cache=TRUE}
+qc <- data %>% mutate(FOVratio = FovCounted_Lane_Attributes/FovCount_Lane_Attributes) %>% 
+  dplyr::select(FOVratio, BindingDensity = BindingDensity_Lane_Attributes, Sample, Set, ID_Lane_Attributes) %>%
+  gather(QCVar, QCmetrics, -c(Sample, Set, ID_Lane_Attributes)) %>% group_by(Sample, QCVar, Set) %>% 
+  #distinct(Sample, Set, ID_Lane_Attributes) %>% 
+  mutate(Sample_Lane = paste(Sample, ID_Lane_Attributes, sep="_"))
+qc$Sample_Lane <- factor(qc$Sample_Lane, levels = unique(qc$Sample_Lane))
+
+qc %>% ungroup %>% dplyr::group_by(QCVar) %>% 
+  dplyr::summarise(min = min(QCmetrics), max = max(QCmetrics))
+
+hline.data <- data.frame(yint = c(0.75, 0.05, 2.25),
+                         QCVar = c("FOVratio", rep("BindingDensity", 2)))
+ggplot(data = qc, aes(x = Sample_Lane, y = QCmetrics)) + geom_point() + facet_grid(QCVar~Set, scale = "free") + geom_hline(data = hline.data, aes(yintercept = yint), lty = 2, col = "red") + customTheme(sizeStripFont=15, xAngle=90, hjust = 1, vjust = 0.5, xSize=10, ySize=15, xAxisSize=15, yAxisSize=15)
+```
+
+> <span style="color:#009E73">all samples pass Imaging QC and Binding Density QC.</span> 
+
+## 2c. Internal Controls
+* nanoString uses External RNA Control Consortium (ERCC) controls for both positive and negative controls
+* ERRC is a group that develops RNA transcripts not homologous to known organisms, generate consistent results in gene expression data --> used to assess technical performance in gene expression assays.
+
+### 2d. Positive Controls  
+* For each sample, there are six positive controls (POS_A-POS_F) corresponding to six different concentrations in the 30 ul hybridzation: 128fM, 32fM, 8fM, 2fM, 0.5fM, and 0.125fM.
+* *Positive Control Linearity QC*: Flag lanes when Positive Control $R^2$ value is less than 0.9
+
+```{r internalControls, fig.width = 10, fig.height = 2, fig.fullwidth = TRUE, fig.cap = "Positive Control Linearity QC.", warning=FALSE, cache=TRUE}
+posConc <- c(128, 32, 8, 2, 0.5, 0.125)
+names(posConc) <- paste0(paste("POS", LETTERS[1:6], sep = "_"), paste0("(", posConc, ")"))
+posDat <- data %>% filter(CodeClass == "Positive_Code_Summary") %>% 
+  mutate(posConc = posConc[as.character(Name)],
+         Sample_Lane = paste(Sample, ID_Lane_Attributes, sep="_"))
+
+mods <- posDat %>% 
+  group_by(ID_Lane_Attributes, Set) %>% do(., r2 = summary(lm(Count ~ posConc, data = .))$r.squared)
+r.squared <- data.frame(ID_Lane_Attributes = mods$ID_Lane_Attributes, R2 = round(unlist(mods$r2), 2),
+                        Set = mods$Set)
+r.squared$x <- 20
+r.squared$y <- 100
+
+all(mods$r2 > 0.99)
+
+## order E samples from 1-36  
+posDat$Sample_Lane <- factor(posDat$Sample_Lane, 
+                             levels = unique(posDat$Sample_Lane))
+
+#ggplot(posDat, aes(x = posConc, y = Count)) + geom_point() + facet_grid(Set~ID_Lane_Attributes) + scale_x_log10() + scale_y_log10() + stat_smooth(method = "lm") + geom_text(aes(x, y, label = paste0("R^2 ==", R2), size = 1), data = r.squared, parse = TRUE) + theme(legend.position = "none") + xlab("Concentration (fM)") + ggtitle("Positive Controls") + customTheme(sizeStripFont=10, xAngle=0, hjust=0.5, vjust=1, xSize=10, ySize=10, xAxisSize=10, yAxisSize=10)
+
+```
+
+> <span style="color:#009E73">all samples pass Positive Control Linearity: range = QC `r range(unlist(mods$r2))`</span>
+
+### 2e. Negative Controls
+* estimate systemic background counts within any single hybridization reaction.
+* *Positive Control Limit of Detection QC*: Flag lanes when 0.5fM positive control is less than or equal to 2 standard deviations above the mean of the negative controls.
+
+```{r Limit of Detection QC, fig.width = 10, fig.height = 6, fig.fullwidth = TRUE, fig.cap = "Positive Control Limit of Detection QC.", warning=FALSE, cache=TRUE}
+negSD <- data %>% dplyr::filter(CodeClass == "Negative_Code_Summary") %>% group_by(fileName, Set, Sample) %>% dplyr::summarise(negThres = mean(Count)+2*sd(Count))
+pos0.5 = posDat %>% filter(posConc == 0.5)
+all(levels(negSD$Sample) == levels(pos0.5$Sample))   # TRUE
+
+negPos <- as.data.frame(rbind(negSD[, c("Sample", "Set", "negThres")], setNames(pos0.5[, c("Sample", "Set", "Count")], c("Sample", "Set", "negThres"))))
+negPos$Type = rep(c("Neg(Mean+2SD)","Pos0.5fM"), each=nrow(negSD))
+negPos$Sample <- factor(negPos$Sample, levels = unique(negPos$Sample)[order(as.numeric(gsub("E","",unique(negPos$Sample))))])
+
+ggplot(negPos, aes(x = Sample, y = negThres, color = Type)) + geom_point() + ylab("Count") + customTheme(sizeStripFont=15, xAngle=30, hjust = 1, vjust = 1, xSize=8, ySize=10, xAxisSize=10, yAxisSize=10) + facet_grid(Set~.)
+
+```
+
+> <span style="color:#009E73">all samples are pass the Positive control limit of detection QC</span>
+
+# 3) Normalization
+
+## 3a. Positive Control Normalization
+* Positive controls normalize all platform associated sources of variation (e.g. automated purfication, hybridization conditions etc.)
+* does not account for sample input between technical and biological replicates
+* Positive Control Scaling factor QC: If the positive control scaling factor is outside a range of 0.3-3, --> may indicate significant under-performance of a lane
+
+```{r Positive control normalization factor, fig.width = 10, fig.height = 5, fig.fullwidth = TRUE, fig.cap = "Positive Control Limit of Detection QC.", warning=FALSE, cache=TRUE}
+#str(posDat)
+
+posNF <- posDat %>% group_by(Sample) %>% dplyr::summarise(posGeoMean = geometric.mean(Count), fileName = unique(fileName)) %>% mutate(posNF = mean(posGeoMean)/posGeoMean)
+range(posNF$posNF)
+all(posNF$posNF<3 & posNF$posNF > 0.3)
+
+dataNorm <- full_join(data, posNF, by = "fileName") %>% mutate(posNorm = Count*posNF)
+
+# check if the sum of the positive controls is the same for each assay
+dataNorm %>% group_by(fileName) %>% filter(CodeClass == "Positive_Code_Summary") %>% dplyr::summarise(sumPosSample = geometric.mean(posNorm), Sample = unique(Sample.x), Set = unique(Set)) %>% 
+  dplyr::select(Sample, sumPosSample) %>% 
+  ggplot(aes(x = Sample, y = sumPosSample)) + geom_point() + theme_bw() +
+  ylab("Positive Normalization Factor")
+
+```
+
+## 3b. Correlation between replicates using endogenous genes only
+
+```{r}
+all(dataNorm$Sample.x == dataNorm$Sample.y)
+expDat0 <- dataNorm %>% filter(CodeClass == "Endogenous_Code_Summary") %>% 
+  dplyr::select(Name, posNorm, Sample.x) %>% 
+  tidyr::spread(Name, posNorm)
+expDat <- expDat0[, -1]
+rownames(expDat) <- expDat0$Sample.x
+
+## LST_026
+samples <- as.character(demoPre$NAME)[rownames(demoPre) %in% rownames(expDat)]
+names(samples) <- as.character(rownames(demoPre)[rownames(demoPre) %in% rownames(expDat)])
+Y <- as.data.frame(log2(t(expDat[names(samples[samples == "L_ST_026"]),])))
+colnames(Y) <- rownames(demo)[as.character(demo$EorV_number) %in% colnames(Y)]
+colnames(Y) <- paste(colnames(Y), as.character(demo[colnames(Y), "AIC_YMD"]), sep=".")
+colnames(Y) <- gsub("-", ".", unlist(lapply(strsplit(colnames(Y), "_"), function(i) i[2])))
+
+## from affy
+mva.pairs(Y)
+reps <- normalize.loess(Y)
+mva.pairs(reps)
+
+pdf(paste0(data_dir, "/results/Figures/Fig.S1.pdf"), height = 8, width = 8)
+ggpairs(Y, mapping = aes(colors = "black", alpha = 0.5),
+        title = "LST026",
+        lower = list(
+          continuous = "smooth",
+          combo = "facetdensity",
+          mapping = aes(color = "blue")))
+dev.off()
+
+## MA plot
+diff <- Y[, "Pre.2010.03.09"] - Y[, "Pre.2010.03.24"]
+avg <- (Y[, "Pre.2010.03.09"] + Y[, "Pre.2010.03.24"])/2
+
+plot(diff ~ avg)
+lines(lowess(diff ~ avg), col = "blue", lwd = 3)
+abline(h = 0, lty = 2, col = "red")
+```
+
+## 3c. Principal Component Analysis using endogenous genes only LST26 (14, 17)
+
+```{r, fig.width=7, fig.height=10}
+group <- samples[rownames(expDat)]
+group[group != "L_ST_026"] <- "other samples"
+
+pcaDat <- prcomp(expDat, scale. = TRUE)
+## color replicates
+ggbiplot(pcaDat, obs.scale = 1, var.scale = 1, 
+         group = group,
+         ellipse = F, circle = F,
+         var.axes = FALSE, labels = rownames(expDat)) + theme_bw()
+```
+
+## 3d. Filtering of low abundant features
+
+```{r, fig.width=7, fig.height=10}
+## remove the second replicate (L_ST_026_R1)
+as.character(demoPre$UniqueID)[rownames(demoPre) %in% "E17"]
+dataNorm2 <- dataNorm %>% filter(Sample.x != "E17")
+
+allCounts0 <- dataNorm2 %>% filter(CodeClass == "Endogenous_Code_Summary") %>% 
+  dplyr::select(Sample.x, Name, posNorm) %>% 
+  spread(Name, posNorm)
+allCounts <- as.matrix(allCounts0[, -1])
+rownames(allCounts) <- allCounts0$Sample
+
+## 1) determine max of negative controls
+maxNegativeCount <- dataNorm2 %>% filter(CodeClass == "Negative_Code_Summary") %>% 
+  dplyr::summarize(maxNeg = max(posNorm))
+maxNegativeCount
+
+passThreshold <- colSums(allCounts > maxNegativeCount$maxNeg)/nrow(allCounts)
+sum(passThreshold > 0) ## keep genes with at least 1 count of 35 samples > than the max value of negative controls
+
+## 2) filter genes with all counts below the maximum value of the negative counts
+dataNormEndoFiltered <- dataNorm2 %>% filter(Name %in% names(passThreshold)[passThreshold > 0]) %>% 
+  mutate(Name = droplevels(Name))
+dataNormHk <- filter(dataNorm2, CodeClass %in% "Housekeeping_Code_Summary")
+dataNorm3 <- rbind(as.data.frame(dataNormEndoFiltered), as.data.frame(dataNormHk))
+```
+
+## 3e. House-keeping normalization
+
+```{r, fig.width=11, fig.height=6}
+hk <- filter(dataNorm3, CodeClass == "Housekeeping_Code_Summary")
+
+## Plot house-keeping genes for 35 samples
+ggplot(hk, aes(x = as.numeric(Sample.x), y = posNorm, color = Name)) + geom_point() + geom_line() +
+  scale_y_log10() + customTheme(sizeStripFont=15, xAngle=0, hjust = 0.5, vjust = 0.5, xSize=10, ySize=15, xAxisSize=15, yAxisSize=15) + xlab("35 samples") + ylab("Counts")
+
+hkDat0 <- hk %>% dplyr::select(Sample.x, Name, posNorm) %>% spread(Sample.x, posNorm)
+hkDat <- as.matrix(hkDat0[, -c(1)])
+#hkDat[hkDat < 1] <- 1
+hkDat <- log2(hkDat)
+rownames(hkDat) <- as.character(hkDat0$Name)
+
+## Use geNorm to select house-keepers
+res.BM <- selectHKs(t(hkDat), method = "geNorm", Symbols = rownames(hkDat), minNrHK = 2, log = FALSE)
+
+cvList <- list()
+for(i in 3:13){
+  genes <- as.character(res.BM$ranking[1:i]) 
+  
+  ## House-keeping normalization factor
+  hkNF <- dataNorm3 %>% 
+    filter(Name %in% genes) %>% 
+    group_by(Sample.x) %>% dplyr::summarise(hkGeoMean = geometric.mean(posNorm)) %>% 
+    mutate(hkNF = mean(hkGeoMean)/hkGeoMean)
+  
+  ## normalize data
+  hkNorm <- full_join(dataNorm3, hkNF, by = "Sample.x") %>% mutate(hkNorm = posNorm*hkNF)
+  
+  ## calculate CVs
+  cvDat <- hkNorm %>% filter(CodeClass == "Endogenous_Code_Summary") %>% 
+    group_by(Name) %>% dplyr::summarise(cv = sd(hkNorm)/mean(hkNorm))
+  cv <- cvDat$cv
+  names(cv) <- cvDat$Name
+  cvList[[i-2]] <- cv
+}
+names(cvList) <- paste0("hk", "1-", 3:13)
+
+## cvs of raw data
+## calculate CVs
+cvDat <- dataNorm3 %>% filter(CodeClass == "Endogenous_Code_Summary") %>% 
+  group_by(Name) %>% dplyr::summarise(cv = sd(posNorm)/mean(posNorm))
+cv <- cvDat$cv
+names(cv) <- cvDat$Name
+cvList$`hk0` <- cv
+
+## total sum normalization
+## total sum normalization factor
+totalNF <- dataNormEndoFiltered %>%
+  group_by(Sample.x) %>% 
+  dplyr::summarise(totalsumMean = sum(posNorm)) %>%
+  mutate(totalsumNF = mean(totalsumMean)/totalsumMean)
+## normalize data
+totalNorm <- full_join(dataNormEndoFiltered, totalNF, by = "Sample.x") %>% mutate(totalNorm = posNorm*totalsumNF)
+
+# ## ttm normalization
+# mdge = DGEList(counts=m1, group=group)
+# 
+# # ttm normalization
+# m2 = calcNormFactors(mdge)
+
+
+## calculate CVs
+cvDat <- totalNorm %>% filter(CodeClass == "Endogenous_Code_Summary") %>% 
+  group_by(Name) %>% dplyr::summarise(cv = sd(totalNorm)/mean(totalNorm))
+cv <- cvDat$cv
+names(cv) <- cvDat$Name
+cvList$`total` <- cv
+
+## boxplot of CVs for various normalizations
+boxplot(do.call(cbind, cvList), ylab = "coefficient of variation")
+
+## histogram of CVs for various normalizations
+do.call(cbind, cvList) %>% as.data.frame %>% gather(hkComb, cv) %>% 
+  ggplot(aes(x = cv, color = hkComb)) + geom_density(alpha = 0.5)
+
+```
+
+# 4) Differential Expression Analysis: ERvsDR after total sum normalization (since this normalized had the lowest mean cv compared to the hk normalizations
+
+```{r, , message=TRUE}
+genEset0 <- totalNorm %>% filter(CodeClass == "Endogenous_Code_Summary") %>% dplyr::select(Sample.x, Name, totalNorm) %>% 
+  spread(Sample.x, totalNorm)
+genEset <- log2(as.matrix(genEset0[, -1]))
+genEset[genEset < 0] <- 0
+rownames(genEset) <- genEset0$Name
+
+demoPre <- demoPre[colnames(genEset), ]
+all(demoPre$EorV_number == colnames(genEset))
+table(demoPre$calculated_Response, demoPre$givenResponse)
+
+## differential expression analysis
+design <- model.matrix(~factor(demoPre$calculated_Response, levels = c("ER", "DR")))
+fit <- eBayes(lmFit(genEset, design, method = "ls"))
+top.total <- topTable(fit, coef = 2, adjust.method = "BH", n = nrow(fit))
+length(top.total$logFC[top.total$P.Value < 0.05])
+plot(-log10(top.total$P.Value) ~ top.total$logFC)
+abline(h = -log10(0.05), lty = 2, col = 2)
+
+```
+
+# 5) Gene Annotation
+
+```{r geneAnnotation, fig.width = 10, fig.height = 6, fig.fullwidth = TRUE, fig.cap = "Gene Annotations", warning=FALSE, cache=TRUE}
+ann0 <- read.csv(paste0(root, "/data/geneAnnotations/Cells_nCounter_Human_PanCancer_Immune_Profiling_Panel_Gene_List.csv"), row.names = 1)
+table(ann0$Gene.Class)
+
+ann <- ann0[rownames(genEset), ]
+
+## plot total number of genes
+table(droplevels(ann$Gene.Class))[order(table(droplevels(ann$Gene.Class)))] %>% 
+  as.data.frame %>% 
+  ggplot(aes(x = Var1, y = Freq)) + geom_bar(stat = "identity") +
+  customTheme(sizeStripFont = 10, xAngle = 60, hjust = 1, vjust = 1, xSize = 10,
+              ySize = 15, xAxisSize = 10, yAxisSize = 10) + xlab("Gene Annotation")
+annCellType <- subset(ann, Gene.Class == "Immune Response - Cell Type specific")
+```
+
+```{r cellSpecificGenes, fig.width = 10, fig.height = 6, fig.fullwidth = TRUE, fig.cap = "Cell-specific genes", warning=FALSE, cache=TRUE}
+## plot break-down of cell-specific genes
+table(annCellType$Cell.Type)[order(table(annCellType$Cell.Type))] %>% 
+  as.data.frame %>% 
+  ggplot(aes(x = Var1, y = Freq)) + geom_bar(stat = "identity") +
+  customTheme(sizeStripFont = 10, xAngle = 30, hjust = 1, vjust = 1, xSize = 10,
+              ySize = 15, xAxisSize = 10, yAxisSize = 10) + xlab("Cell-specific genes")
+annCT <- subset(ann, Gene.Class == "CT Antigen")
+annImmRes <- subset(ann, !(Gene.Class %in% c("Immune Response - Cell Type specific", "CT Antigen", "HK")))
+
+## gene set of annotations
+imm <- strsplit(gsub(", ", ",", as.character(ann$Annotation)), ",")
+names(imm) <- rownames(ann)
+dfAnn <- data.frame(GeneName = rep(names(imm), unlist(lapply(imm, length))),
+                    Pathway = unlist(imm))
+
+## gene set of immune responses
+immRes <- strsplit(gsub(", ", ",", as.character(annImmRes$Annotation)), ",")
+names(immRes) <- rownames(annImmRes)
+dfImmRes <- data.frame(GeneName = rep(names(immRes), unlist(lapply(immRes, length))),
+                       Pathway = unlist(immRes))
+dim(dfAnn); dim(dfImmRes);
+```
+
+# write out datasets
+
+```{r}
+save(demoPre=demoPre, genEset=genEset,
+     ann=ann, dfAnn=dfAnn, dfImmRes=dfImmRes, 
+     file = paste0(data_dir, "/data/preprocessedData/panCancerDatasets.RDATA"))
+```
+
+# sessionInfo
+
+```{r}
+sessionInfo()
+```
+
+```{r eval=FALSE}
+file.edit(
+  tufte:::template_resources(
+    'tufte_html', '..', 'skeleton', 'skeleton.Rmd'
+  )
+)
+
+# create a bib file for the R packages used in this document
+knitr::write_bib(c('base', 'rmarkdown'), file = 'skeleton.bib')
+```

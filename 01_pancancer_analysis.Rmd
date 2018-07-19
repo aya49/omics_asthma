@@ -32,9 +32,11 @@ data_dir = paste0(root, "/data/RNApancancer")
 ## load dataset
 load(paste0(data_dir, "/data/preprocessedData/panCancerDatasets.RDATA"))
 
+
 ## libraries
-library(devtools); install_github("singha53/amritr"); library(amritr)
-library(limma); library(ggrepel) # for volcano plot labels
+library(devtools); #install_github("singha53/amritr"); library(amritr)
+library(limma); 
+library(ggrepel) # for volcano plot labels
 library(mixOmics)
 library(gplots) # heatmap.2
 library(igraph) # for networks

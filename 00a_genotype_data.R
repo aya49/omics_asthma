@@ -23,7 +23,7 @@ meta_snp_temp_dir = paste0(genotype_dir, "/Axiom_PMRA.na35.annot.csv")
 
 gt1_meta_dir = paste0(genotype_dir, "/additional_sample_data.txt")
 meta_file_temp_dir = paste0(genotype_dir, "/meta_file_temp.csv")
-meta_file_temp2_dir = paste0(genotype_dir, "/asthmaDemo_allsite.csv")
+meta_file_temp2_dir = paste0(data_dir, "/allsitesDemo.csv")
 meta_file_extra_dir = paste0(data_dir, "/RNAseq/asthmaDemo_allsite.xlsx")
 meta_file_data_dir = paste0(root,"/data/asthmaDemo_allsite_withSampleInfo_DH_v5.csv")
 
@@ -52,7 +52,7 @@ libr("doMC")
 libr("stringr")
 libr("gdata") #read xls
 libr("Matrix")
-
+libr("annotables")
 
 
 ## options
@@ -86,7 +86,7 @@ gt1_calls = read.table(gt1_call_dir, sep="\t", header=T, stringsAsFactors = F, c
 # load files
 gt1_meta = fread(gt1_meta_dir, data.table=F)
 meta_file_temp = fread(meta_file_temp_dir, data.table=F)
-# meta_file_temp2 = fread(meta_file_temp2_dir, data.table=F)
+# meta_file_temp2 = read.csv(meta_file_temp2_dir, stringsAsFactors=F)
 meta_file_extra = read.xls(meta_file_extra_dir, check.names=T)
 
 # extract well = unique identifiers for each sample
@@ -270,7 +270,40 @@ row_ind = ! ((duplicated(meta_file2$id) | duplicated(meta_file2$id, fromLast=T))
 # }
 
 meta_file = meta_file2[row_ind,]
-meta_col = annot[col_ind,]
+meta_col_f = meta_col = as.data.frame(annot[col_ind,])
+
+start = Sys.time()
+meta_col$symbols = ""
+enst_split = str_extract_all(meta_col[,"Associated Gene"], "ENST[0-9]+")
+enst = unique(unlist(enst_split))
+grch38_dt <- merge(as.data.frame(grch38_tx2gene), as.data.frame(grch38), by="ensgene")
+for (enst_i in enst) {
+  symb = grch38_dt[grch38_dt$enstxp==enst_i, "symbol"]
+  if (length(symb)>0) {
+    colind_w_symb = sapply(enst_split, function(x) any(x==enst_i) | any(is.na(x)))
+    meta_col[colind_w_symb,"symbols"] = paste0(meta_col[colind_w_symb,"symbols"],"_",symb)
+  }
+}
+time_output(start)
+
+meta_col_g = meta_col
+
+meta_col_pc = read.csv(paste0(data_dir, "/Cells_nCounter_Human_PanCancer_Immune_Profiling_Panel_Gene_List.csv"), row.names=1)
+if (!"pc_traits"%in%colnames(meta_col)) {
+  start = Sys.time()
+  meta_col$pc_traits =  meta_col$pc_traits_class = ""
+  for (i in 1:nrow(meta_col_pc)) {
+    gene = meta_col_pc$id[i]
+    g_ind = grepl(gene, meta_col[,"symbol"])
+    meta_col$pc_traits[g_ind] = 
+      paste(meta_col$pc_traits[g_ind], "_", meta_col_pc[i,"trait"])
+    meta_col$pc_traits_class[g_ind] = 
+      paste(meta_col$pc_traits_class[g_ind], "_", meta_col_pc[i,"trait_class"])
+  }
+  time_output(start)
+}
+
+
 m = gt1_calls1[rownames(gt1_calls1)%in%meta_file[,paste0("filename_",type)],col_ind]
 rownames(m) = meta_file[match(rownames(m),meta_file[,paste0("filename_",type)]),id_col]
 

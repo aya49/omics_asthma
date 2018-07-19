@@ -7,11 +7,11 @@
 
 ## input: Sys.time() value
 ## output: time elapsed since input
-time_output = function(start, tz="GMT") {
+time_output = function(start, tz="GMT", message="") {
   start = as.POSIXct(start)
   end = Sys.time()
   time_elapsed = difftime(end, start, units="secs")
-  cat(ft(start,tz=tz), "-", ft(end,tz=tz), ">", ft(time_elapsed,tz=tz))
+  cat(message, ifelse(message=="","",": "), ft(start,tz=tz), "-", ft(end,tz=tz), ">", ft(time_elapsed,tz=tz), "\n")
 }
 
 ## input: Sys.time() value
@@ -88,6 +88,33 @@ libr <- function(pkgs) {
   }
 }
 
+
+
+
+## by amrit
+function (fileName) {
+  library(dplyr)
+  library(tidyr)
+  lines <- data.frame(values = readLines(fileName))
+  dat <- suppressWarnings(separate(data = lines, col = values, 
+                                   sep = ",", into = c("CodeClass", "Name", "Accession", 
+                                                       "Count")))
+  ind <- grep("<[A-Z]", dat$CodeClass)
+  attr <- rep(NA, nrow(dat))
+  for (i in 1:length(ind)) attr[ind[i]:nrow(dat)] <- grep("<[A-Z]", 
+                                                          dat$CodeClass, value = TRUE)[i]
+  dat <- dat %>% mutate(CodeClass = paste(CodeClass, gsub(" ", 
+                                                          "", chartr("<>", "  ", attr)), sep = "_"), fileName = fileName)
+  dat <- dat[-grep("<", dat$CodeClass), ]
+  dat <- dat[!is.na(dat$Name), ]
+  techDat <- dat[1:(grep("CodeClass", dat$CodeClass) - 1), 
+                 ] %>% dplyr::select(-c(Accession:Count)) %>% spread(CodeClass, 
+                                                                     Name)
+  bioDat <- dat[(grep("CodeClass", dat$CodeClass) + 1):nrow(dat), 
+                ]
+  Dat <- full_join(techDat, bioDat, by = "fileName")
+  return(Dat)
+}
 
 
 ## input: matrix

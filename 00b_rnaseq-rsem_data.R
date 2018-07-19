@@ -67,6 +67,7 @@ expr_cutoff$isopct = 3
 
 good_col = 3 #each gene must have > good_col samples with >0 abundence; else delete
 good_count = 10 #each gene must have >10 abundence in more than half the samples; else delete
+good_na = .75 #proportion of na more than this, then delete the column in matrix
 
 
 
@@ -151,7 +152,7 @@ for (feat_type in names(meta_cols)) {
   counts_rownames1 = cbind(counts_rownames, 
                            as.data.frame(grch38)[match(geneid,unlist(grch38[,"ensgene"])),])
   save(counts_rownames1, file=paste0(meta_col_dir,feat_type,".raw.Rdata"))
-  if (writecsv) write.csv(counts_rownames1, file=paste0(meta_col_dir,feat_type,"raw.csv"))
+  if (writecsv) write.csv(counts_rownames1, file=paste0(meta_col_dir,feat_type,".raw.csv"))
 }
 
 
@@ -226,6 +227,9 @@ if (writecsv) write.csv(cell_post, file=paste0(feat_cell_dir,".post.csv"))
 
 design = model.matrix(~response * centre + sex + time, data=meta_fileraw)
 
+# 1. keep samples where medium cpm > expr_cutoff[[m0n]]
+# 3. ttm normalization: mdge = DGEList(counts=m1, group=group); m2 = calcNormFactors(mdge)
+
 for (m0n in names(feats)) {
   m0 = t(feats[[m0n]])
   
@@ -253,10 +257,8 @@ for (m0n in names(feats)) {
   
   large_count_ind = median_log2_cpm > expr_cutoff[[m0n]]
   m1 = m0[large_count_ind,]
-  m1[m1<3] = NA
-  meta_cols[[m0n]] = meta_cols[[m0n]][large_count_ind,]
-  
   rownames(m1) = rownames(m0)[large_count_ind]
+  meta_cols[[m0n]] = meta_cols[[m0n]][large_count_ind,]
   
   # after removing all genes with a median log2 cpm below r expr_cutoff, 
   # we have r sum(median_log2_cpm > expr_cutoff) genes remaining. 
@@ -264,10 +266,10 @@ for (m0n in names(feats)) {
   # is to expect 9-12 thousand expressed genes.
   
   # recalculate cutoff after filtering
-  cpm_log = cpm(m1, log=T)
+  cpm_log = cpm(m1, log=T, na.omit=T)
   # m1[cpm_log<expr_cutoff[[m0n]]] = NA
   # m1 = na.omit(m1)
-  
+
   png(file=paste0(preprocess_dir,"/", fileNames(feat_feature_dir),m0n, "_cpmfiltered-heat.png"), width=wdth, height=ht)
   heatmap(cor(cpm_log[,order(meta_fileraw[class_col,])]))
   graphics.off()
@@ -322,9 +324,11 @@ for (m0n in names(feats)) {
   # abline(v=expr_cutoff_2, col = "red")
   # graphics.off()
   
-  m4 = m2
+  m4 = as.matrix(cpm(m2, log=T, na.omit=T))
   m4[m4<expr_cutoff[[m0n]]] = NA
-  feats[[m0n]] = t(as.matrix(m4))
+  m4 = m4[apply(m4,1,function(x) any(!is.na(x))),
+          apply(m4,2,function(x) sum(!is.na(x))>(good_na*nrow(m4)))]
+  feats[[m0n]] = t(m4)
   
   # save(m4, file=paste0(feat_feature_dir,".Rdata"))
   # if (writecsv) write.csv(m4, file=paste0(feat_feature_dir,".csv"))
@@ -366,7 +370,7 @@ for (m0n in names(feats)) {
     ## limma filtering normalization
     
     ## filter: get rid of lowly expressed genes in more than half the samples
-    no_2 = colSums(cpm(m1)>10) >2
+    no_2 = colSums(cpm(m1)>10) >2 #???
     m1 = m1[,no_2]
     
     #cluster libraries

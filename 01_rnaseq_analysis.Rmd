@@ -8,7 +8,7 @@ output:
     highlight: "neon"
     number_sections: true
     toc: true
-    toc_float: 
+    toc_float:
       collapsed: true
       smooth_scroll: false
     df_print: paged
@@ -61,6 +61,8 @@ prepare meta_filegraphics
 
 ## load datasets (meta_filegraphics and rnaseq data)
 load(paste0(data_dir, "/rnaseqDatasets.RDATA"))
+
+if (!grepl("startEnsem"))
 
 # time=Pre meta_file and data
 rnaseq_meta_file_pre <- subset(rnaseq_meta_file, time == "Pre")
@@ -435,7 +437,7 @@ sigDat$Dataset[sigDat$Dataset == "starEnsemblExp"] <- "Ensembl"
 sigDat$Dataset[sigDat$Dataset == "trinityGeneIsoCounts"] <- "Trinity"
 sigDat$Dataset[sigDat$Dataset == "ucscGeneCounts"] <- "UCSC genes"
 sigDat$Dataset[sigDat$Dataset == "ucscGeneIsoCounts"] <- "UCSC gene-isoforms"
-sigDat$Dataset <- factor(sigDat$Dataset, levels = c("UCSC genes", "UCSC gene-isoforms", "Ensembl", "Trinity"))
+sigDat$Dataset <- factor(sigDat$Dataset, levels = c("UCSC genes", "UCSC gene-isoforms", "Ensembl", "Trinity", ""))
 
 cbPalette <- brewer.pal(3, "Set1")
 pdf(paste0(data_dir, "/result/Figure2a.pdf"), width = 15, height = 5)

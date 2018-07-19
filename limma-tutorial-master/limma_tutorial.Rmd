@@ -1,0 +1,932 @@
+---
+title: "A working tutorial for modeling protein expression by using limma package"
+author: "Ozan Aygun"
+date: "May 31, 2017"
+output:
+  html_document:
+    depth: 4
+    highlight: tango
+    number_sections: yes
+    theme: cerulean
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+
+```{r setup, include=FALSE, fig.align='center',fig.width=5,fig.height=4}
+knitr::opts_chunk$set(echo =TRUE, include = TRUE, message = FALSE,warning = FALSE,fig.align='center',fig.width=5,fig.height=4)
+```
+
+___
+
+# Introduction and Summary
+
+
+
+
+```{r,cache=TRUE}
+setwd(dirname(parent.frame(2)$ofile))
+data.mat <- readRDS("log_expression.rds")
+```
+
+
+# One sample comparisons
+
+In a typical one sample comparison, we ask the following question:
+
+**Which log gene expression ratios (relative to a reference (control or denominator)) is different from zero? (Assuming that all ratios were normalized)**
+
+First we check if the data is (median) normalized (this is important):
+```{r}
+normalization.check <- apply(data.mat,2,median) # It is median normalized
+is.normal <- data.frame(Conditions = names(normalization.check),Median = normalization.check)
+knitr::kable(is.normal, align = "c", format = "pandoc",row.names = F)
+```
+
+Therefore, all columns (experiment conditions) have a median ratio of zero and data looks median normalized (centered) around the zero.
+
+##lmFit() and eBayes()
+
+**lmFit()** and **eBayes()** are the workhorse functions of the limma. lmFit() enables us to fit the linear models of interest, for **each gene** in our data set. The model structure is different from the common formula interface we are used to use in lm(), and models are typically specified by using a so called **design matrix**. lmFit() returns a model object with a type of **MArrayLM**.
+
+eBayes() takes the model object returned by lmFit() and performs empirical Bayes moderation. This involves moderating the standard errors towards a common value obtained from the entire data set. This is important for making our inferences robust given the number of independent replicates (biological replicates) in the experiments are often very low (usually 2 for proteomics). eBayes also computes moderated versions of t and F statistics to evaluate differential expression.
+
+## Fitting one-sample comparisons without specifying a design matrix
+
+Note that without defining a design matrix, the default is a unit vector, in other words, lmFit() will assume all columns (samples) are replicates, it will get their average and perform a one-sample t-test with a H.NULL = 0, it will print the parameters.
+
+For one sample comparisons (essentially one-sample Moderated t-test), it is more intuitive to feed a pure data matrix into the lmFit that exclusively contains the biological replicates of a particular **class**. (Class is a treatment category, which is represented by biological replicates.)
+
+### Extracting the data.martix for a particular class
+
+For example in our data set:
+
+- FS20160721_OA_E15_polUB_Fractions..128C.126..Tetra_Ub_K48_iDUB.Control	
+- FS20160721_OA_E15_polUB_Fractions..130C.131..Tetra_Ub_K48_iDUB.Control	
+
+columns are biological replicates of the experimental treatment class: **Tetra_Ub_K48_iDUB**
+
+**Question: now our question becomes: Which MEAN log gene expression ratios (relative to a reference (control or denominator)) is different from zero in Tetra_Ub_K48_iDUB condition (class)?**
+
+Let's extract the relevant data for this class:
+
+```{r}
+data.K48 <- data.mat[,grepl("128C.126..Tetra_Ub_K48_iDUB.Control|130C.131..Tetra_Ub_K48_iDUB.Control",names(data.mat))]
+row.names(data.K48) <- row.names(data.mat) # We stick the gene names into the expression set as row.names
+```
+
+Note that we stick the gene names (or accession numbers) into the expression set as row.names to the data.matrix before fitting the model. This is not required, but makes the analysis more intuitive.
+
+### Using lmFit to fit the linear model for each gene ID
+
+Using lmFit without a design matrix is very simple:
+
+```{r}
+library(limma)
+fit <- lmFit(data.K48)
+```
+
+
+### Perform emprical Bayes moderation:
+
+We use the model returned from lmFit to perform empirical Bayes moderation:
+
+```{r}
+fit <- eBayes(fit, robust = TRUE)
+```
+
+- Note that robust = TRUE makes the inference more robust against outlier sample variances.
+
+### topTable() function: Extract the table of gene sets from the fitted model
+
+In other words, this is the step where we extract the results of differential expression test from the model fit.
+
+topTable() extracts a table of the top-ranked genes from a linear model fit.
+
+- We set: number = nrow(data.mat) to get all genes
+- We set: sort.by = "none" to not sort the results and keep the original gene set order
+
+```{r}
+
+significance <- topTable(fit, number = nrow(data.K48), sort.by = "none", adjust.method = "fdr",
+                         confint = TRUE)
+
+knitr::kable(head(significance), align = "c", format = "pandoc",row.names = T)
+knitr::kable(data.frame(head(fit$coefficients)), align = "c", format = "pandoc",row.names = T)
+
+```
+
+**Note that the estimated coefficients for the model are simply the average expression of the replicates.**
+
+
+####Interpreting the output table
+
+Note that we are fitting a linear model for every gene in our data.matrix, therefore this implicitly means that we performed many hypothesis tests at the same time and our alpha-level needs to be re-adjusted (i.e: our nominal p-values associated with each test has to be adjusted).
+
+- Note that by default topTable performs BH adjustment for the nominal p-values, we can set this as **'fdr'** to adjust p-values by controlling the false discovery rate.
+- **P-values** are the raw (nominal) p-values associated with these regression parameters.
+- **t** is moderated t-statistic (omitted for topTableF).
+- **logFC** is the estimate of the log2-fold-change corresponding to the effect or contrast (for topTableF there may be several columns of log-fold-changes).
+- **CI.L and CI.R** left and right limits of the confidence interval for logFC.
+- **AveExpr** is average log2-expression for the gene over all conditions in the data matrix.
+
+# Two-group comprisons
+
+In a typical two sample comparison, we ask the following question:
+
+**Which mean log gene expression ratios (relative to a reference (control or denominator)) is different from between one condition to another (e.g: WT and Mutant)? (Assuming that all ratios were normalized)**
+
+**Another way to formulate this question is: for which genes the mean log expression ratio difference between two conditions is different from zero?**
+
+Note that this is a typical two-sample comparison, we typically handle by a two-sample t-test or linear regression where we have a continuous outcome and categorical predictor.
+
+## Extracting the data.matrix for two groups:
+
+In order to perform a two-sample comparison, we need to define a design matrix. Let's say we would like to compare **Mono UB** v.s **Tetra_Ub_K48_iDUB** conditions. Each of these data available as ratios to a common reference (Control):
+
+First we get the relevant data for two groups:
+
+- column names for the two independent biological replicates of Mono-UB group:
+
+FS20160721_OA_E15_polUB_Fractions..127C.126..Mono_Ub_iDUB.Control	
+FS20160721_OA_E15_polUB_Fractions..129C.131..Mono_Ub_iDUB.Control
+
+
+- column names for the two independent biological replicates of K48 group:
+
+FS20160721_OA_E15_polUB_Fractions..128C.126..Tetra_Ub_K48_iDUB.Control	
+FS20160721_OA_E15_polUB_Fractions..130C.131..Tetra_Ub_K48_iDUB.Control	
+
+```{r}
+data.Mono_vs_K48 <- data.mat[,grepl("FS20160721_OA_E15_polUB_Fractions..127C.126..Mono_Ub_iDUB.Control|FS20160721_OA_E15_polUB_Fractions..129C.131..Mono_Ub_iDUB.Control|128C.126..Tetra_Ub_K48_iDUB.Control|130C.131..Tetra_Ub_K48_iDUB.Control",names(data.mat))]
+```
+
+Again, we stick the gene names (or accession numbers) into the expression set as row.names to the data.matrix before fitting the model. This is not required, but makes the analysis more intuitive.
+
+```{r}
+row.names(data.Mono_vs_K48) <- row.names(data.mat) # We stick the gene names into the expression set as row.names
+names(data.Mono_vs_K48)
+```
+
+## Design matrix for the two-sample comparison
+
+Note that the order of the columns in the data.matrix are critical. They represent the individual biological replicates of the groups. We need to construct the design matrix to properly match each of the replicate to its respective class.
+
+Therefore, note that order of group labels are the same as what samples they refer to in the design matrix (respective column names).
+
+```{r}
+Group <- factor(c("Mono","K48","Mono","K48"), levels = c("Mono","K48")) # Note the order of group labels that match the columns in the data matrix. Order the levels so that they appear as (reference, comparison)
+design.matrix <- model.matrix(~ Group) # Note the use of model.matrix() function
+design.matrix
+```
+
+**Note that the choice of the reference group (i.e: the first factor level in the Group), has important consequences in terms of interpretation of the model (see 3.5 below).**
+
+- Notice that the first column represents the intercept of the model, which is "Mono" group (which is Mono_vs_Control log expression ratios for each gene).
+
+- The second column is the "slope" of the model, labelled as "GroupK48" (which is actually K48_vs_Mono log expression ratios for each gene)
+
+Note that the order of the samples (rows in the design matrix) has to match the order of the Experiments (columns in the data.matrix). We can attach them to make the matrix more intuitive. This is not needed, but useful to specify:
+
+```{r}
+row.names(design.matrix) <- colnames(data.Mono_vs_K48)
+design.matrix
+```
+
+Note the interpretation of the design matrix, particularly the meaning of 1's and 0's.
+
+First, it is always helpful to write the model equation we are fitting:
+
+**Y = B0 + B1 * GroupK48** 
+
+Where;
+
+- Y: mean log expression ratio for a given group:
+- For Reference group (mono); Y = B0 + B1 * 0 = B0 (Since GroupK48 = 0, remember design matrix)
+- For Comparison group (K48); Y = B0 + B1 * 1 = B0 + B1 (Since GroupK48 = 1, remember design matrix)
+
+Therefore, the design matrix reflects the model by using 1's and 0's for each class (or condition, or column). 
+
+In other words,
+
+- Intercept is 1 for all classes, because we have at least an intercept in all cases
+- GroupK48 is 1 for K48 group and 0 for the Mono group, meaning that GroupK48 has also a slope, in addition to an intercept.
+
+Now, things are getting more intuitive in terms of interpreting a standard linear regression model.
+
+## Fitting the two-comparison model by using lmFit() and eBayes()
+
+We fit the model by using lmFit() as we performed in the one-sample analysis:
+
+Note we pass the design matrix into the lmFit, by using design = design.matrix argument.
+
+```{r}
+fit.two.group <- lmFit(data.Mono_vs_K48,design = design.matrix)
+````
+
+Then we perform eBayes moderation for the models;
+
+```{r}
+fit.two.group <- eBayes(fit.two.group, robust = TRUE)
+```
+
+Finally, we obtain the results:
+
+```{r}
+two.group.significance <- topTable(fit.two.group, coef = "GroupK48", adjust.method = "fdr",
+                                   number = nrow(data.Mono_vs_K48), sort.by = "none", confint = TRUE)
+```
+
+## Interpretation of the model and coefficients for the two-sample comparison:
+
+The results matrix returned by the topTable:
+
+```{r}
+head(two.group.significance)
+```
+
+Note that there are two expr values: logFC and AveExpr for each gene (and this time they look different!)
+
+The coefficients returned by the model:
+
+```{r}
+head(fit.two.group$coefficients)
+```
+
+- Note that the coefficients for K48 condition (Which is actually K48 vs Mono) are the same as logFC.
+
+- Note that the AveExpr refers to the average expression of each gene in the data set, regardless of groups. This is not the estimate used and tested in our model:
+
+```{r}
+head(apply(data.Mono_vs_K48,1,mean))
+```
+
+Intuitively, logFC is defined as the mean difference between the groups (the estimate (or coefficient of our test of interest:
+
+```{r}
+Mono_mean <- head(apply(data.Mono_vs_K48[,c(1,3)],1,mean))
+K48_mean <- head(apply(data.Mono_vs_K48[,c(2,4)],1,mean))
+K48_mean - Mono_mean
+```
+
+Note that these group mean differences are indeed the coefficient estimates of the model for the Comparison group (in this case it is K48 group)
+
+- How about intercept?
+
+```{r}
+Mono_mean
+```
+
+Note that the mean expression levels in the reference group (in this case it is the Mono group) corresponds to the model intercept.
+
+## Equation of the fitted model and its interpretation
+
+Therefore, for each gene we are essentially fitting the following model:
+
+
+**Y = B0 + B1 * GroupK48** 
+
+Where;
+
+- Y: mean log expression ratio for a given group:
+- For Reference group (mono); Y = B0 + B1 * 0 = B0 (Since GroupK48 = 0, remember design matrix)
+- For Comparison group (K48); Y = B0 + B1 * 1 = B0 + B1 (Since GroupK48 = 1, remember design matrix)
+
+- B0: intercept: mean expression ratio for the reference group (relative to control)
+- B1: slope (coefficient): mean log expression difference (mean(logFC)) between the comparison - reference group for a given gene
+
+**Note that the choice of the reference group (i.e: the first factor level in the Group), has important consequences in terms of interpretation of the model. All comparisons (or contrasts) we will make using this model will be relative to this reference category.**
+
+Therefore, to summarize what we have performed so far: 
+
+1. We are fitting N (nrow(data.matrix)) of such models for each gene,
+2. Then making parameters robust by applying empirical Bayes shrinkage method (because we have only few independent measurements for each gene (or model), thus we utilize the variability from the entire data set to make our standard error estimates more robust).
+3. Adjusting the p-values associated with the parameter of interest to make robust inferences (control alpha-level). 
+
+- Note that the coefficient of interest in this model is B1, which is the mean log expression difference between the two groups.
+
+- Note that the null hypothesis of interest in this model is B1 != 0 (MeanComparison - MeanRef)
+
+Therefore, the design matrix is nothing but a collection of dummy variables, and the way we define Comparison group as = 1 has consequences on the interpretation of the coefficients.
+
+## Conclusions
+
+```{r}
+two.group.significance[two.group.significance$adj.P.Val <0.05,]
+```
+
+We couldn't find any genes whose average expression ratio is significantly different between K48 and Mono UB.
+
+Distribution of p-values also suggest the overall non-significance of the changes:
+
+```{r}
+hist(two.group.significance$P.Value, breaks = 50, col = "navy")
+```
+
+# Comparisons involving several groups
+
+It is not uncommon that we have more than two groups in the experiment and we might be interested in multiple contrasts. This can be handled by using the same strategy we used for the two-group comparison, with some additional modifications.
+
+##Preparing the data matrix
+
+For this example, let's include a 3rd group into the data.matrix, which is K63. Therefore, we will have the following biological replicates for each group:
+
+- column names for the two independent biological replicates of Mono-UB group:
+
+FS20160721_OA_E15_polUB_Fractions..127C.126..Mono_Ub_iDUB.Control	
+FS20160721_OA_E15_polUB_Fractions..129C.131..Mono_Ub_iDUB.Control
+
+
+- column names for the two independent biological replicates of K48 group:
+
+FS20160721_OA_E15_polUB_Fractions..128C.126..Tetra_Ub_K48_iDUB.Control	
+FS20160721_OA_E15_polUB_Fractions..130C.131..Tetra_Ub_K48_iDUB.Control	
+
+- column names for the two independent biological replicates of K63 group:
+
+FS20160721_OA_E15_polUB_Fractions..128N.126..Tetra_Ub_K63_iDUB.Control	
+FS20160721_OA_E15_polUB_Fractions..130N.131..Tetra_Ub_K63_iDUB.Control	
+
+
+```{r}
+data.3.groups <- data.mat[,grepl("FS20160721_OA_E15_polUB_Fractions..127C.126..Mono_Ub_iDUB.Control|FS20160721_OA_E15_polUB_Fractions..129C.131..Mono_Ub_iDUB.Control|128C.126..Tetra_Ub_K48_iDUB.Control|130C.131..Tetra_Ub_K48_iDUB.Control|FS20160721_OA_E15_polUB_Fractions..128N.126..Tetra_Ub_K63_iDUB.Control|FS20160721_OA_E15_polUB_Fractions..130N.131..Tetra_Ub_K63_iDUB.Control",names(data.mat))]
+```
+
+Again, we stick the gene names (or accession numbers) into the expression set as row.names to the data.matrix before fitting the model. This is not required, but makes the analysis more intuitive.
+
+```{r}
+row.names(data.3.groups) <-  row.names(data.mat) # We stick the gene names into the expression set as row.names
+head(data.3.groups)
+```
+
+## Design matrix for several groups
+
+Once again we will need our design matrix that has to properly match the data.matrix columns and describe the fitted model for each gene:
+
+```{r}
+names(data.3.groups)
+Group <- factor(c("Mono","K63","K48","Mono","K63","K48"), levels = c("Mono","K48","K63")) # Note the order of group labels that match the columns in the data matrix. 
+design.matrix <- model.matrix(~ 0 + Group) # Note the different use of model.matrix() function
+row.names(design.matrix) <- colnames(data.3.groups) # Not needed but good practice
+design.matrix
+```
+
+**Again, notice the 1's and 0's in the design matrix. In this case the matrix is different from the two-sample comparison (Note how we used model.matrix(~ 0 + Group), to prepare the design matrix). This is because we would like to perform ALL pair-wise comparisons. The structure and interpretation of the design matrix is therefore different. In this case, each group is simply defined by a 1. The ~0 in the model.matrix formula argument implies that we don't have an intercept specified by any of the groups.**
+
+## Fitting the model with several groups using lmFit() and eBayes() 
+
+### prepare contrast matrix using  makeContrasts() function:
+
+In this case, our primary goal is to make **pairwise comparisons between all 3 groups**. Therefore, we will need to prepare another matrix, so called **contrast matrix** to define which contrasts we would like to perform. Fortunately, limma package provides makeContrasts() function for this purpose.
+
+**makeContrasts()** essentially takes two arguments:
+
+1. A vector of dashed objects that defines the contrasts, these names should match with the group names in the design matrix. As long as they match the column(group) names in the design matrix, **they do not need to be quoted.**
+2. levels = this is the design matrix we prepared for the pairwise tests above.
+
+```{r}
+contrast.matrix <- makeContrasts(GroupK48 - GroupMono,GroupK63 - GroupMono, GroupK63 - GroupK48,
+                                 levels = design.matrix)
+contrast.matrix
+```
+
+Let's interpret the contrast.matrix:
+
+- Note that this time we have 1, -1 and 0 in the matrix.
+- Each column is a contrast we asked to perform.
+- Each row is a Group.
+- For each comparison, the contributing groups are either 1 or -1 depending on the order.**This order has consequences for the correct interpretation of the parameters or estimates(see below).** 
+- The group that is not involved in a particular contrast is labelled as 0.
+
+Therefore, this is quite intuitive as well.
+
+**Next, we first need to fit the model by using the design matrix:**
+
+```{r}
+fit.3.group <- lmFit(data.3.groups,design = design.matrix)
+```
+
+Note that we prepared, but not used the contrast.matrix yet. Next we will use the model we built to fit these contrasts.
+
+### Using contrasts.fit() to fit model for the comparisons 
+
+This is another new step for us which we didn't have to use in the two-group comparisons. Here, unless we use the contrasts.fit() function, we can not get the desired results for pair-wise comparisons.
+
+Given a linear model fit we prepared,contrasts.fit() computes estimated coefficients and standard errors for **a given set of contrasts.**
+
+**contrasts.fit()** will take two arguments:
+
+- The model fit object we prepared
+- The contrast.matrix we prepared
+
+We will update the model fit object by using contrasts.fit() function:
+
+```{r}
+fit.3.group <- contrasts.fit(fit = fit.3.group, contrasts = contrast.matrix)
+```
+
+Now the model object contains the parameters for the requested contrasts (i.e: 3 individual model fits). We next perform eBayes moderation of the parameters as usual:
+
+```{r}
+fit.3.group <- eBayes(fit.3.group,robust = TRUE)
+```
+
+### Extracting the results using topTable: note we have multiple models for group-wise comparisons now!
+
+This is especially important to understand: **for each gene, we now have as many models as the number of contrasts.**
+
+Let's look at the coefficients of the fitted model object and compare with that of the two-group comparison:
+
+```{r}
+head(fit.3.group$coefficients)
+head(fit.two.group$coefficients)
+```
+
+Notice that for each gene, we fitted 3 models and in this case the intercept is not specified, since we just included the contrasts. The coefficients estimated using the GroupK48-GroupMono comparison are exactly the same as the coefficients we obtained in the two-group comparison model, where we fitted a single model comparing only these two groups.
+
+Therefore, in order to fetch the results of these pair-wise contrasts individually, we need to use **coef =** argument in the topTable and pass the names of the contrasts in the contrast matrix, this time as **strings**.
+
+```{r}
+K48_Mono.significance <- topTable(fit.3.group, coef = "GroupK48 - GroupMono", adjust.method = "fdr",number = nrow(data.mat), sort.by = "none", confint = TRUE)
+
+K63_Mono.significance <- topTable(fit.3.group, coef = "GroupK63 - GroupMono", adjust.method = "fdr",number = nrow(data.mat), sort.by = "none", confint = TRUE)
+
+K63_K48.significance <- topTable(fit.3.group, coef = "GroupK63 - GroupK48", adjust.method = "fdr",number = nrow(data.mat), sort.by = "none", confint = TRUE)
+
+```
+
+
+### Use decideTests() function to check if null is rejected for a given gene
+
+This is very useful. We can identify which genes are significantly differentially expressed for each contrast from a fit object containing p-values and test statistics. A number of different multiple testing strategies are offered that adjust for multiple testing down the genes as well as across contrasts for each gene.
+
+We can specify: 
+
+- a p.value cut off for the null hypothesis test B1 = 0 for each gene, for each contrast. Defaults is 0.05.
+- a method for multiple hypothesis testing correction (defaults to "BH")
+
+```{r}
+results.3.group <- decideTests(fit.3.group, adjust.method = "fdr", p.value = 0.05)
+head(results.3.group)
+```
+
+In this output, we can have all the genes as row.names, and all contrasts we requested, as columns. If the null hypothesis for a given gene, for a given comparison is rejected, it will be labelled as 1, otherwise it will be rejected as 0.
+
+### Use vennDiagram() function to visualize the results
+
+Another neat function limma provides is the **vennDiagram()**, which computes classification counts and draws a Venn diagram. We pass the results object created by the decideTests() function. We can also specify additional aesthetic arguments:
+
+```{r, fig.width= 10,fig.height=10}
+vennDiagram(results.3.group, circle.col = c("navy","red","green"), lwd = 2)
+```
+
+That's quite useful to see the big picture. In this case, nothing came out as significant in any of the comparisons we performed. Note that the total number of the genes in the data.matrix is printed in the diagram. We can also change the names of the contrasts, using the **names=** argument, make sure they match the level order of the contrasts:
+
+```{r, fig.width= 8,fig.height=8}
+vennDiagram(results.3.group, circle.col = c("navy","red","green"), lwd = 2,
+            names = c("K48 vs Mono","K63 vs Mono", "K63 vs K48"))
+```
+
+## lmFit() F-statistic and relationship to ONE-WAY ANOVA
+
+Believe or not, we performed the usual pairwise t-tests that is typically done after an F-test, or one-way ANOVA. This first pass analysis is performed to ask: **given a set of conditions or groups (more than 2), is the mean significantly different in ANY of the conditions?**
+
+For a set of gene sets, this question is revised to:**"which genes VARY in ANYWAY between the various conditions or groups tested?"** 
+
+This is equivalent to one-way ANOVA, except that the **residual mean squares have been moderated across the genes, since eBayes() was used.**
+
+The results of the F-test (one-way ANOVA) can be readily extracted from the lmFit model object we prepared:
+
+- fit.3.group$F: provides the F statistic for each gene
+- fit.3.group$F.p.value: provides the p-values for the F-test 
+
+```{r, fig.align='center', fig.width=6,fig.height=4}
+hist(fit.3.group$F.p.value, breaks = 300, col = "navy")
+```
+
+The distribution of F-test p-values suggest that essentially not many proteins look like significantly varying across the experiments.
+
+Let's look at how many deemed as significant by the F-test:
+
+```{r}
+three.group.Ftest <- decideTests(fit.3.group$F.p.value, adjust.method = "none", p.value = 0.05)
+sum(three.group.Ftest)
+```
+
+84 genes deemed as significant! But wait, the p-values that come from the model object are not adjusted to account multiple comparisons we performed.Let's perform the correction as needed here:
+
+```{r}
+three.group.Ftest <- decideTests(fit.3.group$F.p.value, adjust.method = "fdr", p.value = 0.05)
+sum(three.group.Ftest)
+```
+
+This is more likely to be true given the p-value histogram. This is also consistent with our pairwise comparisons where we haven't found any gene that was significantly varying in ANY of the conditions we had in our experiment.
+
+# Factorial designs
+
+Factorial designs are constructed when we have more than one experimental dimension being varied and each combination of treatment conditions is observed. 
+
+A classic example for this situation is the experimental designs where we have two factor variables:
+
+**Factor1 : Strain**
+
+- Wild-Type
+- Mutant
+
+**Factor2: Treatments**
+
+- Mono (baseline treatment)
+- K48
+- K63
+
+For each condition, we have expression log ratios that are relative to a common reference or denominator (in this case 'control').
+
+**Note that we are interested in whether K48 or K63 treatments are changing any genes beyond the mono, and whether this reponse is different in Mutant cells compared to Wild-type.**
+
+## Define questions of interest
+
+Questions of interest always come first. This is particularly critical for factorial design, since the final model will be quite complex. We need to set up the questions upfront in order to fit and test the relevant contrasts from our model.
+
+In this experiment, the relevant questions could be:
+
+1. Which genes respond to a given treatment in Wt cells? 
+2. Which genes respond to a given treatment in Mutant cells?
+3. Which genes **respond differently** to a given treatment in mutant compared to wild-type cells?  
+
+## Prepare the data.column - experiment.class match table (Annotation table or Target matrix)
+
+This is a table we need to prepare to clearly tabulate the relevant data columns in the data matrix, with respect to the classes they belong to. This can be prepared in an R environment or externally using excel and then imported into the R session like I did here.
+
+Read and look at the structure of the table:
+
+```{r}
+annotations <- read.csv("annotations.csv", stringsAsFactors = TRUE)
+annotations
+```
+
+The table is intuitively constructed. In limma, this table is also called as "target matrix", this is the main matrix we use to construct the design matrix.
+
+From this target matrix we can understand that there are 12 samples in total. Each Strain class is represented by 3 treatments and each of them have 2 **independent** biological replicates.
+
+This **independence** is important because if we had resampled from the same individual (Wild-type or Mutant), we had to take into account the correlation between the observations. This would necessitate using mixed effect models. 
+
+## Set the factor levels correctly to define reference levels
+
+It is especially important to define the factor levels correctly based on the questions we are interested in. Let's recall the overall objective and our questions. This time try to write these questions in the form of their relations with the factor classes:
+
+**We are interested in whether K48 or K63 treatments are changing any genes beyond the mono, and whether this reponse is different in Mutant cells compared to Wild-type.**
+
+1. Which genes respond to a given treatment in Wt cells? (**Relates to: WT.K48 vs WT.mono, WT.K63 vs WT.mono, two seperate comparisons**)
+2. Which genes respond to a given treatment in Mutant cells? (**Relates to: Mut.K48 vs Mut.mono, Mut.K63 vs Mut.mono comparisons, two seperate comparisons**)
+3. Which genes **respond differently** to a given treatment in mutant compared to wild-type cells? (**Relates to the difference of differences**: 
+
+- For K48 treatment: [Mut.K48 - Mut.mono] - [WT.K48 - WT.mono]
+- For K63 treatment: [Mut.K63 - Mut.mono] - [WT.K63 - WT.mono]
+
+Both of these contrasts will be represented as **interaction terms** in our model.
+
+ )  
+ 
+ Therefore, our reference levels for two factors are:
+ 
+ - Strain: Wt
+ - Treatment: Mono
+
+```{r}
+annotations$Treatment <- factor(annotations$Treatment, levels = c("Mono","K63","K48"))
+annotations$Strain <- factor(annotations$Strain, levels = c("Wt","Mut"))
+```
+
+## Prepare the data matrix
+
+It is not difficult to extract the relevant data columns since we already know them from the target matrix:
+
+```{r}
+d <- data.mat[,which(colnames(data.mat) %in% annotations$Column.Name)]
+```
+
+Note that the gene IDs are already attached as row names in the data. Otherwise, we would be attaching them.
+
+Make sure the order of the columns in the data matrix is the same as the order in the annotation (target) matrix. Otherwise, we need to make sure there are in the same order:
+
+```{r}
+identical(colnames(d),as.character(annotations$Column.Name))
+```
+
+Great! Out data matrix is ready for modeling.
+
+## Prepare the design matrix
+
+We previously used model.matrix() function for fitting two or multiple group comparisons. Here the formula interface is a little different:
+
+```{r}
+design <- model.matrix( ~ Treatment * Strain, data = annotations)
+design
+```
+
+As we notice from the design matrix we have:
+
+- main effects of each treatment (except the baseline treatment)
+- main effect of the mutant strain (not the reference Wt strain)
+- interaction terms of K63 and K48 treatments with the mutant strain
+- intercept
+
+Note that the intercept represents the mean logFC for a gene in the both reference categories, which is TreatmentMono.StrainWt. All other coefficients are relative to this term.
+
+**Before going into the details of the model, we need one edit in the column names. The colon (:) in the interaction term names needs to be replaced. This is because the downstream function make.contrasts() can not handle these types of special charecters in column names.**
+
+We replace ":" by "." in the column names of the design matrix:
+
+```{r}
+colnames(design) <- sapply(colnames(design), function(x){gsub(":",".",x)})
+design
+```
+
+We now have our design matrix ready.
+
+## Fit the overall model using lmFit()
+
+This is straightforward since we both have the data matrix and the design matrix prepared:
+
+```{r}
+fit.factorial <- lmFit(d, design = design)
+```
+
+## Write the model equation and understand interpret the coefficients
+
+As always, writing down the equation is critical. Here we have the following model:
+
+Log Exp Ratio = B0 + B1 * K63 + B2 * K48
+                   + B3 * Mut
+                   + B4 * K63.Mut + B5 * K48.Mut
+                   
+where the **invisible** categorical variables are:
+
+- K63 = 1 when the treatment is K63 and 0 otherwise
+- K48 = 1 when the treatment is K48 and 0 otherwise
+- Mut = 1 when the strain is Mutant and 0 if it is Wild-type
+                   
+In our encoded model (design matrix) the coefficients are nicknamed as:
+
+- B0: (Intercept)
+- B1: TreatmentK63
+- B2: TreatmentK48
+- B3: StrainMut
+- B4: TreatmentK63.StrainMut
+- B5: TreatmentK48.StrainMut
+
+These coefficients have their own interpretations:
+
+- **B0: (Intercept):** mean logFC in the TreatmentMono and StrainWt 
+- **B1: TreatmentK63:** mean logFC difference of [TreatmentK63 - TreatmentMono] in StrainWt (i.e: TreatmentK63 effect in the Wt strain)  
+- **B2: TreatmentK48:** mean logFC difference of [TreatmentK48 - TreatmentMono] in StrainWt (i.e: TreatmentK48 effect in the Wt strain)
+- **B3: StrainMut:** mean logFC difference of [StrainMut - StrainWt] under TreatmentMono condition (i.e: strain effect at the baseline treatment level)
+- **B4: TreatmentK63.StrainMut:** mean logFC difference of ([TreatmentK63 - TreatmentMono] in  StrainMut) - ([TreatmentK63 - TreatmentMono] in  StrainWt)
+- **B5: TreatmentK48.StrainMut:** mean logFC difference of ([TreatmentK48 - TreatmentMono] in  StrainMut) - ([TreatmentK48 - TreatmentMono] in  StrainWt)
+
+Note that not all of the questions we are interested in are directly available from the model coefficients. This doesn't mean we can not construct the contrasts we are interested in. We will derive these contrasts to fit exactly the questions we are interested in. The model coefficients and their interpretation we already described will become handy during these operations.
+
+## Translate questions into null hypotheses, then into desired contrasts in model terms
+
+This is the critical part. We need to recall our questions and **associated null hypotheses(H0)** to fit construct the relevant contrasts.
+
+Remember our model and categorical variables:
+
+Log Exp Ratio = B0 + B1 * K63 + B2 * K48
+                   + B3 * Mut
+                   + B4 * K63.Mut + B5 * K48.Mut
+                   
+where the **invisible** categorical variables are:
+
+- K63 = 1 when the treatment is K63 and 0 otherwise
+- K48 = 1 when the treatment is K48 and 0 otherwise
+- Mut = 1 when the strain is Mutant and 0 if it is Wild-type
+
+Questions we seek answers:
+
+**1. Which genes respond to a given treatment in Wt cells?** 
+
+Null hypotheses:
+
+- H0: Mean.WT.K48 - Mean.WT.mono = 0 ,or we can write: Mean.Wt.K48.vs.Mono = 0
+- H0: Mean.WT.K63 - Mean.WT.mono = 0 ,or we can write: Mean.Wt.K63.vs.Mono = 0
+
+Using the coefficients, these differences are represented as:
+
+- Mean.Wt.K48.vs.Mono = B0 + B2 - B0 = B2
+- Mean.Wt.K63.vs.Mono = B0 + B1 - B0 = B1
+
+In terms of the nicknames in our model, we can re-write:
+
+___
+
+- Mean.Wt.K48.vs.Mono = TreatmentK48
+- Mean.Wt.K63.vs.Mono = TreatmentK63
+
+___
+
+These will be the basis for our relevant contrasts.
+
+
+**2. Which genes respond to a given treatment in Mutant cells?** 
+
+Null hypotheses:
+
+- H0: Mean.Mut.K48 - Mean.Mut.mono = 0, or we can write: Mean.Mut.K48.vs.Mono = 0
+- H0: Mean.Mut.K63 - Mean.Mut.mono = 0, or we can write: Mean.Mut.K63.vs.Mono = 0
+
+Using the coefficients, these differences are represented as:
+
+-  Mean.Mut.K48.vs.Mono: B0 + B2 + B3 + B5 - (B0 + B3) = B2 + B5
+-  Mean.Wt.K63.vs.Mono: B0 + B1 + B3 + B4 - (B0 + B3) = B1 + B4
+
+In terms of the nicknames in our model, we can re-write:
+
+___
+
+- Mean.Mut.K48.vs.Mono =  TreatmentK48 + TreatmentK48.StrainMut
+- Mean.Mut.K63.vs.Mono =  TreatmentK63 + TreatmentK63.StrainMut
+
+___
+
+These will be the basis for our relevant contrasts.
+
+
+**3. Which genes respond differently to a given treatment in mutant compared to wild-type cells?** 
+
+**Relates to the difference of differences**: 
+
+i.e: For which genes the treatment effects are significantly modulated by the strain type?
+
+- For K48 treatment: [Mut.K48 - Mut.mono] - [WT.K48 - WT.mono]
+- For K63 treatment: [Mut.K63 - Mut.mono] - [WT.K63 - WT.mono]
+
+Null hypotheses:
+
+- H0: [Mean.Mut.K48 - Mean.Mut.mono] - [Mean.Wt.K48 - Mean.Wt.mono] = 0
+- H0: [Mean.Mut.K63 - Mean.Mut.mono] - [Mean.Wt.K63 - Mean.Wt.mono] = 0
+
+or, we can write:
+
+- Mean.Mut.K48.vs.Mono - Mean.Wt.K48.vs.Mono = Mean.K48.Mut.vs.Wt
+- Mean.Mut.K63.vs.Mono - Mean.Wt.K63.vs.Mono = Mean.K63.Mut.vs.Wt
+
+Using the coefficients, these differences are represented as:
+
+- Mean.K48.Mut.vs.Wt = B2 + B5 - B2 = B5
+- Mean.K63.Mut.vs.Wt = B1 + B4 - B1 = B4
+
+In terms of the nicknames in our model, we can re-write:
+
+___
+
+- Mean.K48.Mut.vs.Wt = TreatmentK48.StrainMut
+- Mean.K63.Mut.vs.Wt = TreatmentK63.StrainMut 
+
+___
+
+Note that both of these contrasts are represented as **interaction terms** in our model!
+
+
+## Make the contrasts using makeContrasts()
+
+That was the hard work! The rest is more straightforward. What we need to to do is to define these contrasts in the way that R can understand and prepare from the design matrix we prepared.
+
+For this purpose, we will use the makeContrasts() function we already used before. Recall that this function essentially needs two arguments; 
+
+1. A list of contrasts (**in fitted model terms(or nicknames)**)
+2. levels = design matrix
+
+Here, we are essentially using this function in the same way. The only difference is that we are going to use **named** contrasts to explicitly define the contrasts inside the function.
+
+**Another important fact to notice about makeContrasts() is the flexible way we define the contrasts inside the function using arithmetic operators. This provides a handy way to virtually engineer various possible combinations of contrasts that might not be immediately available as model coefficients to us. This becomes more critical as the model complexity increases.**
+
+```{r}
+contrasts <- makeContrasts(
+  # Which genes respond to a given treatment in Wt cells?
+  Mean.Wt.K48.vs.Mono = TreatmentK48,
+  Mean.Wt.K63.vs.Mono = TreatmentK63,
+  
+  # Which genes respond to a given treatment in Mut cells?
+  Mean.Mut.K48.vs.Mono =  TreatmentK48 + TreatmentK48.StrainMut,
+  Mean.Mut.K63.vs.Mono =  TreatmentK63 + TreatmentK63.StrainMut,
+  
+  # Which genes respond differently to a given treatment in mutant compared to wild-type cells?
+  Mean.K48.Mut.vs.Wt = TreatmentK48.StrainMut,
+  Mean.K63.Mut.vs.Wt = TreatmentK63.StrainMut 
+  
+, levels = design)
+
+rownames (contrasts)[1] <- '(Intercept)'
+contrasts
+```
+
+Notice that we had to rename the first rowname since makeContrasts stripped of the '( )' in the original name.
+
+Therefore, we have explicitly prepared the 6 contrasts we are interested in. In the subsequent stages, we will fit these contrasts and obtain estimates for them. In each case, we will also obtain an adjusted p-value that tests the null hypothesis associated with each contrast we described above.
+
+## Get overall model estimates and p-value
+
+This is an optional step but could be useful to get the estimates for the overall model fit for each gene:
+
+```{r}
+fit.overall <- eBayes(fit = fit.factorial, robust = TRUE)
+overall.results <- toptable(fit.overall, number = nrow(fit.overall), adjust.method = "fdr")
+head(overall.results)
+```
+
+Note that this overall model results do not mean much about our specific hypotheses.
+
+## Using contrasts.fit() to fit model for the comparisons in factorial design
+
+This step is no longer a new theme for us. We are simply going to use the contrasts.fit() function to fit the model for the specific contrasts we defined above.
+
+```{r}
+fitted.contrasts <- contrasts.fit(fit = fit.factorial, contrasts = contrasts)
+fitted.contrasts <- eBayes(fitted.contrasts)
+```
+
+## Examine the coefficients and p-values
+
+Let's examine the coefficients estimated by our model fit:
+
+```{r}
+head(coef(fitted.contrasts))
+```
+
+Note that we have obtained an estimate for each contrast we defined. 
+
+These estimates indeed correspond to the differences we defined. For instance the coefficients returned for the Mean.Wt.K48.vs.Mono contrast are simply the logFC we obtained in our simple-two sample comparison previously (see 3.4). Therefore, it is nice to see that our model is built up on and is able to extract those individual comparisons we had investigated previously.
+
+Since we have 6 contrasts in this case, we have 6 coefficients (estimates) and therefore, 6 p-values, and 6-sets of inferences (results) tables. 
+
+For each contrast, we can examine these results separately. 
+
+For instance, 
+
+### Examine if the p-values from the Mean.Wt.K48.vs.Mono contrast are the same as the ones we obtained in the simple two group comparisons
+
+Note that Mean.Wt.K48.vs.Mono is the first coefficient in the contrasts matrix, so we will extract the respective results using the topTable:
+
+```{r}
+results.Mean.Wt.K48.vs.Mono <- toptable(fitted.contrasts, coef = 1,number = nrow(d) , adjust.method = "fdr", sort.by = "none", confint = TRUE)
+
+head(results.Mean.Wt.K48.vs.Mono)
+head(two.group.significance)
+```
+
+Great! Note that even though the estimates are the same as expected, the p-values and confidence intervals are changed. This is because the inferences are made in the context of the entire regression model and effects are adjusted to other covariates fitted in the same model. 
+
+We notice that overall p -values are getting slightly lower for each gene in the context of the large model, however adjusted p-values imply the same inference (i.e: failed to reject H0)
+
+### Examine which genes respond differently to K48 treatment in Mutant v.s Wild-type cells?
+
+Recall that we refined this question into a single coefficient, which is the interaction term between K48 and Mut in our model. The nickname of the contrast is:  **Mean.K48.Mut.vs.Wt**
+
+Note that this is the 5th contrast in the fitted.contrasts object:
+
+```{r, fig.width= 8}
+results.Mean.K48.Mut.vs.Wt <- topTable(fit = fitted.contrasts, coef = 5, adjust.method = "fdr", sort.by = "none", confint = TRUE, number = nrow(d))
+head(results.Mean.K48.Mut.vs.Wt)
+hist(results.Mean.K48.Mut.vs.Wt$P.Value, col = "navy", breaks = 100)
+```
+
+The overall distribution of p-values suggest that it is unlikely any genes display change based on this contrast.
+
+### Combine the model results into a single table
+
+We can keep investigating the individual contrasts one-by-one, or we can combine them into a single results table where each row corresponds to a gene and each column corresponds to a results parameter for a given contrast. Since result outputs are generic, we need to append them with contrast names to distinguish in the final results table.
+
+I wrote a function that could be useful for this purpose. 
+
+```{r}
+parseResults <- function(fit,contrasts){
+        # fit: contrast model fit object generated by lmFit() and then contrasts.fit()
+        # contrasts: the contrasts matrix used to generate the model, containing desired contrasts
+        require(limma)
+        contrasts <- data.frame(contrasts)
+        n <- nrow(fit$coefficients)
+        results <- data.frame(id = row.names(fit$coefficients))
+        for(i in seq_along(names(contrasts))){
+             temp.results <- topTable(fit = fit, coef = i, confint = FALSE, sort.by = "none",
+                                      adjust.method = "fdr", number = n)
+             colnames(temp.results) <- paste(colnames(temp.results),colnames(contrasts[i]), sep = ".")
+             results <- cbind(results,temp.results)
+        }
+        return(results)
+        
+        
+}
+
+combined.results.factorial <-  parseResults(fitted.contrasts,design)
+
+```
+
+# Time-course experiments
+
+These experiments can be handled just like the TWO-WAY factorial design analysis we completed in section 5. In this case the assumption is that the samples are independent (i.e: the expression values are not repeated measurements obtained from the same sample over the time.). 
+
+The design and analysis then becomes very similar to the factorial analysis. For instance, we would investigate the impact of a treatment at 0, 6 and 12 hours in Wt and Mutant cells. This would give us 2 x 3 categories, where we can fit the models and contrasts as we performed in Section 5.
+
+In the case of repeated measures, in other words, when the assumption of independence is violated, a longitudinal analysis method will be required, which involves fitting more complex models using an appropriate covariance matrix structure. 
