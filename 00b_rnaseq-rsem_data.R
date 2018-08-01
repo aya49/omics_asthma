@@ -15,13 +15,13 @@ setwd(root)
 result_dir = paste0(root, "/result"); dir.create(result_dir, showWarnings=F)
 
 ## input directory
-data_dir = paste0(root,"/data/RNAseq")
-rsem_dir = paste0(data_dir,"/rsem")
-meta_file_temp1_dir = paste0(data_dir,"/RNASeq.asthma.clinical_sequencing_merged.csv")
-meta_file_temp2_dir = paste0(data_dir,"/rnaseq_demo.Rdata")
-meta_file_data_dir = paste0(root,"/data/asthmaDemo_allsite_withSampleInfo_DH_v5.csv")
-meta_col_temp_dir = paste0(data_dir,"/HuGene-2_1-st-v1.na36.hg19.transcript.csv")
-meta_col_tr_temp_dir = paste0(data_dir,"/HuGene-2_1-st-v1.na36.hg19.probeset.csv")
+rnaseq_dir = paste0(root,"/data/RNAseq")
+rsem_dir = paste0(rnaseq_dir,"/rsem")
+meta_file_temp1_dir = paste0(rnaseq_dir,"/RNASeq.asthma.clinical_sequencing_merged.csv")
+meta_file_temp2_dir = paste0(rnaseq_dir,"/rnaseq_demo.Rdata")
+meta_file_rnaseq_dir = paste0(root,"/data/asthmaDemo_allsite_withSampleInfo_DH_v5.csv")
+meta_col_temp_dir = paste0(rnaseq_dir,"/HuGene-2_1-st-v1.na36.hg19.transcript.csv")
+meta_col_tr_temp_dir = paste0(rnaseq_dir,"/HuGene-2_1-st-v1.na36.hg19.probeset.csv")
 
 ## output directory
 meta_dir = paste0(result_dir,"/meta"); dir.create(meta_dir, showWarnings=F)
@@ -37,13 +37,10 @@ preprocess_dir = paste0(stat_dir,"/stat"); dir.create(preprocess_dir, showWarnin
 
 ## libraries
 source("code/_func.R")
-libr("data.table")
-libr("annotables") #grch38; https://github.com/stephenturner/annotables
-libr("limma")
-libr("edgeR")
-libr("stringr")
-libr("gdata") #read xls
-libr("Matrix")
+libr(c("data.table", "Matrix", "gdata", #read xls
+     "annotables", #grch38; https://github.com/stephenturner/annotables
+     "limma", "edgeR",
+     "stringr"))
 
 
 writecsv = T
@@ -73,6 +70,22 @@ good_na = .75 #proportion of na more than this, then delete the column in matrix
 
 
 start = Sys.time()
+
+
+
+
+
+
+
+
+## make meta_file; meta_cell ----------------------------------------
+
+meta_file = get(load(paste0(meta_file_dir,".Rdata")))
+meta_fileraw = get(load(paste0(meta_file_dir,".raw.Rdata")))
+meta_file_pre = meta_fileraw[meta_fileraw[,"time"]=="Pre",]
+meta_file_post = meta_fileraw[meta_fileraw[,"time"]=="Post",]
+
+
 
 
 ## load & save matrix -----------------------------------
@@ -162,64 +175,6 @@ for (feat_type in names(meta_cols)) {
 
 
 
-## make meta_file; meta_cell ----------------------------------------
-
-meta_file1_temp0 = fread(meta_file_temp1_dir, data.table=F)
-
-ucol = col_probe(meta_file1_temp0)
-meta_file1_temp1 = meta_file1_temp0[,-ucol$u1]
-meta_file1_temp1[,"Filename"] = gsub(".bam","",meta_file1_temp1[,"Filename"])
-ucol = col_probe(meta_file1_temp1)
-
-meta_file1_temp2 = get(load(meta_file_temp2_dir))
-meta_file1_temp2 = data.frame(lapply(meta_file1_temp2, as.character), stringsAsFactors=FALSE)
-
-# meta_file2_temp0 = fread(meta_file_temp2_dir, data.table=F)
-# ucol = col_probe(meta_file2_temp0)
-# meta_file2_temp1 = meta_file2_temp0[,-ucol$u1]
-# ucol = col_probe(meta_file2_temp1)
-
-
-# meta_file1_temp = meta_file1_temp1[,c("Filename", "Subject", "Phenotype", "Time", "Allergen", "SITE", 
-#                                       "RACE", "SEX", "HT.cm.", "AGE", "BLFEV", 
-#                                       "Volume", "Concentration", "Quantity", "Extracted")]
-# colnames(meta_file1_temp) = c("filename", "sample", "response", "time", "allergen", "centre", 
-#                               "race", "sex", "height", "weight", "age", "blfev", 
-#                               "vol", "conc", "qty", "extracted")
-
-meta_file1_temp = meta_file1_temp2[,c("Read.Set.Id", "UniqueID", "CorrectResponse", "Time", "Allergen_cleanLabel", "SITE",
-                                      "RACE", "SEX", "HT.cm.", "Wt..Kg.", "AGE", "PRFEV", "BLFEV", "Cohort")]
-colnames(meta_file1_temp) = c("filename", id_col, "response", "time", "allergen", "centre", 
-                              "race", "sex", "height", "weight", "age", "prfev", "blfev","cohort")
-meta_file1_temp[grepl("WRF",meta_file1_temp[,id_col]),id_col] = "WRF"
-# meta_file1_temp[,id_col] = gsub(".bam","",meta_file1_temp[,"filename"])
-
-cell = meta_file1_temp1[match(meta_file1_temp[,"filename"],meta_file1_temp1[,"Filename"]),c(31:ncol(meta_file1_temp1))]
-rownames(cell) = meta_file1_temp[,"filename"]
-
-mfc_order = match(data_filenames,meta_file1_temp[,"filename"])
-meta_fileraw = meta_file1_temp[mfc_order,]
-
-
-cell = cell[mfc_order,]
-cell = delna(cell)
-save(cell, file=paste0(feat_cell_dir,".raw.Rdata"))
-
-cell_pre = cell[meta_fileraw[match(rownames(cell), meta_fileraw[,"filename"]),"time"]=="Pre",]
-rownames(cell_pre) = meta_fileraw[match(rownames(cell_pre), meta_fileraw[,"filename"]),id_col]
-save(cell_pre, file=paste0(feat_cell_dir,".pre.Rdata"))
-if (writecsv) write.csv(cell_pre, file=paste0(feat_cell_dir,".pre.csv"))
-
-cell_post = cell[meta_fileraw[match(rownames(cell), meta_fileraw[,"filename"]),"time"]=="Post",]
-rownames(cell_post) = meta_fileraw[match(rownames(cell_post), meta_fileraw[,"filename"]),id_col]
-save(cell_post, file=paste0(feat_cell_dir,".post.Rdata"))
-if (writecsv) write.csv(cell_post, file=paste0(feat_cell_dir,".post.csv"))
-
-
-
-
-
-
 
 
 
@@ -229,6 +184,8 @@ design = model.matrix(~response * centre + sex + time, data=meta_fileraw)
 
 # 1. keep samples where medium cpm > expr_cutoff[[m0n]]
 # 3. ttm normalization: mdge = DGEList(counts=m1, group=group); m2 = calcNormFactors(mdge)
+
+feats0 = feats
 
 for (m0n in names(feats)) {
   m0 = t(feats[[m0n]])
@@ -281,7 +238,7 @@ for (m0n in names(feats)) {
   # summary(pca)
   
   # 2 group comparison
-  group = meta_fileraw[match(meta_fileraw[,"filename"],colnames(m1)),class_col]
+  group = meta_fileraw[match(colnames(m1),meta_fileraw[,"filename_rnaseq"]),class_col]
   mdge = DGEList(counts=m1, group=group)
   
   
@@ -390,29 +347,6 @@ for (m0n in names(feats)) {
 
 
 
-## split and save meta_file meta_cell -------------------------------------------
-meta_file_pre = meta_fileraw[meta_fileraw[,"time"]=="Pre",]
-meta_file_post = meta_fileraw[meta_fileraw[,"time"]=="Post",]
-
-if (file.exists(paste0(meta_file_dir,".Rdata"))) {
-  meta_file_old = get(load(paste0(meta_file_dir,".Rdata")))
-  meta_file_old$id[meta_file_old$rnaseq_coreSet_biomarkerAnalysis=="Y"]
-  meta_file_pre = merge.data.frame(meta_file_pre[,append(id_col,setdiff(colnames(meta_file_pre),colnames(meta_file_old)))],meta_file_old,all=T,by=id_col)
-  meta_file_post = merge.data.frame(meta_file_post[,append(id_col,setdiff(colnames(meta_file_post),colnames(meta_file_old)))],meta_file_old,all=T,by=id_col)
-}
-meta_file_pre = meta_file_pre[order(meta_file_pre[,id_col]),]
-meta_file_post = meta_file_post[order(meta_file_post[,id_col]),]
-meta_file = meta_file_post
-meta_file$filename_rnaseq.pre = meta_file_pre[,"filename"]
-meta_file$filename_rnaseq.post = meta_file_post[,"filename"]
-
-meta_file = meta_file[,!colnames(meta_file)%in%c("filename","time")]
-
-
-save(meta_file, file=paste0(meta_file_dir,".Rdata"))
-if (writecsv) write.csv(meta_file, file=paste0(meta_file_dir,".csv"))
-
-
 
 ## save -----------------------------
 for (m0n in names(feats)) {
@@ -443,7 +377,7 @@ for (m0n in names(feats)) {
 ## check if all subjects are recorded --------------------
 
 # load data availability, ensure all subjects with rnaseq data are recorded in this script
-meta_file_data = read.csv(meta_file_data_dir)
+meta_file_data = read.csv(meta_file_rnaseq_dir)
 length(meta_file_data$UniqueID[meta_file_data$rnaseq=="Y"]) = 
   sum(meta_file_data$UniqueID[meta_file_data$rnaseq=="Y"] %in% 
         meta_file$id[!is.na(meta_file$filename_rnaseq.pre)])

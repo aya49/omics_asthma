@@ -42,17 +42,14 @@ feat_genotype_dir = paste0(feat_dir,"/",type)
 # source("https://bioconductor.org/biocLite.R")
 # biocLite(c("affy","derfinder"))
 source("code/_func.R")
-libr("TxDb.Hsapiens.UCSC.hg19.knownGene")
-libr("org.Hs.eg.db") #org.* annotation packages; can forge own and interact with using library("AnnotationDbi")
-libr("gwascat") # interface to the [NHGRI's](http://www.genome.gov/) database of gwas
-libr("data.table")
-libr("entropy")
-libr("foreach")
-libr("doMC")
-libr("stringr")
-libr("gdata") #read xls
-libr("Matrix")
-libr("annotables")
+libr(c("TxDb.Hsapiens.UCSC.hg19.knownGene", 
+       "org.Hs.eg.db", #org.* annotation packages; can forge own and interact with using library("AnnotationDbi")
+       "annotables",
+       "gwascat", # interface to the [NHGRI's](http://www.genome.gov/) database of gwas
+       "entropy",
+       "data.table", "Matrix", "gdata", #read xls
+       "foreach", "doMC",
+       "stringr"))
 
 
 ## options
@@ -73,103 +70,12 @@ id_col = "id"
 start = Sys.time()
 
 
-## load matrix ---------------------------------------
+## load matrix & meta ---------------------------------------
 
 gt1_calls = read.table(gt1_call_dir, sep="\t", header=T, stringsAsFactors = F, check.names = F, row.names = 1)
 
-
-
-
-
-## save meta_file ----------------------------------
-
-# load files
-gt1_meta = fread(gt1_meta_dir, data.table=F)
-meta_file_temp = fread(meta_file_temp_dir, data.table=F)
-# meta_file_temp2 = read.csv(meta_file_temp2_dir, stringsAsFactors=F)
-meta_file_extra = read.xls(meta_file_extra_dir, check.names=T)
-
-# extract well = unique identifiers for each sample
-wells = gsub(".CEL","",sapply(str_split(colnames(gt1_calls),"_"), function(x) x[length(x)]))
-
-# keep some useful? columns
-meta_file0 = cbind(meta_file_temp[, !colnames(meta_file_temp)%in%c("Inferred Gender","Random order", "Number", 
-                                                                   "1000 Genome Concordance", "Reproducibility", "Replicate Info", 
-                                                                   "Cluster CR (Axiom inlier cluster call rate)", "dishQC")], 
-                   gt1_meta[match(meta_file_temp[,"Sample ID"],gt1_meta[,"Name"]), !colnames(gt1_meta)%in%c("Name")]
-)
-
-# adjust values
-meta_file0[meta_file0[,"Kit"]=="Mini kit","Batch"] = 0
-meta_file0 = gsub(" ","",as.matrix(meta_file0))
-
-# display column names and how many unique elements in each, of meta_file; delete cols with only one unique element
-ucol = col_probe(meta_file0)
-meta_file0 = meta_file0[,-ucol$u1]
-
-# remove control samples
-meta_file0 = meta_file0[meta_file0[, "Sample Type"]=="Normal",]
-
-# delete more columns
-meta_file0 = meta_file0[, !colnames(meta_file0)%in%c("Sample Type",
-                                                     "dishQC",
-                                                     "Cluster CR (Axiom inlier cluster call rate)",
-                                                     "Array",
-                                                     "Replicate Info",
-                                                     "Number",
-                                                     "Random order") &
-                          !grepl("[/]|Plate|Het|Rate|Concordance|Reproducibility|Filename",colnames(meta_file0))]
-
-# rename columns
-colnames(meta_file0) = c(paste0("filename_",type),"sex",paste0("centre_",type),id_col,"response",paste0("kit_",type),paste0("batch_",type),"race")
-# meta_file0 = meta_file0[,-c("kit")] #batch = 0 is a minikit; else it's a DNeasy
-
-# order rows according to genotype matrix
-meta_file0 = as.data.frame(meta_file0)
-roworder = match(wells,meta_file0[,paste0("filename_",type)])
-meta_file1 = meta_file0[roworder[!is.na(roworder)],]
-
-# merge meta_files
-meta_file_extra$NAME[grepl("WRF",meta_file_extra$NAME)] = "WRF"
-meta_file_extra1 = meta_file_extra[!duplicated(meta_file_extra$NAME),]
-
-meta_file_extra2 = merge(meta_file1, meta_file_extra1, by.x="id", by.y="NAME", all=T)
-
-# reconcile duplicate values
-meta_file_extra2$SITE[meta_file_extra2$SITE=="MAC"] = "McMaster"
-meta_file_extra2$SITE = tolower(meta_file_extra2$SITE)
-meta_file_extra2$centre_genotype = tolower(meta_file_extra2$centre_genotype)
-meta_file_extra2$SITE[is.na(meta_file_extra2$SITE)] = 
-  meta_file_extra2$centre_genotype[is.na(meta_file_extra2$SITE)]
-
-meta_file_extra2$response[is.na(meta_file_extra2$response)] = meta_file_extra2$CorrectResponse[is.na(meta_file_extra2$response)]
-meta_file_extra2$response[is.na(meta_file_extra2$response)] = meta_file_extra2$Mac_Response[is.na(meta_file_extra2$response)]
-
-meta_file_extra2$race[meta_file_extra2$race==""] = "Unknown"
-
-meta_file_extra2$sex[is.na(meta_file_extra2$sex)] = meta_file_extra2$SEX[is.na(meta_file_extra2$sex)]
-meta_file_extra2$sex[meta_file_extra2$sex=="Female"] = "F"
-meta_file_extra2$sex[meta_file_extra2$sex=="Male"] = "M"
-meta_file_extra2$sex[meta_file_extra2$sex==""] = NA
-
-
-# delete more columns
-meta_file2 = meta_file_extra2[,c(1:3,5,7:11,13,17:21,23:35,42,48,
-                                 53:65)] # data availability
-
-colnames(meta_file2)[c(7:16,30)] = c("sponsor","centre","drug","date","weight","height","age","blfev","prfev","allergen","cohort")
-# meta_file2[meta_file2=="" | meta_file2=="NA"] = NA
-meta_file2$bmi = as.numeric(meta_file2$weight)/(meta_file2$height^2)
-
-
-# save
-save(meta_file2, file=paste0(meta_file_dir,".raw.Rdata"))
-if (writecsv) write.csv(meta_file2, file=paste0(meta_file_dir,".raw.csv"))
-
-# meta_file = meta_file2
-
-
-
+meta_file2 = get(load(paste0(meta_file_dir,".raw.Rdata")))
+meta_file = get(load(paste0(meta_file_dir,".Rdata")))
 
 
 
@@ -255,9 +161,6 @@ col_ind = apply(gt1_calls1, 2, function(x) {
   sum(!is.na(x)) >= good_col_na & 
     min(a)>good_col & length(a)>1
 })
-row_ind = ! ((duplicated(meta_file2$id) | duplicated(meta_file2$id, fromLast=T)) & 
-  meta_file2$batch_genotype=="0" | grepl("Normal",meta_file2$id,ignore.case=T)) # make patient name the unique id
-
 # for (xi in 1:ncol(m0)) {
 #   x = m0[,xi]
 #   ind_x = !is.na(x)
@@ -269,21 +172,26 @@ row_ind = ! ((duplicated(meta_file2$id) | duplicated(meta_file2$id, fromLast=T))
 #   }
 # }
 
-meta_file = meta_file2[row_ind,]
 meta_col_f = meta_col = as.data.frame(annot[col_ind,])
 
 start = Sys.time()
-meta_col$symbols = ""
-enst_split = str_extract_all(meta_col[,"Associated Gene"], "ENST[0-9]+")
-enst = unique(unlist(enst_split))
 grch38_dt <- merge(as.data.frame(grch38_tx2gene), as.data.frame(grch38), by="ensgene")
-for (enst_i in enst) {
-  symb = grch38_dt[grch38_dt$enstxp==enst_i, "symbol"]
-  if (length(symb)>0) {
-    colind_w_symb = sapply(enst_split, function(x) any(x==enst_i) | any(is.na(x)))
-    meta_col[colind_w_symb,"symbols"] = paste0(meta_col[colind_w_symb,"symbols"],"_",symb)
-  }
-}
+meta_col$symbols = sapply(str_extract_all( meta_col$`Associated Gene`, "ENST[0-9]+" ), function(x) {
+  symb = grch38_dt$symbol[match(x,grch38_dt$enstxp)]
+  symb = symb[!duplicated(symb) & !is.na(symb)]
+  if (length(symb)==0) return("")
+  return(paste(symb,collapse="_"))
+})
+
+# enst_split = str_extract_all(meta_col[,"Associated Gene"], "ENST[0-9]+")
+# enst = unique(unlist(enst_split))
+# for (enst_i in enst) {
+#   symb = grch38_dt[grch38_dt$enstxp==enst_i, "symbol"]
+#   if (length(symb)>0) {
+#     colind_w_symb = sapply(enst_split, function(x) any(x==enst_i) | any(is.na(x)))
+#     meta_col[colind_w_symb,"symbols"] = paste0(meta_col[colind_w_symb,"symbols"],"_",symb)
+#   }
+# }
 time_output(start)
 
 meta_col_g = meta_col
@@ -309,9 +217,6 @@ rownames(m) = meta_file[match(rownames(m),meta_file[,paste0("filename_",type)]),
 
 save(meta_col, file=paste0(meta_col_dir,".Rdata"))
 if (writecsv) write.csv(meta_col, file=paste0(meta_col_dir,".csv"))
-
-save(meta_file, file=paste0(meta_file_dir,".Rdata"))
-if (writecsv) write.csv(meta_file, file=paste0(meta_file_dir,".csv"))
 
 save(m, file=paste0(feat_genotype_dir,".Rdata"))
 if (writecsv) write.csv(m, file=paste0(feat_genotype_dir,".csv"))

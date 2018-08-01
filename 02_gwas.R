@@ -31,8 +31,11 @@ gwas_dir = paste0(stat_dir,"/gwas"); dir.create(gwas_dir,showWarnings=F)
 source("code/_func.R")
 libr("data.table")
 libr("qqman")
-
 libr("traseR")
+libr("DOSE")
+libr("plyr")
+libr("annotables")
+grch38_dt <- merge(as.data.frame(grch38_tx2gene), as.data.frame(grch38), by="ensgene")
 data(taSNP) #subset of below
 data(taSNPLD)
 # data(Tcell)
@@ -42,7 +45,7 @@ taSNPLD0 = as.data.frame(taSNPLD)
 write.csv(taSNPLD0, paste0(gwas_dir, "/taSNPLD.csv"))
 
 libr("FunciSNP")
-
+libr("SeqGSEA")
 libr("ggplot2")
 libr("entropy")
 libr("limma")
@@ -61,7 +64,7 @@ options(stringsAsFactors=F)
 no_cores = detectCores()-1
 registerDoMC(no_cores)
 
-overwrite = F
+overwrite = T
 writecsv = T #write results as csv on top of Rdata?
 
 pthres = .01
@@ -78,6 +81,7 @@ cont_col = 15 #if a column has more than this unique values, it's continuous
 scale_cont = F #if a column is continuous, scale it
 good_na = .75 #proportion of na more than this, then delete the column in matrix
 good_catecont = .75
+printmaxrows = 200 #if total number of features under this value, just print everything on csv
 
 id_col = "id"
 class_cols = "response"
@@ -193,6 +197,7 @@ for (feat_type in feat_types) {
           
           meta_file = meta_file0[match(rownames(m),meta_file0[,id_col]),]
           # meta_col = meta_col0[match(colnames(m),meta_col0[,cid_col]),]
+          class_names = levels(factor(meta_file[,class_col]))
           
           class = as.numeric(factor(meta_file[,class_col]))
           # class = meta_file[,class_col]
@@ -240,9 +245,8 @@ for (feat_type in feat_types) {
                           ctable = cbind(ctable, rep(0,length(class_names)))
                         }
                       }
-                      cvector = as.vector(ctable)
                     }
-                    return(append(p, cvector))
+                    return(append(p, as.vector(ctable)))
                   })
                   # for (xi in ii) {
                   #   x = m[,xi]
@@ -350,17 +354,19 @@ pval_paths = sort(gsub(".Rdata","",list.files(gwas_dir, pattern=".Rdata", full.n
 pval_filenames = fileNames(pval_paths)
 feat_types = sapply(str_split(pval_filenames,"[-]"), function(x) x[1])
 
-for (pi in 1:length(pval_paths)) {
-  cat("\n",pval_paths)
-  start1 = Sys.time()
+for (pi in 1:length(pval_paths)) { try({
   
   pval_path = pval_paths[pi]
   feat_type = feat_types[pi]
   
+  cat("\n",pval_path)
+  start1 = Sys.time()
+  
   pval0 = get(load(paste0(pval_path,".Rdata")))
+  
   m0 = get(load(paste0(feat_dir,"/",feat_type,".Rdata")))
   if (sum(colnames(m0)%in%meta_file0[,id_col])==ncol(m0)) m0 = t(m0)
-
+  
   pval_filename = str_split(pval_filenames[pi],"[-]")[[1]]
   class_col = gsub("class-","", str_extract(pval_filenames[pi], "class-[a-zA-Z]+"))
   file_ind_n = gsub("[-]|X","", str_extract(pval_filenames[pi], "-[a-z]+X"))
@@ -376,6 +382,8 @@ for (pi in 1:length(pval_paths)) {
   if (mcf) {
     meta_col0 = as.data.frame(get(load(meta_col_path)))
     meta_col = meta_col0[match(rownames(pval0),meta_col0[,id_col]),]
+    
+    # symb = sapply(str_extract_all( meta_col0$`Associated Gene`, "ENST[0-9]+" ), function(x) paste(grch38_dt$symbol[match(x,grch38_dt$enstxp)],"_"))
   } 
   
   
@@ -385,7 +393,14 @@ for (pi in 1:length(pval_paths)) {
     # if (is.null(dim(pv_table))) pv_table = matrix(pv_table,nrow=1)
     if (mcf) pv_table = cbind(pv_table,meta_col[match(rownames(pv_table),meta_col[,id_col]),])
     if (grepl("genotype",feat_type)) pv_table = cbind(taSNP0[match(pv_table$dbSNP, taSNP0$SNP_ID), c("Trait", "Trait_Class")], pv_table)
-    write.csv(pv_table,file=paste0(pval_path,".csv"), row.names=F)
+    pv_table = pv_table[order(pv_table[,grepl("none",colnames(pv_table))]),]
+    
+    pval000 = pv_table
+    if (sum(pv_table[,grepl("none",colnames(pv_table))]<.05)>1 & nrow(pv_table)>printmaxrows) 
+      pval000 = pv_table[pv_table[,grepl("none",colnames(pv_table))]<.05,,drop=F]
+    pval000 = pval000[order(pval000[,grepl("none",colnames(pval000))]),]
+    
+    write.csv(pval000, file=paste0(pval_path,".csv"))
   }
   
   
@@ -396,13 +411,13 @@ for (pi in 1:length(pval_paths)) {
   nplots = min(reg_no, sum(pvalt<pthres))
   if(nplots>0) {
     ndim_r = ceiling(sqrt(nplots))
-
+    
     png(file=paste0(pval_path,"_reg.png"), width=300*3, height=200*3)
     par(mfrow=c(ndim_r,ndim_r))
     for (si in 1:nplots) {
       boxplot(m[,si]~class, main=paste0(test," unadj p: ", round(pvalt1[si],4)),
               xlab=class_col, ylab=colnames(m)[si], xaxt="n")
-      axis(1, at=1:length(unique(class)), labels=levels(factor(meta_file[,class_col])))
+      axis(1, at=1:length(unique(class[!is.na(class)])), labels=levels(factor(meta_file[,class_col])))
       points(jitter(class), m[,si], pch=16, col="blue")
     }
     graphics.off()
@@ -417,7 +432,7 @@ for (pi in 1:length(pval_paths)) {
   prow = sum(grepl("_p_",colnames(pval0)))
   pcol = 1#length(pval)/prow
   
-  # qq plot
+  # qq plot :( not working)
   png(paste0(pval_path,"_qq.png"), width=pcol*width, height=prow*height)
   par(mfcol=c(prow,pcol))
   for (pvaln in sort(colnames(pval0)[grepl("_p_",colnames(pval0))])) { try({
@@ -458,11 +473,14 @@ for (pi in 1:length(pval_paths)) {
         pos = meta_col$start
         chr = meta_col$chr
       }
+      plotind = !is.na(chr) & nchar(chr)<3
       
-      manhattan_plot(val=-log(pvalt), pos=pos, chrom=chr, 
-                     val_thres=-log(pthres), val_max2=-log(1e-4), val_max1=-log(val_max1t),
-                     main=paste0(pvaln," sig=", sum(pvalt < pthres)),
-                     lines=c(-log(.01),-log(.025),-log(.05),-log(.1)))
+      try({
+        manhattan_plot(val=-log(pvalt[plotind],10), pos=pos[plotind], chrom=chr[plotind], 
+                       val_thres=-log(pthres,10), val_max2=-log(1e-4,10), val_max1=-log(val_max1t,10),
+                       main=paste0(pvaln," sig=", sum(pvalt < pthres)),
+                       lines=c(-log(.01,10),-log(.025,10),-log(.05,10),-log(.1,10)))
+      })
       
     }) }
     graphics.off()
@@ -515,7 +533,7 @@ for (pi in 1:length(pval_paths)) {
     
     x1$tb1$Trait = sapply(str_split(x1$tb1$Trait,"[(]"), function(x) x[1])
     x2$tb1$Trait = sapply(str_split(x2$tb1$Trait,"[(]"), function(x) x[1])
-
+    
     write.csv(x1$tb1, file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNP.csv"))
     write.csv(x2$tb1, file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNPLD.csv"))
     write.csv(x1$tb2, file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNP_class.csv"))
@@ -527,11 +545,11 @@ for (pi in 1:length(pval_paths)) {
     x2tb2 = x2$tb2; x2tb2$trait_type = "trait_class"; x2tb2$ta_type = "taSNPLD"
     xdf1 = rbind.fill(list(x1tb1[x1tb1$taSNP.hits>0,],x2tb1[x2tb1$Trait%in%x1tb1$Trait[x1tb1$taSNP.hits>0],]), as.matrix)
     xdf2 = rbind.fill(list(x1tb2,x2tb2), as.matrix)
-
+    
     p1a = ggplot(xdf1) + 
       geom_bar(aes(x=interaction(ta_type,Trait), y=taSNP.num, fill=ta_type), stat='identity') +
       ylab("bar = # of total SNPs in database") + ggtitle("traits with 1+ hits") +
-    theme(axis.text.x=element_text(angle=90,hjust=1))
+      theme(axis.text.x=element_text(angle=90,hjust=1))
     p1b = ggplot(xdf1) + 
       geom_bar(aes(x=interaction(ta_type,Trait), y=taSNP.hits, fill=ta_type), stat='identity') +
       geom_point(aes(x=interaction(ta_type,Trait), y=-log(as.numeric(p.value,10)), fill=ta_type)) +
@@ -561,6 +579,25 @@ for (pi in 1:length(pval_paths)) {
     png(file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNP_class-total.png"), width=width, height=height*2)
     print(p2b)
     graphics.off()
+  }
+    
+    
+    
+    #use another package to do SNP disease enrichment
+  if (mcf & grepl("genotype",feat_type) & grepl("Xall",pval_path)) {
+    pv_ind2 = pvalt<pthres
+    if (sum(pv_ind)==0) next()
+    pvalt_pv = pvalt[pv_ind]
+    sig_snps = meta_col[meta_col[,id_col]%in%names(pvalt_pv),"dbSNP"]
+   edsnps = enrichDGNv(sig_snps)
+   if (nrow(engenes@result)>0) {
+     edsnps_table = cbind(edsnps@result, t(sapply(edsnps@result$ID, function(x) c(length(edsnps@geneSets[[x]]), paste(edsnps@geneSets[[x]][edsnps@geneSets[[x]]%in%sig_snps], collapse="_")) )))
+   
+   write.csv(edsnps_table,file=paste0(pval_path,"_dose-snp.csv"))
+   png(file=paste0(pval_path,"_dose-snp.png"), width=width, height=height)
+   enrichMap(edsnps)
+   graphics.off()
+   }
     
     
     # # enrichment analysis using hypergeometric test
@@ -742,8 +779,55 @@ for (pi in 1:length(pval_paths)) {
     
     graphics.off()
   }
-  time_output(start1)
-} #pi
+  
+  
+  
+  # gene enrichment for snp
+  sig_symbol = c()
+  if (mcf & (grepl("genotype",feat_type) | grepl("rna",feat_type)) & grepl("Xall",pval_path)) {
+    if (grepl("genotype",feat_type)) {
+      sig_enst = 
+        str_extract_all(meta_col$`Associated Gene`[ pv_table[,grepl("none",colnames(pv_table))]<pthres ], "ENST[0-9]+")
+      sig_enst = unlist(lapply(sig_enst, function(x) x[!duplicated(x)]))
+      try({ sig_entr = grch38_dt$entrez[match(sig_enst,grch38_dt$enstxp)] })
+
+    } else if (grepl("rna",feat_type)) {
+      idd_col = grep("ENS", meta_col[1,])
+      
+      sig_enst = unlist(str_extract_all(meta_col[ pv_table[,grepl("none",colnames(pv_table))]<pthres,idd_col], "ENSG[0-9]+"))
+      sig_enst = sapply(strsplit(sig_enst,"[.]"), function(x) x[1])
+      
+      try({ sig_entr = grch38_dt$entrez[match(sig_enst,grch38_dt$ensgene)] })
+      
+      if (all(is.na(sig_entr))) {
+        sig_enst = unlist(str_extract_all(meta_col$`Associated Gene`[ pv_table[,grepl("none",colnames(pv_table)), idd_col]<pthres ], "ENST[0-9]+"))
+        sig_enst = sapply(strsplit(sig_enst,"[.]"), function(x) x[1])
+        try({ sig_entr = grch38_dt$entrez[match(sig_enst,grch38_dt$enstxp)] })
+      }
+    }
+    if (length(sig_enst)==0 | all(is.na(sig_enst))) next()
+    
+    sig_entr = grch38_dt$entrez[match(sig_enst,grch38_dt$enstxp)]
+    sig_entr = sig_entr[!is.na(sig_entr)]
+    
+    engenes = enrichDO(sig_entr)
+    if (nrow(engenes@result)>0) {
+      engenes_table = cbind(engenes@result, 
+                            t(sapply(engenes@result$ID, function(x) 
+                              c(length(engenes@geneSets[[x]]), paste(grch38_dt$symbol[grch38_dt$entrez%in%engenes@geneSets[[x]]], collapse="_")) )))
+      
+      write.csv(engenes_table,file=paste0(pval_path,"_dose-gene.csv"))
+      png(file=paste0(pval_path,"_dose-gene.png"), width=width, height=height)
+      enrichMap(engenes)
+      graphics.off()
+    }
+    
+    
+  }
+    
+    
+    time_output(start1)
+}) } #pi
 time_output(start)
 
 

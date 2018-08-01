@@ -55,7 +55,7 @@ plateSamples <- with(plate.96wells[-c(1:14),], paste(concealedID, Time, sep = "_
 meta = data.frame(time=plate.96wells$Time, 
                   date=gsub("[.]", "-", plate.96wells$Collection.Date))
 meta$id = plate.96wells$Sample.Identification
-meta$id[grepl("WRF",plate_id)] = "WRF"
+meta$id[grepl("WRF",meta$id)] = "WRF"
 
 names(lodSOP0) <- colnames(plateEset0)
 all(colnames(plateEset0) == names(lodSOP0))
@@ -149,12 +149,12 @@ namepre[grepl("WRF",namepre)] = "WRF"
 
 rownames(esetAsthmaPre_) = rownames(esetAsthmaPost_) = rownames(esetAsthmaDiff_) = namepre
 
-save(esetAsthmaPre_, file=paste0(feat_dir,".pre.Rdata"))
-save(esetAsthmaPost_, file=paste0(feat_dir,".post.Rdata"))
-save(esetAsthmaDiff_, file=paste0(feat_dir,".diff.Rdata"))
-write.csv(esetAsthmaPre_, file=paste0(feat_dir,".pre.csv"))
-write.csv(esetAsthmaPost_, file=paste0(feat_dir,".post.csv"))
-write.csv(esetAsthmaDiff_, file=paste0(feat_dir,".diff.csv"))
+# save(esetAsthmaPre_, file=paste0(feat_dir,".pre.Rdata"))
+# save(esetAsthmaPost_, file=paste0(feat_dir,".post.Rdata"))
+# save(esetAsthmaDiff_, file=paste0(feat_dir,".diff.Rdata"))
+# write.csv(esetAsthmaPre_, file=paste0(feat_dir,".pre.csv"))
+# write.csv(esetAsthmaPost_, file=paste0(feat_dir,".post.csv"))
+# write.csv(esetAsthmaDiff_, file=paste0(feat_dir,".diff.csv"))
 
 ```
 

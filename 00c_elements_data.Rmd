@@ -3,10 +3,14 @@ title: "asthmaBiomarkers_discoveryDataProcessing_nanoString"
 author: "Amrit Singh"
 date: '2017-08-06'
 output:
-  pdf_document:
-    toc: yes
   html_document:
-    toc: yes
+    theme: paper
+    highlight: zenburn
+    number_sections: true
+    toc: true
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
 ---
 
 ```{r, echo = FALSE, results='hide', message=FALSE, warning=FALSE}
@@ -38,13 +42,13 @@ load(paste0(data_dir, "/results/biomarkerCandidateSelection/rnaseq_to_nanoString
 
 ## load libraries
 # source(paste0(data_dir, "/src/functions.R"))
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(psych)  # geometric.mean()
-library(NormqPCR) # selectHKs
-library(amritr) # devtools::install_github("singha53/amritr")
-library(mixOmics)
+source(paste0(root, "/code/_func.R"))
+libr(c("dplyr","dplyr","tidyr",
+       "psych",  # geometric.mean()
+       "NormqPCR", # selectHKs
+       "ggplot2",
+       "amritr",# devtools::install_github("singha53/amritr")
+       "mixOmics"))
 
 
 # 1) HBA attenutation (Discovery cohort)
@@ -76,20 +80,20 @@ Dat <- do.call(rbind, DatList)
 write.csv(Dat, paste0(data_dir, "/data/HBA2Attenutation_asthmaBiomarkersDiscovery.csv"))
 
 #------------
-# import data ### NO METADATA!!
+# import data 
 #------------
-# sampleMap0 <- read.csv(paste0(data_dir, "/data/validation/reCalibration/attenuation/AttenuationnanoElementsDemo_labSheet.csv"))
-# sampleMap <- c(paste0("E", sampleMap0$EorV_number))
-# names(sampleMap) <- paste(sampleMap0$fileName, unlist(lapply(strsplit(as.character(sampleMap0$Set_lane), "_"), function(i) i[2])), sep = "_")
+sampleMap0 <- read.csv(paste0(data_dir, "/data/validationStudy/reCalibration/attenuation/AttenuationnanoElementsDemo_labSheet.csv"))
+sampleMap <- c(paste0("E", sampleMap0$EorV_number))
+names(sampleMap) <- paste(sampleMap0$fileName, unlist(lapply(strsplit(as.character(sampleMap0$Set_lane), "_"), function(i) i[2])), sep = "_")
 data <- read.csv(paste0(data_dir, "/data/validation/HBA2_attenuation_rediscovery/HBA2Attenutation_asthmaBiomarkersDiscovery.csv"), row.names = 1)
-# data$Sample <- sampleMap[gsub(".RCC", "", unlist(lapply(strsplit(as.character(data$fileName), "/"), function(i) i[length(i)])))]
-# GeneNames <- as.character(data$Name)
-# GeneNames[data$Accession == "NM_001788.5"] <- "SEPT7"
-# data$Name <- GeneNames
+data$Sample <- sampleMap[gsub(".RCC", "", unlist(lapply(strsplit(as.character(data$fileName), "/"), function(i) i[length(i)])))]
+GeneNames <- as.character(data$Name)
+GeneNames[data$Accession == "NM_001788.5"] <- "SEPT7"
+data$Name <- GeneNames
 codeClass <- as.character(data$CodeClass)
-# codeClass[data$Name == "comp56964_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
-# codeClass[data$Name == "comp56975_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
-# codeClass[data$Name == "comp56957_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
+codeClass[data$Name == "comp56964_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
+codeClass[data$Name == "comp56975_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
+codeClass[data$Name == "comp56957_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
 data$CodeClass <- factor(codeClass)
 asthmaDis <- data
 
@@ -126,14 +130,15 @@ write.csv(Dat, paste0(data_dir, "/data/HBA2Attenutation_asthmaBiomarkersValidati
 #------------
 # import data ### NO MAPPING FILE
 #------------
-# mappingFile <- read.csv(paste0(data_dir, "/data/validation/HBA2_attenuation_replication/validationCohort_mappngFile.csv"), row.names = 7)
-data <- read.csv(paste0(data_dir, "/data/HBA2Attenutation_asthmaBiomarkersValidation_reAnaysis.csv"), row.names = 1)
+mappingFile <- read.csv(paste0(data_dir, "/data/validation/HBA2_attenuation_replication/validationCohort_mappngFile.csv"), row.names = 7)
+mappingFile <- read.csv(paste0(data_dir, "/data/validation/HBA2_attenuation_replication/validationCohort_mappngFile.csv"), row.names = 7)
+data <- read.csv(paste0(data_dir, "/data/validation/HBA2_attenuation_replication/HBA2Attenutation_asthmaBiomarkersValidation.csv"), row.names = 1)
 sampleMap <- gsub(".RCC", "", paste(unlist(lapply(strsplit(as.character(data$fileName), " "), function(i) i[3])),
                                     unlist(lapply(strsplit(as.character(data$fileName), "_"), function(i) i[8])), sep = "_"))
-# data$Sample <- mappingFile[sampleMap, "V.ID"]
-# GeneNames <- as.character(data$Name)
-# GeneNames[data$Accession == "NM_001788.5"] <- "SEPT7"
-# data$Name <- GeneNames
+data$Sample <- mappingFile[sampleMap, "V.ID"]
+GeneNames <- as.character(data$Name)
+GeneNames[data$Accession == "NM_001788.5"] <- "SEPT7"
+data$Name <- GeneNames
 codeClass <- as.character(data$CodeClass)
 codeClass[data$Name == "comp56964_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
 codeClass[data$Name == "comp56975_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
@@ -158,7 +163,7 @@ asthmaDat <- subset(asthmaDat, Name %in% c(unique(grep("POS|NEG", asthmaDat$Name
 
 ```{r}
 demo0 <- readRDS(paste0(data_dir, "/data/allsitesDemo_clean.rds"))
-# demo0 <- demo0[as.character(demo0$EorV_number) %in% unique(asthmaDat$Sample), ]
+demo0 <- demo0[as.character(demo0$EorV_number) %in% unique(asthmaDat$Sample), ]
 rownames(demo0) <- as.character(demo0$EorV_number)
 demo0$rnaseq_coreSet_biomarkerAnalysis <- as.character(demo0$rnaseq_coreSet_biomarkerAnalysis)
 
@@ -176,7 +181,7 @@ range(as.numeric(sapply(strsplit(as.character(demo0$AIC_YMD), "-"), function(i) 
 
 ```{r}
 demo1_dis <- subset(demo0, rnaseq_coreSet_biomarkerAnalysis == "Y")
-demo1_dis$Allergen_cleanLabel <- droplevels(demo1_dis$Allergen_cleanLabel)
+demo1_dis$Allergen_cleanLabel <- as.character(demo1_dis$Allergen_cleanLabel)
 demo1_val <- subset(demo0, rnaseq_coreSet_biomarkerAnalysis != "Y")
 ## 
 ## further remove controls
@@ -190,29 +195,32 @@ rmSubj <- names(table(as.character(demo1_val$NAME))[table(as.character(demo1_val
 ## remove replicates for final validation dataset
 demo1_val <- demo1_val[!(demo1_val$NAME %in% rmSubj), ]
 
-## different response
-flippers <- names(rowSums(table(droplevels(demo0$NAME), demo0$calculated_Response) != 0)[rowSums(table(droplevels(demo0$NAME), demo0$calculated_Response) != 0) == 2])
+## FLIPPERS --------------------------------------
+response_table = rowSums(table(as.character(demo0$NAME), demo0$calculated_Response) != 0)
+flippers <- names(response_table[response_table >1])
+flippers_non <- names(response_table[response_table ==1])
+flippers_non = flippers_non[!grepl("Normal",flippers_non)]
 demo1_val_repeat <- demo0[demo0$NAME %in% flippers, ]
-table(droplevels(demo1_val_repeat$NAME), demo1_val_repeat$calculated_Response)
+table(as.character(factor(demo1_val_repeat$NAME)), demo1_val_repeat$calculated_Response)
 # remove subjects challenges with different allergens
-demo1_val_repeatDifferentResponse <- demo1_val_repeat[!(as.character(demo1_val_repeat$NAME) %in% names(rowSums(table(droplevels(demo1_val_repeat$NAME), droplevels(demo1_val_repeat$Allergen_cleanLabel)) != 0)[rowSums(table(droplevels(demo1_val_repeat$NAME), droplevels(demo1_val_repeat$Allergen_cleanLabel)) != 0) == 2])), ]
+demo1_val_repeatDifferentResponse <- demo1_val_repeat[!(as.character(demo1_val_repeat$NAME) %in% names(rowSums(table(as.character(factor(demo1_val_repeat$NAME)), as.character(factor(demo1_val_repeat$Allergen_cleanLabel))) != 0)[rowSums(table(as.character(factor(demo1_val_repeat$NAME)), as.character(factor(demo1_val_repeat$Allergen_cleanLabel))) != 0) == 2])), ]
 
 ## same response
 demo_sameResponse1 <- subset(demo0, calculated_Response != "Control")
-dropFlippers <- rownames(table(droplevels(demo_sameResponse1$NAME), demo_sameResponse1$calculated_Response))[rowSums(table(droplevels(demo_sameResponse1$NAME), demo_sameResponse1$calculated_Response) == 0) == 1]
+dropFlippers <- rownames(table(as.character(factor(demo_sameResponse1$NAME)), demo_sameResponse1$calculated_Response))[rowSums(table(as.character(factor(demo_sameResponse1$NAME)), demo_sameResponse1$calculated_Response) == 0) == 1]
 demo_sameResponse2 <- demo_sameResponse1[demo_sameResponse1$NAME %in% dropFlippers, ]
-demo1_val_repeatSameResponse <- demo_sameResponse2[demo_sameResponse2$NAME %in% rownames(table(droplevels(demo_sameResponse2$NAME), demo_sameResponse2$calculated_Response))[rowSums(table(droplevels(demo_sameResponse2$NAME), demo_sameResponse2$calculated_Response) > 1) == 1], ]
+demo1_val_repeatSameResponse <- demo_sameResponse2[demo_sameResponse2$NAME %in% rownames(table(as.character(demo_sameResponse2$NAME), demo_sameResponse2$calculated_Response))[rowSums(table(as.character(demo_sameResponse2$NAME), demo_sameResponse2$calculated_Response) > 1) == 1], ]
 ## remove subjects challenged with different allergens
-name.allergen <- table(droplevels(demo1_val_repeatSameResponse$NAME), droplevels(demo1_val_repeatSameResponse$Allergen_cleanLabel))
+name.allergen <- table(as.character(demo1_val_repeatSameResponse$NAME), as.character(demo1_val_repeatSameResponse$Allergen_cleanLabel))
 demo1_val_repeatSameResponse <- demo1_val_repeatSameResponse[demo1_val_repeatSameResponse$NAME %in% rownames(name.allergen)[rowSums(name.allergen == 0) == 4], ]
 ## keeps DRs only
 demo1_val_repeatDR <- subset(demo1_val_repeatSameResponse, calculated_Response == "DR")
 
 table(demo1_dis$calculated_Response)
 table(demo1_val$calculated_Response)
-table(demo1_val_repeatDifferentResponse$calculated_Response, droplevels(demo1_val_repeatDifferentResponse$Allergen_cleanLabel))
-table(demo1_val_repeatDR$calculated_Response, droplevels(demo1_val_repeatDR$Allergen_cleanLabel),
-  demo1_val_repeatDR$concealed_ID)
+table(demo1_val_repeatDifferentResponse$calculated_Response, as.character(demo1_val_repeatDifferentResponse$Allergen_cleanLabel))
+table(demo1_val_repeatDR$calculated_Response, as.character(demo1_val_repeatDR$Allergen_cleanLabel),
+      demo1_val_repeatDR$concealed_ID)
 
 ```
 
@@ -238,12 +246,12 @@ qc <- asthmaDat %>% mutate(FOVratio = FovCounted_Lane_Attributes/FovCount_Lane_A
 qc$Sample_Lane <- factor(qc$Sample_Lane, levels = unique(qc$Sample_Lane))
 
 hline.data <- data.frame(yint = c(0.75, 0.05, 2.25),
-  QCVar = c("FOVratio", rep("BindingDensity", 2)))
+                         QCVar = c("FOVratio", rep("BindingDensity", 2)))
 ggplot(data = qc, aes(x = Sample_Lane, y = QCmetrics)) + geom_point() + 
   facet_grid(QCVar~Cohort, scale = "free") + 
   geom_hline(data = hline.data, aes(yintercept = yint), lty = 2, col = "red") + 
   customTheme(sizeStripFont=15, xAngle=90, hjust = 1, 
-    vjust = 0.5, xSize=5, ySize=15, xAxisSize=15, yAxisSize=15)
+              vjust = 0.5, xSize=5, ySize=15, xAxisSize=15, yAxisSize=15)
 
 ```
 
@@ -254,12 +262,12 @@ posConc <- c(128, 32, 8, 2, 0.5, 0.125)
 names(posConc) <- paste0(paste("POS", LETTERS[1:6], sep = "_"), paste0("(", posConc, ")"))
 posDat <- asthmaDat %>% filter(CodeClass == "Positive_Code_Summary") %>% 
   mutate(posConc = posConc[as.character(Name)],
-    Sample_Lane = paste(Sample, ID_Lane_Attributes, sep="_"))
+         Sample_Lane = paste(Sample, ID_Lane_Attributes, sep="_"))
 
 mods <- posDat %>% 
   group_by(ID_Lane_Attributes, Set, Cohort) %>% do(., r2 = summary(lm(Count ~ posConc, data = .))$r.squared)
 r.squared <- data.frame(ID_Lane_Attributes = mods$ID_Lane_Attributes, R2 = round(unlist(mods$r2), 2),
-  Set = mods$Set)
+                        Set = mods$Set)
 r.squared$x <- 20
 r.squared$y <- 100
 all(unlist(mods$r2) > 0.9)
@@ -295,7 +303,7 @@ asthmaDat %>% group_by(fileName) %>% dplyr::summarise(TotalSum = sum(Count), Coh
   dplyr::select(TotalSum, Cohort) %>% 
   ggplot(aes(x = TotalSum, fill = Cohort)) + geom_density(alpha = 0.5) + 
   customTheme(sizeStripFont=15, xAngle=0, hjust = 0.5, vjust = 0.5, xSize=10, 
-    ySize=10, xAxisSize=10, yAxisSize=10) +
+              ySize=10, xAxisSize=10, yAxisSize=10) +
   theme(legend.position = c(0.7,0.9))
 ## plot assay counts
 Dat2 <- asthmaDat
@@ -308,11 +316,11 @@ Dat3 %>%
   ggplot(aes(x = Name, y = TotalSum)) + geom_boxplot() +
   facet_grid(.~Cohort) +
   customTheme(sizeStripFont=9, xAngle=0, hjust = 0.5, vjust = 0.5, xSize=7, 
-    ySize=10, xAxisSize=10, yAxisSize=10) + 
+              ySize=10, xAxisSize=10, yAxisSize=10) + 
   scale_y_log10(breaks = c(1e5,2e5,seq(0,2e6, 5e5))) + xlab("")+
   ylab("Total counts for each assay") +
   theme(legend.position = c(0.5,0.2), legend.title=element_blank(),
-    legend.text=element_text(size=7), legend.key=element_blank())
+        legend.text=element_text(size=7), legend.key=element_blank())
 ```
 
 ## counts per each gene
@@ -334,20 +342,20 @@ table(as.character(asthmaDat$Sample), as.character(asthmaDat$Date))
 posConc <- c(128, 32, 8, 2, 0.5, 0.125)
 names(posConc) <- paste0(paste("POS", LETTERS[1:6], sep = "_"), paste0("(", posConc, ")"))
 posDat <- asthmaDat %>% filter(CodeClass == "Positive") %>% 
-    mutate(posConc = posConc[as.character(Name)],
-      Sample_Lane = paste(Sample, ID_Lane_Attributes, sep="_"))
-  
+  mutate(posConc = posConc[as.character(Name)],
+         Sample_Lane = paste(Sample, ID_Lane_Attributes, sep="_"))
+
 ## Positive Control Normalization
 posNF <- posDat %>% group_by(fileName) %>% dplyr::summarise(posGeoMean = geometric.mean(Count)) %>% 
-    dplyr::mutate(posNF = mean(posGeoMean)/posGeoMean)
+  dplyr::mutate(posNF = mean(posGeoMean)/posGeoMean)
 all(posNF$posNF<3 & posNF$posNF > 0.3)
-  
+
 dataNorm <- full_join(asthmaDat, posNF, by = "fileName") %>% 
   mutate(posNorm = Count*posNF)
-  
+
 # check if the sum of the positive controls is the same for each assay
 dataNorm %>% group_by(fileName) %>% filter(CodeClass == "Positive") %>% dplyr::summarise(sumPosSample = geometric.mean(posNorm), Sample = unique(Sample), Set = unique(Set)) %>% 
-    ggplot(aes(x = Sample, y = sumPosSample)) + geom_point() + theme_bw()
+  ggplot(aes(x = Sample, y = sumPosSample)) + geom_point() + theme_bw()
 ```
 
 ## similarity between technical replicates (only using endogeneous mRNA trascripts)
@@ -366,8 +374,8 @@ mixOmics::plotIndiv(result, group = group, ind.names = FALSE)
 
 ## turn data into matrix of expression
 dat <- dataNorm %>% dplyr::select(Sample, posNorm, Name, CodeClass) %>% 
-       group_by(Sample, Name, CodeClass) %>% 
-       summarise_all(funs(mean))
+  group_by(Sample, Name, CodeClass) %>% 
+  summarise_all(funs(mean))
 
 ## positive control normalized
 eset_pos0 <- dat %>% filter(CodeClass == "Endogenous") %>% 
@@ -404,7 +412,7 @@ rownames(hkDat) <- as.character(hkDat0$Sample)
 ## Use geNorm to select house-keepers
 res.BM <- selectHKs(hkDat, method = "geNorm", Symbols = colnames(hkDat), minNrHK = 2, log = FALSE)
 hkRanking <- data.frame(Gene = as.character(res.BM$ranking), 
-  Rank = 1:length(res.BM$ranking)) #,
+                        Rank = 1:length(res.BM$ranking)) #,
 #  Dataset = c(rep("UCSC genes", 3), rep("Trinity", 3)))
 
 cvList <- list()
@@ -459,10 +467,10 @@ hkNF <- dat %>%
 
 ## normalize data
 hkNorm <- full_join(dat, hkNF, by = "Sample") %>% mutate(hkNorm = posNorm*hkNF) %>% 
-          dplyr::filter(CodeClass == "Endogenous")
+  dplyr::filter(CodeClass == "Endogenous")
 
 eset0 <- hkNorm %>% dplyr::select(Name, Sample, hkNorm) %>% 
-        spread(Name, hkNorm)
+  spread(Name, hkNorm)
 eset_pos_hk <- as.matrix(eset0[, -1])
 eset_pos_hk <- log2(eset_pos_hk)
 rownames(eset_pos_hk) <- as.character(eset0$Sample)
@@ -482,14 +490,14 @@ names(date) <- dataNorm$Sample
 demo$RunDate <- factor(date[rownames(demo)])
 demo$calculated_Response <- factor(demo$calculated_Response, c("ER", "DR"))
 demo$SITE <- factor(demo$SITE)
-demo$SEX <- droplevels(demo$SEX)
+demo$SEX <- as.character(demo$SEX)
 all(rownames(demo) == rownames(eset_pos))
 all(rownames(demo) == rownames(eset_pos_hk))
 
 ## compute area under the curve
 require(pracma)
 percentfev1 <- scale(t(demo[, c("BLFEV", "F10L", "F20L", "F30L","F45L", "F60L", "F90L", "F120L", "F180L", "F240L", "F300L", "F360L", "F420L")]),
-  center = demo$BLFEV, scale = demo$BLFEV)
+                     center = demo$BLFEV, scale = demo$BLFEV)
 time <- c(0, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360, 420)
 demo$AUC <- apply(percentfev1, 2, function(i){
   trapz(time, -i)
@@ -500,9 +508,9 @@ demo$AUC <- apply(percentfev1, 2, function(i){
 
 ```{r}
 vars <- setdiff(colnames(demo), c("SPONSOR", "DRUG", "ID", "NAME", "AIC_YMD", "rnaseqID_quebec",
-  "Allergen", "UniqueID", "SubjInitials_mislabelled", "MST_LST_numbers", "Time",
-  "Box", "concealedID", "concealed_uniqueID", "concealed_ID", "EorV_number", "RACE",
-  "Mac_Response", "UniqueID", "Extracted", "AvailableRNAorPAXgene", "Cohort", "SubjInitials_mislabelled","MST_LST_numbers", "Response_usedInRNAseqBiomarkerAnalysis", "CorrectResponse", "rnaseq_coreSet_biomarkerAnalysis","ranseq_flipper", "rnaseq_BioReplicates", "PanCancer", "panCancer_biomarkerAnalysis","elements_noHBA2attenuated", "elements_noHBA2attenuated_biomarkerAnalysis", "biocrates", "biocrates_biomarkerAnalysis","elements_hba2attenuated", "elements_hba2attenuated_biomarkerAnalysis", "EorV_number", "Box", "SampleNumber_CIC", "concealed_uniqueID", "concealed_ID"))
+                                  "Allergen", "UniqueID", "SubjInitials_mislabelled", "MST_LST_numbers", "Time",
+                                  "Box", "concealedID", "concealed_uniqueID", "concealed_ID", "EorV_number", "RACE",
+                                  "Mac_Response", "UniqueID", "Extracted", "AvailableRNAorPAXgene", "Cohort", "SubjInitials_mislabelled","MST_LST_numbers", "Response_usedInRNAseqBiomarkerAnalysis", "CorrectResponse", "rnaseq_coreSet_biomarkerAnalysis","ranseq_flipper", "rnaseq_BioReplicates", "PanCancer", "panCancer_biomarkerAnalysis","elements_noHBA2attenuated", "elements_noHBA2attenuated_biomarkerAnalysis", "biocrates", "biocrates_biomarkerAnalysis","elements_hba2attenuated", "elements_hba2attenuated_biomarkerAnalysis", "EorV_number", "Box", "SampleNumber_CIC", "concealed_uniqueID", "concealed_ID"))
 compVar(demo = demo[rownames(eset_pos), ], eset = eset_pos, variables = vars, ncomp = 10)
 
 
@@ -526,31 +534,31 @@ pos_hk_demo1_val_repeatDR <- eset_pos_hk[rownames(demo1_val_repeatDR), ]
 ```{r}
 ## Positive+HK control normalized data
 pos_hk_demo1_disList <- list(ucscGenes = pos_hk_demo1_dis[, ucscGenes], 
-                          ucscGeneIso = pos_hk_demo1_dis[, ucscGeneIso], 
-                          ensembl = pos_hk_demo1_dis[, ensembl], 
-                          trinity = pos_hk_demo1_dis[, trinity], 
-                          all = pos_hk_demo1_dis[, all])
+                             ucscGeneIso = pos_hk_demo1_dis[, ucscGeneIso], 
+                             ensembl = pos_hk_demo1_dis[, ensembl], 
+                             trinity = pos_hk_demo1_dis[, trinity], 
+                             all = pos_hk_demo1_dis[, all])
 pos_hk_demo1_valList <- list(ucscGenes = pos_hk_demo1_val[, ucscGenes], 
-                          ucscGeneIso = pos_hk_demo1_val[, ucscGeneIso], 
-                          ensembl = pos_hk_demo1_val[, ensembl], 
-                          trinity = pos_hk_demo1_val[, trinity], 
-                          all = pos_hk_demo1_val[, all])
+                             ucscGeneIso = pos_hk_demo1_val[, ucscGeneIso], 
+                             ensembl = pos_hk_demo1_val[, ensembl], 
+                             trinity = pos_hk_demo1_val[, trinity], 
+                             all = pos_hk_demo1_val[, all])
 lapply(pos_hk_demo1_disList, dim)
 lapply(pos_hk_demo1_valList, dim)
 
 ## repeat challenges
 # different response
 pos_hk_demo1_val_repeatDifferentResponseList <- list(ucscGenes = pos_hk_demo1_val_repeatDifferentResponse[, ucscGenes], 
-                          ucscGeneIso = pos_hk_demo1_val_repeatDifferentResponse[, ucscGeneIso], 
-                          ensembl = pos_hk_demo1_val_repeatDifferentResponse[, ensembl], 
-                          trinity = pos_hk_demo1_val_repeatDifferentResponse[, trinity], 
-                          all = pos_hk_demo1_val_repeatDifferentResponse[, all])
+                                                     ucscGeneIso = pos_hk_demo1_val_repeatDifferentResponse[, ucscGeneIso], 
+                                                     ensembl = pos_hk_demo1_val_repeatDifferentResponse[, ensembl], 
+                                                     trinity = pos_hk_demo1_val_repeatDifferentResponse[, trinity], 
+                                                     all = pos_hk_demo1_val_repeatDifferentResponse[, all])
 # Reapted DRs
 pos_hk_demo1_val_repeatDRList <- list(ucscGenes = pos_hk_demo1_val_repeatDR[, ucscGenes], 
-                          ucscGeneIso = pos_hk_demo1_val_repeatDR[, ucscGeneIso], 
-                          ensembl = pos_hk_demo1_val_repeatDR[, ensembl], 
-                          trinity = pos_hk_demo1_val_repeatDR[, trinity], 
-                          all = pos_hk_demo1_val_repeatDR[, all])
+                                      ucscGeneIso = pos_hk_demo1_val_repeatDR[, ucscGeneIso], 
+                                      ensembl = pos_hk_demo1_val_repeatDR[, ensembl], 
+                                      trinity = pos_hk_demo1_val_repeatDR[, trinity], 
+                                      all = pos_hk_demo1_val_repeatDR[, all])
 
 ```
 
@@ -593,23 +601,25 @@ y.train <- list(ucscGenes=y.train_mrna, ucscGeneIso=y.train_mrna, ensembl=y.trai
                 ucscGeneIso_clinical=y.train_clinical, ensembl_clinical=y.train_clinical, 
                 trinity_clinical=y.train_clinical, all_clinical=y.train_clinical)
 y.test <- list(ucscGenes=y.test_mrna, ucscGeneIso=y.test_mrna, ensembl=y.test_mrna, 
-                trinity=y.test_mrna, all=y.test_mrna, 
-                clinical=y.test_clinical, ucscGenes_clinical=y.test_clinical, 
-                ucscGeneIso_clinical=y.test_clinical, ensembl_clinical=y.test_clinical, 
-                trinity_clinical=y.test_clinical, all_clinical=y.test_clinical)
+               trinity=y.test_mrna, all=y.test_mrna, 
+               clinical=y.test_clinical, ucscGenes_clinical=y.test_clinical, 
+               ucscGeneIso_clinical=y.test_clinical, ensembl_clinical=y.test_clinical, 
+               trinity_clinical=y.test_clinical, all_clinical=y.test_clinical)
 
 ```
 
 ## compile datasets
 
 ```{r}
-save(demo1_dis=demo1_dis, demo1_val=demo1_val, y.train=y.train, y.test=y.test,
-  pos_hk_demo1_disList=pos_hk_demo1_disList, pos_hk_demo1_valList=pos_hk_demo1_valList,
-  demo1_val_repeatDifferentResponse=demo1_val_repeatDifferentResponse, 
-  pos_hk_demo1_val_repeatDifferentResponseList=pos_hk_demo1_val_repeatDifferentResponseList,
-  demo1_val_repeatDR=demo1_val_repeatDR, 
-  pos_hk_demo1_val_repeatDRList=pos_hk_demo1_val_repeatDRList,
-  file = paste0(data_dir, "/data/demo_eset_nanoString.RDATA"))
+save(demo1_dis=demo1_dis, demo1_val=demo1_val, 
+     y.train=y.train, y.test=y.test,
+     pos_hk_demo1_disList=pos_hk_demo1_disList, 
+     pos_hk_demo1_valList=pos_hk_demo1_valList,
+     demo1_val_repeatDifferentResponse=demo1_val_repeatDifferentResponse, 
+     pos_hk_demo1_val_repeatDifferentResponseList=pos_hk_demo1_val_repeatDifferentResponseList,
+     demo1_val_repeatDR=demo1_val_repeatDR, 
+     pos_hk_demo1_val_repeatDRList=pos_hk_demo1_val_repeatDRList,
+     file = paste0(data_dir, "/data/demo_eset_nanoString.RDATA"))
 
 
 

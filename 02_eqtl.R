@@ -4,6 +4,14 @@
 ## created 20180614
 
 
+# Cell Specific eQTL Analysis without Sorting Cells
+# y ~ g*c # y=rnaseq, g=genotype, c=cells
+# NOTE: Yi = β0 + Xiβ1 + Ziβ2 + Wiβ3 + XiZiβ4 + XiWiβ5 + ZiWiβ6 + XiZiWiβ7 + ei
+# Y ~ X + Z + W + X:Z + X:W + Z:W + X:Z:W
+# Y ~ X * Z * W
+# Y ~ (X + Z + W)^3
+
+
 
 ## root directory
 root = "~/projects/asthma"
@@ -70,7 +78,6 @@ f1_bins = c("","01","12") # 01 make all 2s 1, 12 make all 0s 1
 # split_f1_col = "time" #there are
 useModels = c("modelLINEAR", "modelANOVA", "modelLINEAR_CROSS")
 
-pthres = .01
 
 # plotting size
 width = 800
@@ -132,9 +139,9 @@ feat_types = list(c("genotype", "rnapcgenes.pre"),
                   c("metab.diff", "rnaseqgenes.diff"),
                   c("metab.diff", "rnaseqisoforms.pre"),
                   c("metab.diff", "rnaseqisoforms.post"),
-                  c("metab.diff", "rnaseqisoforms.diff")s
+                  c("metab.diff", "rnaseqisoforms.diff")
 )
-pvalthres_cis = 1e-3
+pvalthres_cis = .005
 pvalthres_tra = 1e-6
 # useModel = feat_type[5]
 # errorCovariance = numeric()
@@ -410,10 +417,11 @@ foreach (feat_type = feat_types) %dopar% {
             time_output(start1, message=paste0("sig=",nrow(me$cis$eqtl)))
             if (me$all$neqtls==0) next()
             
-            mecis = me$cis$eqtl
-            metrans = me$trans$eqtl
-            save(mecis, file=gsub(".Rdata","_cis.Rdata",eqtl_cis_dir))
-            save(metrans, file=gsub(".Rdata","_trans.Rdata",eqtl_cis_dir))
+            if (!all(f1_sd$chr=="chr1") & !all(f2_sd$chr=="chr1")) {
+              save(me$cis$eqtl, file=gsub(".Rdata","_cis.Rdata",eqtl_cis_dir))
+            } else {
+              save(me$trans$eqtl, file=gsub(".Rdata","_trans.Rdata",eqtl_cis_dir))
+            }
             png(file=gsub(".Rdata","_qq.png",eqtl_cis_dir))
             plot(me, file=gsub(".Rdata","_qq.png",eqtl_cis_dir))
             graphics.off()

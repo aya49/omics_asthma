@@ -5,15 +5,13 @@ date: "2017-08-07; 2018-06-14"
 output:
   html_document:
     theme: yeti
-    highlight: "neon"
+    highlight: zenburn
     number_sections: true
     toc: true
-    toc_float:
+    toc_float: 
       collapsed: true
       smooth_scroll: false
     df_print: paged
-  pdf_document:
-    toc: true
 ---
 
 ```{r, echo = FALSE, results='hide', message=FALSE, warning=FALSE}
@@ -42,8 +40,8 @@ data_dir = paste0(root, "/data/RNAseq")
 ## output directory
 
 ## libraries
-source("code/_func.R")
-source("code/_func-classifiers.R")
+source(paste0(root,"/code/_func.R"))
+source(paste0(root,"/code/_func-classifiers.R"))
 libr("tidyverse")
 libr("limma")
 libr("igraph")
@@ -61,17 +59,16 @@ prepare meta_filegraphics
 
 ## load datasets (meta_filegraphics and rnaseq data)
 load(paste0(data_dir, "/rnaseqDatasets.RDATA"))
-
-if (!grepl("startEnsem"))
+rnaseq_meta_file = rnaseq_demo
 
 # time=Pre meta_file and data
-rnaseq_meta_file_pre <- subset(rnaseq_meta_file, time == "Pre")
+rnaseq_meta_file_pre <- subset(rnaseq_meta_file, Time == "Pre")
 rnaseq_datasets_pre <- lapply(rnaseq_datasets, function(i){
   i[,rownames(rnaseq_meta_file_pre)]
 })
 
 # time=Post meta_file and data
-rnaseq_meta_file_post <- subset(rnaseq_meta_file, time == "Post")
+rnaseq_meta_file_post <- subset(rnaseq_meta_file, Time == "Post")
 rnaseq_datasets_post <- lapply(rnaseq_datasets, function(i){
   i[,rownames(rnaseq_meta_file_post)]
 })
@@ -178,7 +175,7 @@ tables
 
 ```{r}
 table(rnaseq_meta_file_pre$calculated_Response)
-table(rnaseq_meta_file_pre$sex, rnaseq_meta_file_pre$calculated_Response)
+table(rnaseq_meta_file_pre$SEX, rnaseq_meta_file_pre$calculated_Response)
 # 13/19 # proporiton of female (ER)
 # 11/17 # proporiton of female (DR)
 table(droplevels(rnaseq_meta_file_pre$Allergen_cleanLabel), rnaseq_meta_file_pre$calculated_Response)
@@ -190,14 +187,14 @@ table(droplevels(rnaseq_meta_file_pre$SITE), rnaseq_meta_file_pre$calculated_Res
 
 ```{r}
 
-for (cell_col in c("weight",  # not normal # pw=0.23
-                   "height",  # normal #pt = 0.91
-                   "age", # not normal  # pw=0.65
-                   "blfev",# normal #pt = 0.95
-                   "prfev",  # not normal  # pw=0.91
-                   "ear", # normal # pw=0.12
-                   "lar", #not normal # Pt=2.86e-14
-                   "PC20_pre", # NOT normal! # pw=0.11
+for (cell_col in c("Wt..Kg.",  # not normal # pw=0.23
+                   "HT.cm.",  # normal #pt = 0.91
+                   "AGE", # not normal  # pw=0.65
+                   "BLFEV",# normal #pt = 0.95
+                   "PRFEV",  # not normal  # pw=0.91
+                   "EAR", # normal # pw=0.12
+                   "LAR", #not normal # Pt=2.86e-14
+                   "PC20", # NOT normal! # pw=0.11
                    "AIS") # normal  # Pt = 0.01
      ) {
 fit <- lm(rnaseq_meta_file_pre[,cell_col] ~ rnaseq_meta_file_pre$calculated_Response)

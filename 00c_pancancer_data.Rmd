@@ -4,21 +4,20 @@ subtitle: "import and normalize data"
 author: "Amrit Singh"
 date: "December 12th, 2016"
 output:
-  tufte::tufte_html: default
-  tufte::tufte_handout:
-    citation_package: natbib
-    latex_engine: xelatex
-  tufte::tufte_book:
-    citation_package: natbib
-    latex_engine: xelatex
-bibliography: skeleton.bib
-link-citations: yes
+  html_document:
+    theme: paper
+    highlight: zenburn
+    number_sections: true
+    toc: true
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
 ---
 
 ```{r setup, include=FALSE}
 library(tufte)
 # invalidate cache when the tufte version changes
-knitr::opts_chunk$set(tidy = TRUE, echo = FALSE, cache = FALSE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(tidy = TRUE, echo = T, cache = FALSE, warning = FALSE, message = FALSE)
 options(htmltools.dir.version = FALSE)
 ```
 
@@ -295,7 +294,7 @@ sum(passThreshold > 0) ## keep genes with at least 1 count of 35 samples > than 
 
 ## 2) filter genes with all counts below the maximum value of the negative counts
 dataNormEndoFiltered <- dataNorm2 %>% filter(Name %in% names(passThreshold)[passThreshold > 0]) %>% 
-  mutate(Name = droplevels(Name))
+  mutate(Name = as.character(Name))
 dataNormHk <- filter(dataNorm2, CodeClass %in% "Housekeeping_Code_Summary")
 dataNorm3 <- rbind(as.data.frame(dataNormEndoFiltered), as.data.frame(dataNormHk))
 ```
@@ -406,13 +405,13 @@ abline(h = -log10(0.05), lty = 2, col = 2)
 # 5) Gene Annotation
 
 ```{r geneAnnotation, fig.width = 10, fig.height = 6, fig.fullwidth = TRUE, fig.cap = "Gene Annotations", warning=FALSE, cache=TRUE}
-ann0 <- read.csv(paste0(root, "/data/geneAnnotations/Cells_nCounter_Human_PanCancer_Immune_Profiling_Panel_Gene_List.csv"), row.names = 1)
+ann0 <- read.csv(paste0(root, "/data/Cells_nCounter_Human_PanCancer_Immune_Profiling_Panel_Gene_List.csv"), row.names = 1)
 table(ann0$Gene.Class)
 
 ann <- ann0[rownames(genEset), ]
 
 ## plot total number of genes
-table(droplevels(ann$Gene.Class))[order(table(droplevels(ann$Gene.Class)))] %>% 
+table(as.character(ann$Gene.Class))[order(table(as.character(ann$Gene.Class)))] %>% 
   as.data.frame %>% 
   ggplot(aes(x = Var1, y = Freq)) + geom_bar(stat = "identity") +
   customTheme(sizeStripFont = 10, xAngle = 60, hjust = 1, vjust = 1, xSize = 10,

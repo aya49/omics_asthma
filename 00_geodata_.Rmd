@@ -22,8 +22,8 @@ result_dir = paste0(root, "/result"); dir.create(result_dir, showWarnings=F)
 ## input directory
 data_dir = paste0(root, "/data/RNApancancer")
 
-library(devtools); install_github("singha53/amritr");
-library(amritr);
+library(devtools);
+library(amritr); # install_github("singha53/amritr");
 library(dplyr);
 library(mixOmics);
 ```

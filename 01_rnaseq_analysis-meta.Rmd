@@ -5,15 +5,13 @@ date: "2017-08-07; 2018-06-14"
 output:
   html_document:
     theme: yeti
-    highlight: "neon"
+    highlight: zenburn
     number_sections: true
     toc: true
     toc_float: 
       collapsed: true
       smooth_scroll: false
     df_print: paged
-  pdf_document:
-    toc: true
 ---
 
 ```{r, echo = FALSE, results='hide', message=FALSE, warning=FALSE}

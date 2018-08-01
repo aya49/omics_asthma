@@ -46,7 +46,7 @@ libr("ggplot2")
 
 
 ## options
-no_cores = 15#detectCores()-3
+no_cores = 8#detectCores()-3
 registerDoMC(no_cores)
 
 overwrite = T
@@ -106,7 +106,7 @@ feat_types = lapply(str_split(eqtl_names,"_"), function(x) c(str_split(x,"[-]")[
 meta_file0 = get(load(paste0(meta_file_dir,".Rdata")))
 meta_file0[,id_col] = as.character(meta_file0[,id_col])
 
-for (ei in 1:length(eqtl_paths)) {
+foreach (ei = 1:length(eqtl_paths)) %dopar% {
   try({
     # a = foreach (ei = 1:length(eqtl_paths)) %dopar% {
     eqtl_path = eqtl_paths[ei]
@@ -168,7 +168,15 @@ for (ei in 1:length(eqtl_paths)) {
     if (mcf2) {
       meta_col20 = as.data.frame(get(load(meta_col_path2)))
       if (grepl("rna", feat_type[2])) {
-        meta_col2 = meta_col20[match(mecis$gene,meta_col20[,"symbol"]),]
+        if (all(mecis$gene%in%meta_col20[,id_col])) {
+          mcorder = match(mecis$gene,meta_col20[,id_col])
+          meta_col2 = meta_col20[mcorder,]
+          mecis$gene = meta_col2[,"symbol"]
+          save(mecis, file=eqtl_path)
+        } else {
+          mcorder = match(mecis$gene,meta_col20[,"symbol"])
+          meta_col2 = meta_col20[mcorder,]
+        }
         mecis = cbind(mecis,meta_col2[,c("chr","start","end")])
         colnames(mecis)[colnames(mecis)%in%c("chr","start","end")] = paste0(c("chr","start","end"),".",feat_type[2])
       } else {
@@ -204,6 +212,10 @@ for (ei in 1:length(eqtl_paths)) {
     
     dir.create(gsub(".Rdata","",eqtl_path), showWarnings=F)
     for (i in 1:min(nrow(mecis),max_plots)) {
+      pname = paste0(gsub(".Rdata","",eqtl_path),"/",mecis$snps[i],"-",mecis$gene[i],".png")
+      if (!overwrite & file.exists(pname)) next()
+      png(file=pname, width=width, height=height)
+      
       main_ = paste0("eqtl: stat=",round(mecis$statistic[i],4), "; unadj.p=", round(mecis$pvalue[i],4), "; fdr.p=", round(mecis$FDR[i],4))
       
       xlab_more = ""
@@ -222,11 +234,10 @@ for (ei in 1:length(eqtl_paths)) {
       } 
       ylab_ = paste0(feat_type[2],": ", mecis$gene[i], "; unadj.p = ", round(pvalt2[i],4), ylab_more)
       
-      png(file=paste0(gsub(".Rdata","",eqtl_path),"/",mecis$snps[i],"-",meta_col1$ mecis$gene[i],".png"), width=width, height=height)
       if (feat_type[1]=="genotype" ) {
-        p = ggplot(data.frame(a=factor(m1[,i]),b=m2[,i]), aes(interaction(class_n,a), b)) + 
-          geom_boxplot(aes(colour=class_n)) + 
-          geom_smooth(aes(group=class_n), method="lm", size = 2, se = F) +
+        p = ggplot(data.frame(a=factor(m1[,i]),b=m2[,i]), aes(a, b)) + 
+          geom_boxplot(aes(colour=class_n),position=position_dodge(0)) + 
+          geom_smooth(aes(group=class_n, colour=class_n), method=lm, size = 2, se = F) +
           stat_summary(fun.y=mean, geom="line") + 
           geom_jitter(width=0.2,aes(colour=class_n))
         
@@ -237,9 +248,9 @@ for (ei in 1:length(eqtl_paths)) {
         #             alpha = 0.5, colour = "darkgrey")
         # facet_grid(sp~variable,scales="free_x")
       } else {
-        p = ggplot(data.frame(a=m1[,i],b=m2[,i]), aes(interaction(class_n,a), b)) + 
+        p = ggplot(data.frame(a=m1[,i],b=m2[,i]), aes(a, b)) + 
           geom_point(aes(colour=class_n)) +
-          geom_smooth(method=lm)
+          geom_smooth(aes(group=class_n, colour=class_n), method=lm)
       }
       print(p + xlab(xlab_) + ylab(ylab_) + ggtitle(main_))
       graphics.off()

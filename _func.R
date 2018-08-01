@@ -78,18 +78,22 @@ loopInd <- function(x,n) {
 ## input: list of package names to load
 ## output: none; load/install package
 libr <- function(pkgs) {
-  for (p in pkgs) {
-    if (!is.element(p, installed.packages()[,1])) {
-      source("http://bioconductor.org/biocLite.R")
-      biocLite(p, ask=F)
-      # install.packages(p)
-    }
-    require(p, character.only = TRUE)
+  if (length(setdiff(pkgs, rownames(installed.packages()))) > 0) 
+    install.packages(setdiff(pkgs, rownames(installed.packages())), verbose=F)
+  if (length(setdiff(pkgs, rownames(installed.packages()))) > 0) {
+    source("http://bioconductor.org/biocLite.R")
+    biocLite(setdiff(pkgs, rownames(installed.packages())), ask=F)
   }
+  sapply(pkgs, require, character.only=T)
 }
 
 
-
+## by amrit
+function(genExp) {
+  lib.size <- rowSums(genExp)
+  genExpNorm <- t(log2(t(genExp + 0.5)/(lib.size + 1) * 1e+06))
+  return(genExpNorm)
+}
 
 ## by amrit
 function (fileName) {
@@ -143,7 +147,7 @@ delna <- function(m)
 manhattan_plot = function(val, chrom=rep(1,length(val)), pos=c(1:length(val)), label.x=40,
                           val_thres=-log(.025), val_max2=-log(1e-4), val_max1=-log(5e-8), 
                           draw_line=T, val_min=0, guideline_interval=1, lines=NULL,
-                          xlab="chromosome/position", ylab=paste0("-ln(p value) (thres=",round(val_thres,3),")"), 
+                          xlab="chromosome/position", ylab=paste0("-log10(p value) (thres=",round(val_thres,3),")"), 
                           main="gwas") {
   # val's name can be label
   

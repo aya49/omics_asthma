@@ -15,6 +15,7 @@ meta_col_dir = paste0(meta_dir, "/col")
 feat_dir = paste0(result_dir, "/feat");
 
 library("annotables")
+library("biomaRt")
 library("stringr")
 
 id_col = "id"
@@ -23,6 +24,7 @@ id_col = "id"
 data_dir = paste0(root, "/data")
 
 meta_file = get(load(paste0(meta_file_dir,".Rdata")))
+chr_map = read.table(paste0(data_dir,"/GRCh37_UCSC2ensembl.txt"))
 iddates = paste0(meta_file$id, "_", meta_file$date)
 
 
@@ -53,8 +55,20 @@ meta_col_pc$id = colnames(feat_pc)
 meta_col_pc = cbind(meta_col_pc, 
                     grch38_dt[match(meta_col_pc[,id_col], grch38_dt$symbol),c("symbol","chr","start","end","biotype","description")])
 meta_col_pc$symbol = meta_col_pc$id
-save(meta_col_pc, file=paste0(meta_col_dir,"-rnapcgenes.pre.Rdata"))
-write.csv(meta_col_pc, file=paste0(meta_col_dir,"-rnapcgenes.pre.csv"))
+
+# convert chromosomes with mappings here: https://github.com/dpryan79/ChromosomeMappings/blob/58f75d5a6b2d4d7274c7246d10db666033926ee5/GRCh37_UCSC2ensembl.txt
+meta_col_pc_ = getBM(attributes = c('ensembl_gene_id', 'hgnc_symbol', 'chromosome_name', 'start_position', 'end_position', 'gene_biotype', "description"),
+      filters = 'hgnc_symbol',
+      values = meta_col_pc$symbol,
+      mart = useMart(biomart="ENSEMBL_MART_ENSEMBL", 
+                     host="grch37.ensembl.org", 
+                     path="/biomart/martservice", 
+                     dataset="hsapiens_gene_ensembl"))
+matchorder = match(meta_col_pc$symbol,meta_col_pc_$hgnc_symbol)
+meta_col_pc[!is.na(matchorder),c("id","symbol","chr","start","end","biotype","description")] = meta_col_pc_[matchorder[!is.na(matchorder)],]
+
+save(meta_col_pc, file=paste0(meta_col_dir,"-rnapcgenes.Rdata"))
+write.csv(meta_col_pc, file=paste0(meta_col_dir,"-rnapcgenes.csv"))
 
 
 

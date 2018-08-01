@@ -33,38 +33,39 @@
 div.sourceCode { overflow-x: auto; }
 table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
   margin: 0; padding: 0; vertical-align: baseline; border: none; }
-table.sourceCode { width: 100%; line-height: 100%; background-color: #2a211c; color: #bdae9d; }
-td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; background-color: #2a211c; color: #bdae9d; border-right: 1px solid #bdae9d; }
+table.sourceCode { width: 100%; line-height: 100%; background-color: #303030; color: #cccccc; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; }
 td.sourceCode { padding-left: 5px; }
-pre, code { color: #bdae9d; background-color: #2a211c; }
-code > span.kw { color: #43a8ed; font-weight: bold; } /* Keyword */
-code > span.dt { text-decoration: underline; } /* DataType */
-code > span.dv { color: #44aa43; } /* DecVal */
-code > span.bn { color: #44aa43; } /* BaseN */
-code > span.fl { color: #44aa43; } /* Float */
-code > span.ch { color: #049b0a; } /* Char */
-code > span.st { color: #049b0a; } /* String */
-code > span.co { color: #0066ff; font-style: italic; } /* Comment */
-code > span.al { color: #ffff00; } /* Alert */
-code > span.fu { color: #ff9358; font-weight: bold; } /* Function */
-code > span.er { color: #ffff00; font-weight: bold; } /* Error */
-code > span.wa { color: #ffff00; font-weight: bold; } /* Warning */
-code > span.cn { } /* Constant */
-code > span.sc { color: #049b0a; } /* SpecialChar */
-code > span.vs { color: #049b0a; } /* VerbatimString */
-code > span.ss { color: #049b0a; } /* SpecialString */
+pre, code { color: #cccccc; background-color: #303030; }
+code > span.kw { color: #f0dfaf; } /* Keyword */
+code > span.dt { color: #dfdfbf; } /* DataType */
+code > span.dv { color: #dcdccc; } /* DecVal */
+code > span.bn { color: #dca3a3; } /* BaseN */
+code > span.fl { color: #c0bed1; } /* Float */
+code > span.ch { color: #dca3a3; } /* Char */
+code > span.st { color: #cc9393; } /* String */
+code > span.co { color: #7f9f7f; } /* Comment */
+code > span.ot { color: #efef8f; } /* Other */
+code > span.al { color: #ffcfaf; } /* Alert */
+code > span.fu { color: #efef8f; } /* Function */
+code > span.er { color: #c3bf9f; } /* Error */
+code > span.wa { color: #7f9f7f; font-weight: bold; } /* Warning */
+code > span.cn { color: #dca3a3; font-weight: bold; } /* Constant */
+code > span.sc { color: #dca3a3; } /* SpecialChar */
+code > span.vs { color: #cc9393; } /* VerbatimString */
+code > span.ss { color: #cc9393; } /* SpecialString */
 code > span.im { } /* Import */
 code > span.va { } /* Variable */
-code > span.cf { color: #43a8ed; font-weight: bold; } /* ControlFlow */
-code > span.op { } /* Operator */
+code > span.cf { color: #f0dfaf; } /* ControlFlow */
+code > span.op { color: #f0efd0; } /* Operator */
 code > span.bu { } /* BuiltIn */
 code > span.ex { } /* Extension */
-code > span.pp { font-weight: bold; } /* Preprocessor */
+code > span.pp { color: #ffcfaf; font-weight: bold; } /* Preprocessor */
 code > span.at { } /* Attribute */
-code > span.do { color: #0066ff; font-style: italic; } /* Documentation */
-code > span.an { color: #0066ff; font-weight: bold; font-style: italic; } /* Annotation */
-code > span.co { color: #0066ff; font-weight: bold; font-style: italic; } /* Comment */
-code > span.in { color: #0066ff; font-weight: bold; font-style: italic; } /* Information */
+code > span.do { color: #7f9f7f; } /* Documentation */
+code > span.an { color: #7f9f7f; font-weight: bold; } /* Annotation */
+code > span.cv { color: #7f9f7f; font-weight: bold; } /* CommentVar */
+code > span.in { color: #7f9f7f; font-weight: bold; } /* Information */
 </style>
 <style type="text/css">
   pre:not([class]) {
@@ -278,13 +279,22 @@ meta_file_dir =<span class="st"> </span><span class="kw">paste0</span>(meta_dir,
 
 ## libraries
 <span class="kw">source</span>(<span class="kw">paste0</span>(root,<span class="st">&quot;/code/_func.R&quot;</span>))
-<span class="kw">libr</span>(<span class="st">&quot;dplyr&quot;</span>)
-<span class="kw">libr</span>(<span class="st">&quot;ggplot2&quot;</span>)
-<span class="kw">libr</span>(<span class="st">&quot;pracma&quot;</span>)
-<span class="kw">libr</span>(<span class="st">&quot;stringr&quot;</span>)
-<span class="kw">libr</span>(<span class="st">&quot;edgeR&quot;</span>)
-
-## options
+<span class="kw">libr</span>(<span class="st">&quot;dplyr&quot;</span>)</code></pre></div>
+<pre><code>## dplyr 
+##  TRUE</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">libr</span>(<span class="st">&quot;ggplot2&quot;</span>)</code></pre></div>
+<pre><code>## ggplot2 
+##    TRUE</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">libr</span>(<span class="st">&quot;pracma&quot;</span>)</code></pre></div>
+<pre><code>## pracma 
+##   TRUE</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">libr</span>(<span class="st">&quot;stringr&quot;</span>)</code></pre></div>
+<pre><code>## stringr 
+##    TRUE</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">libr</span>(<span class="st">&quot;edgeR&quot;</span>)</code></pre></div>
+<pre><code>## edgeR 
+##  TRUE</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">## options
 id_col =<span class="st"> &quot;id&quot;</span>
 date_col =<span class="st"> &quot;date&quot;</span></code></pre></div>
 </div>
@@ -953,8 +963,10 @@ genDats =<span class="st"> </span><span class="kw">lapply</span>(genDats0, <span
 ## 
 ## $starEnsemblExp
 ## [1] 9714   72</code></pre>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">libr</span>(<span class="st">&quot;rafalib&quot;</span>)
-## sample histograms
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">libr</span>(<span class="st">&quot;rafalib&quot;</span>)</code></pre></div>
+<pre><code>## rafalib 
+##    TRUE</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">## sample histograms
 
 <span class="cf">for</span> (m0n <span class="cf">in</span> <span class="kw">names</span>(genDats)) {
   x =<span class="st"> </span><span class="kw">na.omit</span>(genDats[[m0n]])

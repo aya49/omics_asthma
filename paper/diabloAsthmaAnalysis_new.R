@@ -4,8 +4,9 @@
 # April 01, 2016
 #
 ##########################################################################
-WhereAmI <- "~/projects/asthma/data/RNAseq_nanostring/gene-met/"
+root = "~/projects/asthma"
 
+source(paste0(root, "/code/_func.R"))
 library(GGally)
 library(reshape2)
 library(ggplot2)
@@ -15,17 +16,17 @@ library(dplyr)
 #library(mixOmicsv6)
 library(mixOmics)
 library(biomaRt)
-library(CellCODE)
+library(CellCODE) # devtools::install_github("mchikina/CellCODE")
 library(pROC)
 library(rafalib)
 mypar()
-#source(jPaste(WhereAmI, "code/functions.R"))
+#source(jPaste(root, "/code/functions.R"))
 source("~/Dropbox/Manuscript/mixOmics.org:DIABLO/functions/visualizationFunctions.R")
 #setwd("/Users/asingh/Dropbox/manuscript/mixOmics.org:DIABLO/other/mixOmicsv6/R/")
 #lapply(list.files(), function(i) source(i))
 
 ## import clinical datasets
-demo <- readRDS("~/projects/asthma/data/RNAseq_nanostring/data/demo/allsitesDemo.rds")
+demo <- readRDS("~/projects/asthma/data/RNAelements/data/demo/allsitesDemo.rds")
 rownames(demo) <- paste(demo$concealedID, demo$Time, sep=".")
 
 
@@ -36,7 +37,7 @@ rownames(demo) <- paste(demo$concealedID, demo$Time, sep=".")
 # Cohort 1 (14 subjects)
 #
 ############################################################
-asthmaTestplate <- read.csv(paste0(WhereAmI, "data/asthmaTestplate.Jan16_2015.csv"), header=FALSE, stringsAsFactors=FALSE)
+asthmaTestplate <- read.csv(paste0(root, "/data/RNAelements/data/asthmaTestplate.Jan16_2015.csv"), header=FALSE, stringsAsFactors=FALSE)
 
 cohort1lod <- as.numeric(as.matrix(asthmaTestplate[5, -c(1:23)]))
 names(cohort1lod) <- as.character(as.matrix(asthmaTestplate[2, -c(1:23)]))
@@ -59,7 +60,7 @@ all(names(cohort1lod)==colnames(cohort1pathway))
 #
 ############################################################
 ## import dataset
-asthmaDiscovery <- read.csv(paste0(WhereAmI, "data/2015-02-10_Conc_asthmaDiscoveryPlateFeb10.2015.csv"), header=FALSE)
+asthmaDiscovery <- read.csv(paste0(root, "/data/RNAelements/data/2015-02-10_Conc_asthmaDiscoveryPlateFeb10.2015.csv"), header=FALSE)
 
 cohort2lod <- as.numeric(as.matrix(asthmaDiscovery[16, -c(1:23)]))
 names(cohort2lod) <- as.character(as.matrix(asthmaDiscovery[2, -c(1:23)]))
@@ -142,10 +143,9 @@ asthmaDemoPre <- asthmaDemo[asthmaDemo$Time == "Pre", ]
 asthmaExpPre <- t(asthmaExp[, rownames(asthmaDemoPre)])
 
 ## load RNA-Seq datasets
-load("~/projects/asthma/data/RNAseq_nanostring/data/discovery/rnaseq/allRnaseqDatasets_rawData.RDATA")
-load("~/projects/asthma/data/RNAseq_nanostring/data/discovery/rnaseq/allRnaseqDatasets_normalized.RDATA")
+load("~/projects/asthma/data/RNAseq/allRnaseqDatasets_rawData.RDATA")
+load("~/projects/asthma/data/RNAseq/allRnaseqDatasets_normalized.RDATA")
 ## use ensembl datasets
-source("~/projects/asthma/data/RNAseq_nanostring/code/discovery/functions.R")
 # remove ERCC controls
 ensemblDat <- normalizelibSum(starEnsemblExp[-(60156:nrow(starEnsemblExp)), intersect(rownames(asthmaExpPre), colnames(genDats$starEnsemblExp))])
 dim(ensemblDat)
@@ -157,12 +157,11 @@ data(DMAP)
 dmapTag=tagData(DMAP, 0.5, max=15,
                 ref=NULL, ref.mean=F)
 data(IRIS)
-irisTag=tagData(IRIS, 1, max=15, 
-                ref=NULL, ref.mean=F);
-lm22 <- read.delim("~/Documents/Methods/DeconvolutionMethods/CIBERSORT/LM22.txt", row.names = 1)
+irisTag=tagData(IRIS, 1, max=15, ref=NULL, ref.mean=F);
+lm22 <- read.delim("~/Documents/Methods/DeconvolutionMethods/CIBERSORT/LM22.txt", row.names = 1) ####MISSING
 lm22Tag=tagData(lm22, 0.5, max=15,
                 ref=NULL, ref.mean=F)
-pancancer0 <- read.csv("~/Documents/Asthma/panCancerAsthma/old/data/PathwayAnnotation/Cells_nCounter_Human_PanCancer_Immune_Profiling_Panel_Gene_List.csv")
+pancancer0 <- read.csv("~/projects/asthma/data/Cells_nCounter_Human_PanCancer_Immune_Profiling_Panel_Gene_List.csv")
 dim(dmapTag); dim(irisTag); dim(lm22Tag);
 
 dmapList <- apply(dmapTag, 2, function(i) names(i)[which(i != 0)])
@@ -175,7 +174,7 @@ irisDat <- data.frame(Gene = unlist(irisList), Cell.Type = paste("iris",rep(name
 lm22Dat <- data.frame(Gene = unlist(lm22List), Cell.Type = paste("lm22",rep(names(lm22List), unlist(lapply(lm22List, length))), sep = "_"))
 pancancerDat <- data.frame(Gene = unlist(pancancerList), Cell.Type = paste("pancancer",rep(names(pancancerList), unlist(lapply(pancancerList, length))), sep = "_"))
 
-cellSpecificList0 <- rbind(dmapDat, irisDat, lm22Dat, pancancerDat)
+cellSpecificList0 <- rbind(dmapDat, irisDat, pancancerDat) #lm22Dat,  ### MISSING
 cellSpecificList <- split(cellSpecificList0$Gene, cellSpecificList0$Cell.Type)
 
 ids <- unique(unlist(cellSpecificList))
@@ -215,7 +214,7 @@ SPVs=getAllSPVs(ensemblDat, grp=starDemo$calculated_Response, Dat4, method="mixe
                 plot=FALSE, mix.par = 0.3)
 rownames(SPVs) <- rownames(starDemo)
 
-pdf(paste0(WhereAmI, "figs/cellTypes.pdf"), width = 9, height = 9)
+pdf(paste0(root, "/data/RNAelements/figs/cellTypes.pdf"), width = 9, height = 9)
 cim(cor(SPVs), margins = c(15, 15))
 dev.off()
 
@@ -238,15 +237,15 @@ result = block.splsda(X = X, Y = Y, ncomp = ncomp,
 feat1 <- lapply(result$loadings, function(x)
   apply(x, 2, function(i) names(i)[which(i != 0)]))
 
-pdf(paste0(WhereAmI, "figs/SamplePlot.pdf"), width = 9, height = 5)
+pdf(paste0(root, "/data/RNAelements/figs/SamplePlot.pdf"), width = 9, height = 5)
 plotDiablo3(result, ncomp = 1, groupOrder = c("DR", "ER"))
 dev.off()
 
-pdf(paste0(WhereAmI, "figs/circosPlot.pdf"), width = 7)
+pdf(paste0(root, "/data/RNAelements/figs/circosPlot.pdf"), width = 7)
 circosPlot_diabloModif(result, corThreshold = 0.5, cex.label = 0.5, showIntraLinks = FALSE)
 dev.off()
 
-pdf(paste0(WhereAmI, "figs/heatmap.pdf"), width = 7)
+pdf(paste0(root, "/data/RNAelements/figs/heatmap.pdf"), width = 7)
 heatmap_diablo(result, margins = c(2, 12))
 dev.off()
 
@@ -262,7 +261,7 @@ hk.known <- getBM(attributes = attr,
                   mart = mart)
 hk.known$hgnc_symbol
 hk.known$description
-write.csv(hk.known, paste0(WhereAmI, "figs/multiOmicBiomarkerPanelGenes.csv"))
+write.csv(hk.known, paste0(root, "/data/RNAelements/figs/multiOmicBiomarkerPanelGenes.csv"))
 
 
 cv <- perf(result, validation = "loo")
@@ -270,7 +269,7 @@ cv$WeightedPredict.error.rate
 #cv$error.rate
 
 biomarkerGenescv <- unlist(lapply(strsplit(names(unlist(cv$features$stable$Genes)), "\\."), function(i) i[2]))
-#write.csv(biomarkerGenescv, paste0(WhereAmI, "figs/bimarkerPanleGenes.csv"))
+#write.csv(biomarkerGenescv, paste0(root, "/data/RNAelements/figs/bimarkerPanleGenes.csv"))
 
 cv$predict$nrep1$Cells[[2]]
 
@@ -309,7 +308,7 @@ roc.res3$Sensitivity = as.numeric(roc.res3$Sensitivity)
 roc.score$auc
 
 ## plot AUC curves
-pdf(paste0(WhereAmI, "figs/aucs.pdf"), height = 6, width = 6)
+pdf(paste0(root, "/data/RNAelements/figs/aucs.pdf"), height = 6, width = 6)
 par(mfrow = c(2, 2), mar = c(4, 4, 2, 2))
 plot(roc.res1$Sensitivity ~ roc.res1$Specificity, type = "o", pch = 19, 
      xlab = "100-Specificity", ylab = "Sensitivity", col = "#1F78B4", main = "Cells")
@@ -404,7 +403,7 @@ cv$WeightedPredict.error.rate
 #cv$error.rate
 
 biomarkerGenescv <- unlist(lapply(strsplit(names(unlist(cv$features$stable$Genes)), "\\."), function(i) i[2]))
-#write.csv(biomarkerGenescv, paste0(WhereAmI, "figs/bimarkerPanleGenes.csv"))
+#write.csv(biomarkerGenescv, paste0(root, "/data/RNAelements/figs/bimarkerPanleGenes.csv"))
 
 cv$predict$nrep1$Cells[[2]]
 
@@ -552,7 +551,7 @@ SPVs=getAllSPVs(ensemblDat, grp=starDemo$calculated_Response, Dat4, method="mixe
                 plot=FALSE, mix.par = 0.3)
 rownames(SPVs) <- rownames(starDemo)
 
-pdf(paste0(WhereAmI, "figs/cellTypes_post.pdf"), width = 9, height = 9)
+pdf(paste0(root, "/data/RNAelements/figs/cellTypes_post.pdf"), width = 9, height = 9)
 cim(cor(SPVs), margins = c(15, 15))
 dev.off()
 
@@ -574,15 +573,15 @@ result = block.splsda(X = X, Y = Y, ncomp = ncomp,
 feat2 <- lapply(result$loadings, function(x)
   apply(x, 2, function(i) names(i)[which(i != 0)]))
 
-pdf(paste0(WhereAmI, "figs/SamplePlot.pdf"), width = 10)
+pdf(paste0(root, "/data/RNAelements/figs/SamplePlot.pdf"), width = 10)
 plotDiablo2(result, ncomp = 1, groupOrder = c("DR", "ER"))
 dev.off()
 
-pdf(paste0(WhereAmI, "figs/circosPlot.pdf"), width = 7)
+pdf(paste0(root, "/data/RNAelements/figs/circosPlot.pdf"), width = 7)
 circosPlot_diabloModif(result, corThreshold = 0.7)
 dev.off()
 
-pdf(paste0(WhereAmI, "figs/heatmap.pdf"), width = 7)
+pdf(paste0(root, "/data/RNAelements/figs/heatmap.pdf"), width = 7)
 heatmap_diablo(result, margins = c(2, 12))
 dev.off()
 
@@ -596,14 +595,14 @@ hk.known <- getBM(attributes = attr,
                   filters = filterList,
                   values = unlist(lapply(strsplit(as.character(feat1$genes), "\\."), function(i) i[1])),
                   mart = mart)$hgnc_symbol
-write.csv(unlist(lapply(strsplit(as.character(feat1$genes), "\\."), function(i) i[1])), paste0(WhereAmI, "figs/bimarkerPanleGenes.csv"))
+write.csv(unlist(lapply(strsplit(as.character(feat1$genes), "\\."), function(i) i[1])), paste0(root, "/data/RNAelements/figs/bimarkerPanleGenes.csv"))
 unique(hk.known)
 
 cv <- perf(result, validation = "loo")
 cv$AveragePredict.error.rate
 
 #biomarkerGenescv <- unlist(lapply(strsplit(names(unlist(cv$features$stable$genes)), "\\."), function(i) i[2]))
-#write.csv(biomarkerGenescv, paste0(WhereAmI, "figs/bimarkerPanleGenes.csv"))
+#write.csv(biomarkerGenescv, paste0(root, "/data/RNAelements/figs/bimarkerPanleGenes.csv"))
 
 
 ## plot area under the curve
@@ -639,7 +638,7 @@ roc.res3$Sensitivity = as.numeric(roc.res3$Sensitivity)
 roc.score$auc
 
 ## plot AUC curves
-pdf(paste0(WhereAmI, "figs/aucs_validation.pdf"), height = 3, width = 10)
+pdf(paste0(root, "/data/RNAelements/figs/aucs_validation.pdf"), height = 3, width = 10)
 par(mfrow = c(1, 4), mar = c(4, 4, 2, 2))
 plot(roc.res1$Sensitivity ~ roc.res1$Specificity, type = "o", pch = 19, 
      xlab = "100-Specificity", ylab = "Sensitivity", col = "#1F78B4", main = "Cells")

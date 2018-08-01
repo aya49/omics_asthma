@@ -3,21 +3,56 @@
 **purpose**: human asthma patients experience an asthma attack or constriction in their airways upon contact with allergens. a subgroup of these patients will recover after their initial attack. however, some will suffer from inflammation some hours later.
 - hence this project aims to find biomarkers that differentiates between patents who
   - will (dual response DR) and
-  - will not suffer from this second wave of inflammation (exacerbation ER)
+  - will not suffer from this second wave of inflammation (early response ER)
 - from blood sampled
   - before allergen contact and
   - a few hours after the initial asthma attack (theoretically some time before a possible second wave of inflammation).
 
 
-**input**:
-- data
-  - RNAseq (.fastq files)
-  - Genotyping (affymetrix axiom .calls matrix): note there is one genotyping DNA data per patient
-
-- folder structure before running anything
+initial folder structure: code, data
 
 ```
+├─── code (this repository)
+├──+ data
+|  ├─+ genotype (affymetrix axiom .calls matrix): note there is one genotyping DNA data per patient
+|  | ├── plink (plink software for imputation)
+|  | ├── hapmap (hapmap ref for imputation)
+|  | └── reference_SNP
+|  ├─+ RNAseq
+|  | └── fastq (folder containing .fastq files)
+|  ├─+ RNApancancer
+|  ├─+ RNAelements
+|  └─+ metab
+|
+```
 
+
+
+## data pre-processing
+
+**input**: data
+
+**output**: result/meta, result/feat
+
+- **result/meta/file (subject x subject meta data)**: subject meta data
+  - id: indicates subject id
+  - response: a sample is ER if its associated minimum FEV (forced expiratory volume) over times 180-420 min after asthmatic allergen challenge is over -15, otherwise its a DR i.e. min(c("F180L","F240L","F300L","F360L","F420L")) > -15 is ER, <= -15 is DR
+  - flipper: T if a subject (a unique 'id') has multiple samples taken and those samples have inconsistent 'response'
+  - filename_genotype: well
+  - filename_rnaseq: .bam filename
+
+- **result/meta/file.raw (sample x subject + sample meta data)**: same as above except includes filenames for samples
+  - id: indicates subject id; each subject has one or two unique samples (column 'time' = 'Pre' & 'Post') sampled before and after their asthma allergen challenge
+  - time: all/some data sets do not contain samples from 'time' = 'Pre'/'Post'; note it is difficult to callibrate at what time the dual response occurs, therefore, we use 'time' = 'Pre' as reference
+
+- **result/feat/\<data_type\>.\<pre/post\> (subject x feature)**: feature matrices; these are split into .<pre/post> indicating whether the sample was taken before or after the asthma allergen challenge based on availability; note: since genotype does not change, we have only one version
+
+- **result/meta/col-\<data\_type\> (feature x feature meta data)**: feature meta data
+
+
+folder structure after **data pre-processing**
+
+```
 ├─── code (this repository)
 ├──+ data
 |  ├─+ genotype
@@ -26,13 +61,11 @@
 |  ├─+ RNAseq
 |  | └── fastq (folder containing .fastq files)
 |  └── reference_SNP
-
+├──+ result
+|  ├── meta
+|  └── feat 
+|
 ```
-
-
-
-## Data pre-processing
-
 
 
 ### RNAseq
@@ -92,7 +125,7 @@ chmod u+x count1.sh
 
 
 #### imputation
-using **ricopili** to infer continuous probabilistic values for missing SNPs using reference HapMap data; original tutorial [here](https://sites.google.com/a/broadinstitute.org/ricopili/). there are other options such as splink2, whichever one is suitable.
+we use **ricopili** to infer continuous probabilistic values for missing SNPs using reference HapMap data; original tutorial [here](https://sites.google.com/a/broadinstitute.org/ricopili/). there are other options such as splink2, whichever one is suitable.
 
 ensure that you have already installed software and reference data listed [here](https://sites.google.com/a/broadinstitute.org/ricopili/installation/external-software#TOC-External-Software-Packages). In linux:
 
@@ -129,12 +162,13 @@ ensure that you have already installed software and reference data listed [here]
 
     wget https://github.com/DReichLab/EIG/archive/v7.2.1.tar.gz
     tar -xvzf v7.2.1.tar.gz
-    cd EIG5.0.2/
+    cd EIG-7.2.1
     cd src/
     # may need to edit the Makefile to specify where the correct site for LAPACK and BLAS are ***
     # e.g. "LAPACK = -llapack" to "LAPACK = -L/com/extra/lapack/3.5.0/lib -llapack -lblas"
     # where -L specifies the path to the LAPACK library.
-    # LAPACK can be downloaded and installed from here.
+    # LAPACK can be downloaded and installed via:
+    apt install liblapack-dev liblapack3 libopenblas-base libopenblas-dev
     # Once LAPACK has been installed, run the following commands:
     make clobber
     make install
@@ -142,8 +176,8 @@ ensure that you have already installed software and reference data listed [here]
 
 # EAGLE
 
-    wget https://data.broadinstitute.org/alkesgroup/Eagle/downloads/Eagle_v2.3.2.tar.gz
-    tar -xvzf Eagle_v2.3.2.tar.gz
+    wget https://data.broadinstitute.org/alkesgroup/Eagle/downloads/Eagle_v2.4.tar.gz
+    tar -xvzf Eagle_v2.4.tar.gz
 
 ```
 
@@ -170,8 +204,11 @@ conda install -c soil eagle-phase
 
 ```
 #download and install ricopili
-wget https://sites.google.com/a/broadinstitute.org/ricopili/download//rp_bin.<version>.tar.gz
-#wget https://sites.google.com/a/broadinstitute.org/ricopili/download//rp_bin.2018_May_28.001.tar.gz
+#wget https://sites.google.com/a/broadinstitute.org/ricopili/download//rp_bin.<version>.tar.gz
+wget https://sites.google.com/a/broadinstitute.org/ricopili/download/rp_bin.2018_Jun_6.001.tar.gz
+tar -xvzf rp_bin.2018_Jun_6.001.tar.gz
+
+
 
 tar -xvzf rp_bin.<version>.tar.gz
 #tar -xvzf rp_bin.2018_May_28.001.tar.gz
@@ -180,8 +217,59 @@ tar -xvzf rp_bin.<version>.tar.gz
 ```
 
 - download [hapmap reference data](http://zzz.bwh.harvard.edu/plink/res.shtml) (linked 20180531) for whichever race / all races you prefer and unzip into the **hapmap** folder.
-- 
 
+... INCOMPLETE
+
+
+### RNAelements
+
+### RNApancancer
+
+### metab
+
+### cell
+
+
+
+
+## calculate statistics
+
+**input**: result/meta, result/feat
+**output**: result/stat
+
+- **result/stat/pca**
+- **result/stat/gwas**
+- **result/stat/eqtl**
+
+folder structure after calculating statistics
+
+```
+├─── code (this repository)
+├──+ data
+|  ├─+ genotype
+|  | ├── plink (plink software for imputation)
+|  | └── hapmap (hapmap ref for imputation)
+|  ├─+ RNAseq
+|  | └── fastq (folder containing .fastq files)
+|  └── reference_SNP
+├──+ result
+|  ├── meta
+|  ├── feat
+|  ├─+ stat
+|  | ├── pca
+|  | ├── gwas
+|  | └── eqtl
+|  |
+```
+
+
+
+##  neural network
+
+- runs on [python](https://www.python.org/downloads/)
+- install [tensorflow](https://www.tensorflow.org/install/)
+- install [keras](https://keras.io/#installation) ([keras](https://keras.rstudio.com/) for rstudio)
+- install [deeplift](https://github.com/kundajelab/deeplift) for python to reverse propagate weights
 
 
 

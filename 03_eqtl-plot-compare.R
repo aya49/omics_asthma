@@ -34,20 +34,15 @@ gwas_dir = paste0(stat_dir,"/gwas"); dir.create(gwas_dir,showWarnings=F)
 # source("https://bioconductor.org/biocLite.R")
 # biocLite(c("affy","derfinder"))
 source("code/_func.R")
-libr("data.table")
-libr("MatrixEQTL")
-libr("foreach")
-libr("doMC")
-libr("stringr")
-libr("qdapTools") # make dummy variables
-libr("Matrix")
-libr("ggplot2")
-libr("plyr")
+libr(c("data.table", "Matrix", "plyr", "stringr",
+       "ggplot2", 
+       "foreach", "doMC",
+       "qdapTools")) # make dummy variables
 
 
 
 ## options
-no_cores = 15#detectCores()-3
+no_cores = 8#detectCores()-3
 registerDoMC(no_cores)
 
 overwrite = T
@@ -107,7 +102,7 @@ feat_types = lapply(str_split(eqtl_names,"_"), function(x) c(str_split(x,"[-]")[
 meta_file0 = get(load(paste0(meta_file_dir,".Rdata")))
 meta_file0[,id_col] = as.character(meta_file0[,id_col])
 
-for (ei in 1:length(eqtl_paths)) {
+a = foreach (ei = 1:length(eqtl_paths)) %dopar% {
   try({
     # a = foreach (ei = 1:length(eqtl_paths)) %dopar% {
     eqtl_path = eqtl_paths[ei]
@@ -221,7 +216,6 @@ for (ei in 1:length(eqtl_paths)) {
     if (bins=="01") m1[m1==2] = 1
     if (bins=="12") m1[m1==0] = 1
     
-    dir.create(gsub(".Rdata|.post","",eqtl_path), showWarnings=F)
     dfm =  rbind.fill(lapply(names(m2l), function(x) data.frame(response=meta_file[,class_col], time=rep(x,nrow(m1)))))
     df0 = lapply(1:ncol(m1), function(i) 
       rbind.fill(lapply(names(m2l), function(x) 
@@ -229,9 +223,15 @@ for (ei in 1:length(eqtl_paths)) {
     )
     fdrs = Reduce("cbind",lapply(mecisl, function(x) x$FDR))
     plot_inds = which(apply(fdrs, 1, function(y) any(y[!is.na(y)]<pthres)))
+    if (length(plot_inds)==0) plot_inds = 1:nrow(mecisl[[1]])
     if (any(grepl("beta",colnames(mecisl[[1]]))))
-      plot_inds = plot_inds[order(mecisl$diff$beta,decreasing=T)]
+      plot_inds = plot_inds[order(mecisl$diff$beta[plot_inds],decreasing=T)]
+    dir.create(gsub(".Rdata|.post","",eqtl_path), showWarnings=F)
     for (i in plot_inds) {
+      pname = paste0(gsub(".Rdata|.post","",eqtl_path),"/",mecisl$diff$snps[i],"-",mecisl$diff$gene[i],".png")
+      if(!overwrite & file.exists(pname)) next()
+      png(file=pname, width=width, height=height*length(unique(meta_file[,class_col])))
+      
       main_ = paste0("eqtl ", paste(names(mecisl),collapse="/"),
                      ": stat=",paste(sapply(mecisl, function(mecis) round(mecis$statistic[i],4)),collapse="/"), 
                      "\nunadj.p=", paste(sapply(mecisl, function(mecis) round(mecis$pvalue[i],4)),collapse="/"), 
@@ -242,11 +242,11 @@ for (ei in 1:length(eqtl_paths)) {
       ylab_ = paste0(mecisl[[1]]$gene[i]," unadj.p = ", paste(names(pvalt2l), collapse="/")," = ", paste(sapply(pvalt2l, function(pvalt2) round(pvalt2[i],4)), collapse="/"))
       
       dfi = cbind(dfm,df0[[i]])
+      dfi$genotype = factor(dfi$genotype)
       
-      png(file=paste0(gsub(".Rdata|.post","",eqtl_path),"/",mecis$snps[i],"-",mecis$gene[i],".png"), width=width, height=height*length(unique(meta_file[,class_col])))
       
-      p = ggplot(dfi, aes(interaction(response,genotype), cont)) +
-        geom_boxplot(aes(x=interaction(response,genotype), y=cont, fill=response), alpha = 0.5) +
+      p = ggplot(dfi, aes(genotype, cont)) +
+        geom_boxplot(aes(x=genotype, y=cont, colour=response), alpha = 0.5, position=position_dodge(0)) +
         geom_jitter(aes(colour=response), width=0.2) +
         geom_smooth(aes(group=response), method="lm", size = 2, se = F) +
         facet_grid(time~.,scales="free_x")
