@@ -533,13 +533,14 @@ mart = useMart(biomart="ensembl",
                # host = "www.ensembl.org", 
                # ensemblRedirect = FALSE)
 attr = c('description', 'ucsc', 'chromosome_name', 'strand', 'hgnc_symbol', 'refseq_mrna')
-trinity_map_dir = paste0(data_dir, "/data/discovery/rnaseq/asthma.trinity.blastx.outfmt6.txt")
+trinity_map_dir = paste0(data_dir, "/asthma.trinity.blastx.outfmt6.txt")
 
 mapID_genSym <- mapply(
   function(x, y) { annotate_transcripts(features=rownames(x), filter = y, mart=mart, attr=attr, trinity_map_dir=trinity_map_dir) }, 
   x = deg_pre_cc_common, 
   y = list("ucsc", "ucsc", "ensembl_gene_id", "trinity")
 )
+
 # sig genes across all data in common between with/out leuk of pre-challenge
 sigGenes <- unique(unlist(mapID_genSym))
 length(sigGenes);

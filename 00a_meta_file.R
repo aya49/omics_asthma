@@ -36,6 +36,10 @@ meta_file_data_dir = paste0(root,"/data/asthmaDemo_allsite_withSampleInfo_DH_v5.
 meta_dir = paste0(result_dir,"/meta"); dir.create(meta_dir, showWarnings=F)
 meta_file_dir = paste0(meta_dir,"/file")
 
+stat_dir = paste0(result_dir,"/stat"); dir.create(stat_dir, showWarnings=F)
+
+
+
 ## libraries
 # source("https://bioconductor.org/biocLite.R")
 # biocLite(c("affy","derfinder"))
@@ -47,7 +51,8 @@ libr(c("TxDb.Hsapiens.UCSC.hg19.knownGene",
        #"entropy",
        "data.table", "Matrix", "gdata", #read xls
        #"foreach", "doMC",
-       "stringr", "pracma"))
+       "stringr", "pracma",
+       "ggplot2", "reshape2","plyr"))
 
 
 ## options
@@ -191,7 +196,7 @@ flippers <- names(response_table[response_table >1])
 flippers_non <- names(response_table[response_table ==1])
 
 # delete people without a response
-meta_file_extra1 = meta_file_extra1[meta_file_extra1$response!="",]
+meta_file_extra = meta_file_extra[!is.na(meta_file_extra$response),]
 
 # adjust id
 meta_file_extra$NAME[grepl("WRF",meta_file_extra$NAME)] = "WRF"
@@ -276,4 +281,39 @@ if (writecsv) write.csv(meta_file, file=paste0(meta_file_dir,".csv"))
 
 goodppl = meta_file$id[!meta_file$flipper]
 save(goodppl, file=paste0(meta_file_dir,"_id_goodppl.Rdata"))
+
+
+
+## make fev plots ----------------------
+
+fltime_colind = c(17:28)
+# fltimes = as.numeric(gsub("[A-Z]","",colnames(meta_file2)[fltime_colind]))
+# fldf = Reduce('rbind', lapply(1:length(fltime_colind), function(i) 
+#   data.frame(id=meta_file2$id, response=meta_file2$response,
+#              time=rep(fltimes[i],nrow(meta_file2)),
+#              fev=meta_file2[,fltime_colind[i]]) )) #the manual way of melt()
+fldf = melt(meta_file2[append(c("id","response"),colnames(meta_file2)[fltime_colind])], measure.vard=colnames(meta_file2)[fltime_colind])
+fldf$variable = as.numeric(gsub("[A-Z]","",fldf$variable))
+
+fldfa = ddply(fldf, .(response, variable), function(x)
+  c(mean=mean(x$value), sd = sd(x$value), 
+    lower=as.numeric(quantile(x$value, .25)), upper=as.numeric(quantile(x$value, .75))) )
+
+pd <- position_dodge(width = 0.2) # move them .2 to the left and right
+gbase  = ggplot(fldfa, aes(y=mean, colour=response)) + 
+  # geom_errorbar(aes(ymin=lower, ymax=upper), width=.3, position=pd) +
+  # geom_point(position=pd) +
+  geom_line() # + facet_grid(variable ~ sex)
+# gline = gline %+% fldfa
+
+ggsave(filename=paste0(stat_dir,"/fev.png"),
+       gbase + aes(x=variable) + 
+        xlab("time (min after allergen exposure)") +
+      ylab("mean FEV (forced expiratory volume)"),
+      scale = 1.5, width = 5, height = 3, units = c("in"))
+
+
+
+
+
 

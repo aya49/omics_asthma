@@ -235,18 +235,28 @@ foreach (feat_type = feat_types) %dopar% {
       f1_cole = file.exists(paste0(meta_col_dir,"-",feat_type1,".Rdata"))
       if (f1_cole) {
         f1_meta_col0 = get(load(paste0(meta_col_dir,"-",feat_type1,".Rdata")))
-        f1_meta_col0 = f1_meta_col0[match(colnames(f1_m0),f1_meta_col0[,id_col]),]
-        f1_meta_col_ind = f1_meta_col_ind & apply(f1_meta_col0[,c("dbSNP","chromosome","pos_phys")],1,function(x) !any(is.na(x)))
-        f1_meta_col = f1_meta_col0[f1_meta_col_ind,]
+        f1_cole = f1_cole & all(c("dbSNP","chromosome","pos_phys")%in%colnames(f1_meta_col0))
+        if (f1_cole) {
+          f1_meta_col0 = f1_meta_col0[match(colnames(f1_m0),f1_meta_col0[,id_col]),]
+          f1_meta_col_ind = f1_meta_col_ind & apply(f1_meta_col0[,c("dbSNP","chromosome","pos_phys")],1,function(x) !any(is.na(x)))
+          f1_meta_col = f1_meta_col0[f1_meta_col_ind,]
+        }
       }
       
       f2_cole = file.exists(paste0(meta_col_dir,"-",feat_type2,".Rdata"))
       if (f2_cole) {
         f2_meta_col0 = get(load(paste0(meta_col_dir,"-",feat_type2,".Rdata")))
-        f2_meta_col0 = f2_meta_col0[match(colnames(f2_m0),f2_meta_col0[,id_col]),]
-        f2_meta_col_ind = f2_meta_col_ind & apply(f2_meta_col0[,c("symbol","chr","start","end")],1,function(x) !any(is.na(x)))
-        f2_meta_col = f2_meta_col0[f2_meta_col_ind,]
-        # if (colnames(f1_m0)[1]%in%f1_meta_file0[,id_col]) f1_m0 = t(f1_m0)
+        f2_cole = f2_cole & all(c("symbol","chr","start","end")%in%colnames(f2_meta_col0))
+        if (f2_cole & sum(is.na(f2_meta_col0))>(.5*nrow(f2_meta_col0))) {
+          f2_cole = F
+          colnames(f1_m) = paste0(f2_meta_col0$symbol[match(colnames(f1_m),f2_meta_col0[,id_col])],"_",colnames(f1_m))
+        }
+        if (f2_cole) {
+          f2_meta_col0 = f2_meta_col0[match(colnames(f2_m0),f2_meta_col0[,id_col]),]
+          f2_meta_col_ind = f2_meta_col_ind & apply(f2_meta_col0[,c("symbol","chr","start","end")],1,function(x) !any(is.na(x)))
+          f2_meta_col = f2_meta_col0[f2_meta_col_ind,]
+          # if (colnames(f1_m0)[1]%in%f1_meta_file0[,id_col]) f1_m0 = t(f1_m0)
+        }
       }
       
       # trim matrices
@@ -406,7 +416,7 @@ foreach (feat_type = feat_types) %dopar% {
               
               snpspos = f1_pos,
               genepos = f2_pos, 
-              cisDist = ifelse(f1_cole & f1_cole, cisDist, Inf),
+              cisDist = ifelse(f1_cole & f2_cole, cisDist, Inf),
               pvalue.hist = "qqplot", # logical, numerical, or "qqplot" (faster if false); To record information for a histogram set pvalue.hist to the desired number of bins of equal size. Finally, pvalue.hist can also be set to a custom set of bin edges.
               min.pv.by.genesnp = T, # record the minimum p-value for each SNP and each gene in the returned object. The minimum p-values are recorded even if if they are above the corresponding thresholds of pvOutputThreshold and pvOutputThreshold.cis (faster if false)
               noFDRsaveMemory = F # save significant gene-SNP pairs directly to the output files, reduce memory footprint and skip FDR calculation. The eQTLs are not recorded

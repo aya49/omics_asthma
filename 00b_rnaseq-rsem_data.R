@@ -33,7 +33,7 @@ feat_feature_dir = paste0(feat_dir,"/rnaseq")
 feat_cell_dir = paste0(feat_dir,"/cell")
 
 stat_dir = paste0(result_dir,"/stat"); dir.create(stat_dir, showWarnings=F)
-preprocess_dir = paste0(stat_dir,"/stat"); dir.create(preprocess_dir, showWarnings=F)
+preprocess_dir = paste0(stat_dir,"/rnaseq-rsem_preprocessing"); dir.create(preprocess_dir, showWarnings=F)
 
 ## libraries
 source("code/_func.R")
