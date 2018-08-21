@@ -4,62 +4,29 @@
 ## created 20180524
 ## last modified 20180524
 
-## root directory
-root = "~/projects/asthma"
-setwd(root)
+## logistics
+root = "~/projects/asthma"; commandArgs <- function(...) root  # root directory, used for _dirs.R
+source(paste0(root, "/code/_dirs.R"))
+source(paste0(root, "/code/_func.R"))
+source(paste0(root, "/code/_func-asthma.R"))
+source(paste0(root, "/code/_func-classifiers.R"))
+libr(append(pkgs(),c("RDRToolbox")))
 
-result_dir = paste0(root, "/result") #"genotype", "RNAseq_genes", "RNAseq_isoforms"
-
-
-## input directory
-meta_dir = paste0(result_dir,"/meta")
-meta_file_dir = paste0(meta_dir,"/file")
-meta_col_dir = paste0(meta_dir,"/col")
-
-feat_dir = paste0(result_dir,"/feat")
-# feat_genotype_dir = paste0(feat_dir,"/snp-file-genotype")
-
-
-## output directory
-stat_dir = paste0(result_dir,"/stat"); dir.create(stat_dir, showWarnings=F)
-pca_dir = paste0(stat_dir,"/pca"); dir.create(pca_dir, showWarnings=F)
-
-
-## libraries
-# source("https://bioconductor.org/biocLite.R")
-# biocLite(c("affy","derfinder"))
-source("code/_func.R")
-libr("data.table")
-libr("MatrixEQTL")
-libr("RDRToolbox")
-libr("entropy")
-libr("foreach")
-libr("doMC")
-libr("stringr")
-libr("Matrix")
-
+no_cores = detectCores()-2 #number of cores to use for parallel processing
+registerDoMC(no_cores)
 
 
 ## options
-no_cores = 15#detectCores()-3
-registerDoMC(no_cores)
-
 writecsv = T #write results as csv on top of Rdata?
 
-good_col = 3 #each SNP must have <good_col NA or -1; else delete from analysis
 cont_col = 15 #if a column has more than this unique values, it's continuous
 scale_cont = T #if a column is continuous, scale it
 
 
-id_col = "id"
-class_col = "response"
-# categorical = T # is class column categorical?
 interested_cols = c("sex","genotype_centre","genotype_batch", "allergen", 
                     "race","response",
                     "age","bmi","weight", "height") 
 interested_cont_cols = c("age","bmi","weight", "height")
-
-# cid_col = "id"
 
 dofullPCA = F #do PCA for all cell popoulations not just first level
 pca_k = 5 #number of pca pc to plot
@@ -77,53 +44,13 @@ doHC = F #do hierarchical clustering
 wdth = 400
 ht = 600
 
-
-
-
-
-
-
-
-
-
-
-
 ## features and indices
-feat_types = list.files(feat_dir,full.names=F,pattern=".Rdata")
-feat_types = feat_types[!grepl("raw",feat_types)]
-feat_types = gsub(".Rdata","",feat_types)
-feat_temp = str_split(feat_types,"[.]")
-feat_names = sapply(feat_temp, function(x) x[1])
-feat_times = sapply(feat_temp, function(x) x[2])
-
-inds_paths = list.files(meta_dir,pattern="_id_",full.names=T)
-inds_temp = str_split(gsub(".Rdata","",fileNames(inds_paths)),"_")
-inds_types = sapply(inds_temp, function(x) x[3])
-inds_names = sapply(inds_temp, function(x) str_split(x[1],"[-]")[[1]][2])
-inds_filecol = sapply(inds_temp, function(x) str_split(x[1],"[-]")[[1]][1])
-
-uif = unique(inds_names[inds_filecol=="col"])
-col_inds0 = lapply(uif, function(x) list(all=c("")))
-names(col_inds0) = uif
-file_inds = list(all=c(""))
-
-# col inds separate by feature type, file inds don't
-for (i in 1:length(inds_paths)) {
-  if (inds_filecol[i]=="col") {
-    col_inds0[[inds_names[i]]][[inds_types[i]]] = get(load(inds_paths[i]))
-  } else if (inds_filecol[i]=="file") {
-    file_inds[[inds_types[i]]] = get(load(inds_paths[i]))
-  }
-}
+feat_types = feat_types_annot
 
 
-
-
+## start
 start = Sys.time()
 
-
-meta_file0 = get(load(paste0(meta_file_dir,".Rdata")))
-# meta_col0 = as.data.frame(get(load(paste0(meta_col_dir,".Rdata"))))
 
 for (feat_type in feat_types) {
   cat("\n", feat_type)
@@ -161,6 +88,7 @@ for (feat_type in feat_types) {
       
       meta_file = meta_file0[match(rownames(m),meta_file0[,id_col]),]
       # meta_col = meta_col0[match(colnames(m),meta_col0[,cid_col]),]
+      if (file_ind_n=="flipperdr") meta_file[meta_file[,flipper_col],class_col] = experiments
       
       
       ## get interested columns

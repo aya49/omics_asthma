@@ -242,14 +242,14 @@ enrichPathwayNetwork_diablo = function(enrich, cutoff = 0.25, trim = TRUE){
   
   # Create graph with node text faintly visible when no hovering
   #forceNetwork(Links = links, Nodes = nodes, Source = "source", Nodesize = "intersect",
-  #             Target = "target", Value = "jaccard", NodeID = "rnaet",
+  #             Target = "target", Value = "jaccard", NodeID = "geneset",
   #             Group = "subcollection", bounded = FALSE,
   #             opacityNoHover = TRUE, 
   #             fontSize=12, zoom=T, legend=T,
   #             opacity = 0.8, charge=-300)
   
   networkD3::forceNetwork(Links = links, Nodes = nodes, NodeID = "geneset", 
-                          Nodesize = "n_rnaset", Group = "group", Source = "source", 
+                          Nodesize = "n_geneset", Group = "group", Source = "source", 
                           Target = "target", Value = "jaccard", linkDistance = networkD3::JS("function(d) { return d.value * 100; }"), 
                           colourScale = create_colorscale(nodes, "BuPu"), fontSize = 16, 
                           fontFamily = "sans-serif", opacity = 0.85, zoom = F, 
@@ -1388,15 +1388,15 @@ circosPlot_diabloModif = function(object, corThreshold, cex.label,
   Xdat <- as.data.frame(do.call(cbind, X)[, colnames(corMat)])
   #corMat <- cor(Xdat)
   
-  geneNames <-   unlist(lapply(strsplit(unlist(lapply(strsplit(grep("rna", colnames(Xdat), value = TRUE), "_"), function(x) x[2])), "\\."), function(i) i[1]))
+  geneNames <-   unlist(lapply(strsplit(unlist(lapply(strsplit(grep("Genes", colnames(Xdat), value = TRUE), "_"), function(x) x[2])), "\\."), function(i) i[1]))
   library(biomaRt)
   mart = useMart(biomart="ENSEMBL_MART_ENSEMBL", host="grch37.ensembl.org", path="/biomart/martservice", 
                  dataset="hsapiens_gene_ensembl")
   filterList <- 'ensembl_gene_id'
   attr = c('ensembl_gene_id', 'hgnc_symbol')
   
-  colnames(Xdat)[grep("rna", colnames(Xdat))] <- paste(
-  "rna", getBM(attributes = attr,
+  colnames(Xdat)[grep("Genes", colnames(Xdat))] <- paste(
+  "Genes", getBM(attributes = attr,
                     filters = filterList,
                     values = geneNames,
                     mart = mart)$hgnc_symbol, sep = "_")

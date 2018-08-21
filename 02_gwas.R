@@ -5,64 +5,27 @@
 
 
 
-## root directory
-root = "~/projects/asthma"
-setwd(root)
+## logistics
+root = "~/projects/asthma"; commandArgs <- function(...) root  # root directory, used for _dirs.R
+source(paste0(root, "/code/_dirs.R"))
+source(paste0(root, "/code/_func.R"))
+source(paste0(root, "/code/_func-asthma.R"))
+source(paste0(root, "/code/_func-classifiers.R"))
+libr(append(pkgs(),c("qqman","traseR","FunciSNP","SeqGSEA","DOSE")))
 
-result_dir = paste0(root, "/result")
+no_cores = detectCores()-2 #number of cores to use for parallel processing
+registerDoMC(no_cores)
 
-
-
-## input directory
-meta_dir = paste0(result_dir,"/meta")
-meta_file_dir = paste0(meta_dir,"/file")
-meta_col_dir = paste0(meta_dir,"/col")#,asthma)
-
-feat_dir = paste0(result_dir,"/feat")
-
-
-## output directory
-stat_dir = paste0(result_dir,"/stat"); dir.create(stat_dir,showWarnings=F)
-gwas_dir = paste0(stat_dir,"/gwas"); dir.create(gwas_dir,showWarnings=F)
-
-## libraries
-# source("https://bioconductor.org/biocLite.R")
-# biocLite(c("affy","derfinder"))
-source("code/_func.R")
-libr("data.table")
-libr("qqman")
-libr("traseR")
-libr("DOSE")
-libr("plyr")
-libr("annotables")
-grch38_dt <- merge(as.data.frame(grch38_tx2gene), as.data.frame(grch38), by="ensgene")
 data(taSNP) #subset of below
 data(taSNPLD)
-# data(Tcell)
+
 taSNP0 = as.data.frame(taSNP)
 write.csv(taSNP0, paste0(gwas_dir, "/taSNP.csv"))
 taSNPLD0 = as.data.frame(taSNPLD)
 write.csv(taSNPLD0, paste0(gwas_dir, "/taSNPLD.csv"))
 
-libr("FunciSNP")
-libr("SeqGSEA")
-libr("ggplot2")
-libr("entropy")
-libr("limma")
-libr("foreach")
-libr("doMC")
-libr("stringr")
-libr("Matrix")
-
-# libr("GiNA")
-
-
 
 ## options
-options(stringsAsFactors=F)
-
-no_cores = detectCores()-1
-registerDoMC(no_cores)
 
 overwrite = T
 writecsv = T #write results as csv on top of Rdata?
@@ -76,16 +39,11 @@ tests = c("chi2", "lmbayes")
 tests_cont = c("lmbayes")
 tests_cate = c("chi2")
 
-good_col = 3 #each SNP must have <good_col NA or -1; else delete from analysis
 cont_col = 15 #if a column has more than this unique values, it's continuous
-scale_cont = F #if a column is continuous, scale it
-good_na = .75 #proportion of na more than this, then delete the column in matrix
-good_catecont = .75
 printmaxrows = 200 #if total number of features under this value, just print everything on csv
 
-id_col = "id"
-class_cols = "response"
-controls = "ER"
+compare_classes = c("goodppl","flipperdr") #do a crossover of features from these classes
+
 categorical = T # is class column categorical?
 interested_cols = c("age","bmi","sex","centre","batch","race","response") 
 interested_cont_cols = ""
@@ -100,57 +58,29 @@ height = 400
 reg_no = 16
 
 
-
 ## features and indices
-feat_types = list.files(feat_dir,full.names=F,pattern=".Rdata")
-feat_types = feat_types[order(file.size(paste0(feat_dir,"/",feat_types)))]
-feat_types = feat_types[!grepl("raw",feat_types)]
-feat_types = gsub(".Rdata","",feat_types)
-feat_temp = str_split(feat_types,"[.]")
-feat_names = sapply(feat_temp, function(x) x[1])
-feat_times = sapply(feat_temp, function(x) x[2])
+feat_types = feat_types_annot
 
-inds_paths = list.files(meta_dir,pattern="_id_",full.names=T)
-inds_temp = str_split(gsub(".Rdata","",fileNames(inds_paths)),"_")
-inds_types = sapply(inds_temp, function(x) x[3])
-inds_names = sapply(inds_temp, function(x) str_split(x[1],"[-]")[[1]][2])
-inds_filecol = sapply(inds_temp, function(x) str_split(x[1],"[-]")[[1]][1])
-
-uif = unique(inds_names[inds_filecol=="col"])
-col_inds0 = lapply(uif, function(x) list(all=c("")))
-names(col_inds0) = uif
-file_inds = list(all=c(""))
-
-# col inds separate by feature type, file inds don't
-for (i in 1:length(inds_paths)) {
-  if (inds_filecol[i]=="col") {
-    col_inds0[[inds_names[i]]][[inds_types[i]]] = get(load(inds_paths[i]))
-  } else if (inds_filecol[i]=="file") {
-    file_inds[[inds_types[i]]] = get(load(inds_paths[i]))
-  }
-}
 
 
 
 ## calculate p values ---------------------------------------------
 start = Sys.time()
 
-meta_file0 = read.csv(paste0(meta_file_dir,".csv"), stringsAsFactors=F)
-# meta_col0 = as.data.frame(get(load(paste0(meta_col_dir,".Rdata"))))
-
-for (feat_type in feat_types) {
+for (feat_type in sort(feat_types,decreasing=T)) {
   start1 = Sys.time()
   try({
     cat("\n", feat_type, sep="")
     
     m0 = get(load(paste0(feat_dir,"/",feat_type,".Rdata")))
-    if (sum(colnames(m0)%in%meta_file0[,id_col])==ncol(m0)) m0 = t(m0)
+    m0 = m0[rownames(m0)%in%meta_file0[,id_col],]
+    # if (sum(colnames(m0)%in%meta_file0[,id_col])==ncol(m0)) m0 = t(m0)
     
     col_inds_i = sapply(names(col_inds0), function(x) grepl(x,feat_type))
     if (sum(col_inds_i)==0) {
       col_inds = list(all=c(""))
     } else {
-      col_inds = col_inds0[[col_inds_i]]
+      col_inds = col_inds0[col_inds_i]
     }
     
     
@@ -166,8 +96,8 @@ for (feat_type in feat_types) {
           if (file_ind_n=="all") file_ind = rownames(m0)
           # file_ind_n = paste0("-",file_ind_n)
           
-          # ensure there is a class label for each sample
-          file_ind = file_ind[!is.na(meta_file0[match(file_ind,meta_file0[,id_col]),class_col])]
+          ## ensure there is a class label for each sample
+          # file_ind = file_ind[!is.na(meta_file0[match(file_ind,meta_file0[,id_col]),class_col])]
           
           col_ind = col_inds[[col_ind_n]]
           if (file_ind_n!="all" & all(colnames(m0)%in%col_ind)) next()
@@ -196,6 +126,9 @@ for (feat_type in feat_types) {
           cat(" (",file_ind_n, " x ",col_ind_n,"; ",nrow(m)," x ",ncol(m),") ", sep="")
           
           meta_file = meta_file0[match(rownames(m),meta_file0[,id_col]),]
+          if (file_ind_n=="flipperdr") meta_file[meta_file[,flipper_col],class_col] = experiments
+          
+          
           # meta_col = meta_col0[match(colnames(m),meta_col0[,cid_col]),]
           class_names = levels(factor(meta_file[,class_col]))
           
@@ -341,6 +274,12 @@ for (feat_type in feat_types) {
 time_output(start)
 
 
+
+
+
+
+
+
 #### list out grid for each gwas ###
 
 ## plot / enrichment --------------------------------------
@@ -466,12 +405,12 @@ for (pi in 1:length(pval_paths)) { try({
       # manhattan(data.frame(P=pvalt, BP=meta_col$pos_phys, CHR=as.numeric(chrom), SNP=meta_col$dbSNP))
       
       if (grepl("genotype",feat_type)) {
-        pos = meta_col$pos_phys
-        chr = meta_col$chromosome
+        pos = meta_col[,"pos_phys"]
+        chr = meta_col[,"chromosome"]
       }
       if (grepl("rna",feat_type)) {
-        pos = meta_col$start
-        chr = meta_col$chr
+        pos = meta_col[,"start"]
+        chr = meta_col[,"chr"]
       }
       plotind = !is.na(chr) & nchar(chr)<3
       
@@ -580,24 +519,24 @@ for (pi in 1:length(pval_paths)) { try({
     print(p2b)
     graphics.off()
   }
-    
-    
-    
-    #use another package to do SNP disease enrichment
+  
+  
+  
+  #use another package to do SNP disease enrichment
   if (mcf & grepl("genotype",feat_type) & grepl("Xall",pval_path)) {
     pv_ind2 = pvalt<pthres
     if (sum(pv_ind)==0) next()
     pvalt_pv = pvalt[pv_ind]
     sig_snps = meta_col[meta_col[,id_col]%in%names(pvalt_pv),"dbSNP"]
-   edsnps = enrichDGNv(sig_snps)
-   if (nrow(engenes@result)>0) {
-     edsnps_table = cbind(edsnps@result, t(sapply(edsnps@result$ID, function(x) c(length(edsnps@geneSets[[x]]), paste(edsnps@geneSets[[x]][edsnps@geneSets[[x]]%in%sig_snps], collapse="_")) )))
-   
-   write.csv(edsnps_table,file=paste0(pval_path,"_dose-snp.csv"))
-   png(file=paste0(pval_path,"_dose-snp.png"), width=width, height=height)
-   enrichMap(edsnps)
-   graphics.off()
-   }
+    edsnps = enrichDGNv(sig_snps)
+    if (nrow(engenes@result)>0) {
+      edsnps_table = cbind(edsnps@result, t(sapply(edsnps@result$ID, function(x) c(length(edsnps@geneSets[[x]]), paste(edsnps@geneSets[[x]][edsnps@geneSets[[x]]%in%sig_snps], collapse="_")) )))
+      
+      write.csv(edsnps_table,file=paste0(pval_path,"_dose-snp.csv"))
+      png(file=paste0(pval_path,"_dose-snp.png"), width=width, height=height)
+      enrichMap(edsnps)
+      graphics.off()
+    }
     
     
     # # enrichment analysis using hypergeometric test
@@ -790,14 +729,19 @@ for (pi in 1:length(pval_paths)) { try({
         str_extract_all(meta_col$`Associated Gene`[ pv_table[,grepl("none",colnames(pv_table))]<pthres ], "ENST[0-9]+")
       sig_enst = unlist(lapply(sig_enst, function(x) x[!duplicated(x)]))
       try({ sig_entr = grch38_dt$entrez[match(sig_enst,grch38_dt$enstxp)] })
-
+      
     } else if (grepl("rna",feat_type)) {
-      idd_col = grep("ENS", meta_col[1,])
+      isensid = any(grepl("ENS", meta_col[1,]))
       
-      sig_enst = unlist(str_extract_all(meta_col[ pv_table[,grepl("none",colnames(pv_table))]<pthres,idd_col], "ENSG[0-9]+"))
-      sig_enst = sapply(strsplit(sig_enst,"[.]"), function(x) x[1])
+      idd_col = ifelse (isensid, grep("ENS", meta_col[1,]), id_col)
       
-      try({ sig_entr = grch38_dt$entrez[match(sig_enst,grch38_dt$ensgene)] })
+      sig_id = meta_col[ pv_table[,grepl("none",colnames(pv_table))]<pthres, idd_col]
+      sig_enst = sig_id
+      sig_entr = NULL
+      if(isensid)  {
+        sig_enst = sapply(strsplit(unlist(str_extract_all(sig_id, "ENSG[0-9]+")),"[.]"), function(x) x[1])
+        try({ sig_entr = grch38_dt$entrez[match(sig_enst,grch38_dt$ensgene)] })
+      }
       
       if (all(is.na(sig_entr))) {
         sig_enst = unlist(str_extract_all(meta_col$`Associated Gene`[ pv_table[,grepl("none",colnames(pv_table)), idd_col]<pthres ], "ENST[0-9]+"))
@@ -824,9 +768,9 @@ for (pi in 1:length(pval_paths)) { try({
     
     
   }
-    
-    
-    time_output(start1)
+  
+  
+  time_output(start1)
 }) } #pi
 time_output(start)
 
@@ -838,6 +782,23 @@ time_output(start)
 
 
 
+## compare goodppl and flipperDR -----------------------------------
 
+pval_paths = sort(gsub(".Rdata","",list.files(gwas_dir, pattern=".Rdata", full.names=T)))
+pval_paths = Reduce("intersect", lapply(compare_classes, function(cc) gsub(cc,"",pval_paths[grepl(cc,pval_paths)]) ))
 
+start = Sys.time()
 
+for (pval_path in pval_paths) { try({
+  p0 = lapply(compare_classes, function(x) read.csv(paste0(gsub("-X",paste0("-",x,"X"),pval_path),".csv"), row.names=1))
+  ptable = NULL
+  for (pvi in 2:length(p0)) 
+    ptable = merge(p0[[pvi-1]],p0[[pvi]], by=id_col, suffixes=compare_classes[c("",compare_classes[pvi])])
+  ptable1 = ptable[apply(ptable[,grepl("_none",colnames(ptable))],1,function(x) all(x<pthres)),]
+  
+  write.csv(ptable1, file=paste0(gsub("-X",paste0("-",paste0(compare_classes,collapse="."),"X"),pval_path),".csv"))
+  write.csv(ptable, file=paste0(gsub("-X",paste0("-",paste0(compare_classes,collapse="."),"X"),pval_path),"_full.csv"))
+  
+})}
+
+time_output(start)
