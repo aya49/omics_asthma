@@ -177,7 +177,7 @@ asthmaDat %>% group_by(fileName) %>% dplyr::summarise(TotalSum = sum(Count), Coh
 ## plot assay counts
 Dat2 <- asthmaDat
 Dat2$Name <- as.character(Dat2$Name)
-Dat2$Name[Dat2$Name != "HBA2"] <- "other genes"
+Dat2$Name[Dat2$Name != "HBA2"] <- "results/enrichr genes"
 Dat3 <- Dat2 %>% group_by(fileName, Name) %>% dplyr::summarise(TotalSum = sum(Count), Cohort=unique(Cohort)) %>% 
   dplyr::select(TotalSum, Cohort, Name) 
 

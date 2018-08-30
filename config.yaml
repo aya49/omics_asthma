@@ -10,13 +10,13 @@ downloadDir: '../data/genomes/GRCh38/'
 # 2. RSEM parameters
 # "" if single-end reads "--paired-end" if paired-end reads
 readsType: '--paired-end'
-# "--no-bam-output" if do not want transcript bam files otherwise use ""
+# "--no-bam-output" if do not want transcript bam files results/enrichrwise use ""
 transcriptBam: '--no-bam-output'
-# "" if do not want genome bam files otherwise use "--output-genome-bam" (transcriptBam needs to be '')
+# "" if do not want genome bam files results/enrichrwise use "--output-genome-bam" (transcriptBam needs to be '')
 genomeBam: ''
-# "" if do not want star genome bam otherwise use "--star-output-genome-bam"
+# "" if do not want star genome bam results/enrichrwise use "--star-output-genome-bam"
 starGenomeBam: ''
-# "" if do not want to sort bam files otherwise use "--sort-bam-by-coordinate"
+# "" if do not want to sort bam files results/enrichrwise use "--sort-bam-by-coordinate"
 sortBam: ''
 
 

@@ -90,7 +90,7 @@ col_probe = function(m,n=15) {
 ## input: file path and a file extension
 ## output: List of all file names in given path with the given extension
 fileNames = function(pathList, ext="fcs") {
-  temp.str = sapply(str_split(pathList, "/"), function(x) x[length(x)])
+  temp.str = sapply(strsplit(pathList, "/"), function(x) x[length(x)])
   pathList = sub(paste0(".", ext,"$"), "", temp.str, ignore.case=T)
   return(pathList)
 }
@@ -367,6 +367,58 @@ simple_roc <- function(labels, scores){
 }
 
 
+compVar= function (demo, eset, variables, ncomp = 10)
+{
+  library(RColorBrewer)
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  pcaX <- prcomp(eset, scale. = TRUE, center = TRUE)
+  pval <- do.call(rbind, lapply(variables, function(i) {
+    apply(pcaX$x, 2, function(j) {
+      predictor <- demo[, i]
+      if (class(predictor) == "factor") {
+        if (nlevels(predictor) == 2) {
+          coef(summary(lm(as.numeric(j) ~ predictor)))[2,
+                                                       "Pr(>|t|)"]
+        }
+        else {
+          anova(lm(as.numeric(j) ~ predictor))["predictor",
+                                               "Pr(>F)"]
+        }
+      }
+      else {
+        coef(summary(lm(as.numeric(j) ~ predictor)))[2,
+                                                     "Pr(>|t|)"]
+      }
+    })
+  }))
+  rownames(pval) <- variables
+  colnames(pval) <- paste(colnames(pval), paste0(round(100 *
+                                                         (pcaX$sdev^2/sum(pcaX$sdev^2)), 1), "%"), sep = "-")
+  pval <- pval[, 1:ncomp]
+  pvalheatmap <- pval
+  pvalheatmap[pvalheatmap < 0.01] <- 0.01
+  pvalheatmap[pvalheatmap > 0.1] <- 1
+  pvalheatmap[pvalheatmap > 0.01 & pvalheatmap < 0.05] <- 0.05
+  pvalheatmap[pvalheatmap > 0.05 & pvalheatmap < 0.1] <- 0.1
+  pvalheatmap[pvalheatmap == "0.01"] <- "p < 0.01"
+  pvalheatmap[pvalheatmap == "0.05"] <- "0.01 < p < 0.05"
+  pvalheatmap[pvalheatmap == "0.1"] <- "0.05 < p < 0.10"
+  pvalheatmap[pvalheatmap == "1"] <- "p > 0.10"
+  p <- pvalheatmap %>% as.data.frame %>% mutate(Variable = rownames(.)) %>%
+    gather(Threshold, Value, -Variable) %>% mutate(Threshold = factor(Threshold,
+                                                                      levels = unique(Threshold))) %>% mutate(Variable = factor(as.character(Variable),
+                                                                                                                                levels = variables)) %>%
+    mutate(Value = factor(Value, levels = c("p < 0.01", "0.01 < p < 0.05", "0.05 < p < 0.10", "p > 0.10"))) %>%
+    ggplot(aes(Threshold, Variable)) +
+    geom_tile(aes(fill = Value), colour = "white") + scale_fill_manual(values = rev(brewer.pal(n = 8,
+                                                                                               name = "Blues")[c(2, 4, 6, 8)])) + customTheme(sizeStripFont = 10,
+                                                                                                                                              xAngle = 40, hjust = 1, vjust = 1, xSize = 10, ySize = 10,
+                                                                                                                                              xAxisSize = 10, yAxisSize = 10) + xlab("") + ylab("")
+  return(list(pval = pval, pvalheatmap = pvalheatmap, p = p))
+}
+
 ## by casey ------------------------------------------------------
 
 ## input: vector of gene symbols
@@ -394,7 +446,7 @@ sear = function (input, type = c("mrna", "mirna")) {
 }
 
 
-## other ----------------------------------
+## results/enrichr ----------------------------------
 
 
 #From http://bioinfo-mite.crb.wsu.edu/Rcode/wgplot.R
@@ -424,7 +476,7 @@ sear = function (input, type = c("mrna", "mirna")) {
 ## chrom_unique 	chrom_unique for the x-axis, length = number of chromosomes
 ## xlab   label to be placed on the X axis
 ## ylab   lable to be placed on the Y axis
-## ... 	other options in compatible with the R plot function
+## ... 	results/enrichr options in compatible with the R plot function
 
 ## USAGE
 # source("http://bioinfo-mite.crb.wsu.edu/Rcode/wgplot.R")
@@ -541,5 +593,49 @@ customTheme = function (sizeStripFont, xAngle, hjust, vjust, xSize, ySize,
         axis.title.x = element_text(size = xAxisSize, color = "black"),
         axis.title.y = element_text(size = yAxisSize, color = "black"),
         panel.background = element_rect(fill = "white", color = "black"))
+}
+
+
+## mixomics ---------------------------------------------------
+color.mixo = function(num.vector)
+{
+  
+  if (is.factor(num.vector))
+    num.vector=as.numeric(num.vector)
+  
+  if (!is.numeric(num.vector))
+    stop(paste("num.vector has to be numeric", call. = FALSE))
+  
+  # these are the colors in the logo (the first 3) and used in the Shiny web interface
+  mixo.gray = gray.colors(1, start = 0.76, gamma = 1)
+  
+  mixo.col = c('#388ECC', # mixOmics logo blue
+               '#F68B33', # mixOmics logo orange
+               mixo.gray, # mixOmics logo grey
+               '#009E73', # shiny dark green
+               '#CC79A7', # shiny purple/pink
+               '#F0E442', #shiny yellow
+               'black',
+               '#D55E00', #shiny dark orange
+               '#0072B2', #shiny dark blue
+               '#999999'  # shiny grey
+               #'#E69F00', # shiny orange
+               #'#56B4E9' #Shiny blue
+  )
+  
+  #-- checking general input parameters --------------------------------------#
+  #---------------------------------------------------------------------------#
+  
+  n = length(num.vector)
+  #-- n: check that there are more colors available than requested
+  if (isTRUE(num.vector) > length(mixo.col))
+    stop(paste("We only have a few mix.colors available, n <= ", length(mixo.col)), call. = FALSE)
+  
+  if (isTRUE(!is.finite((num.vector))) ||  (n < 1))
+    stop("'num.vector' must be an integer vector with positive values.", call. = FALSE)
+  #-- end checking --#
+  #------------------#
+  
+  return(mixo.col[num.vector])
 }
 

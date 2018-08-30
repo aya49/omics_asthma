@@ -22,7 +22,7 @@ library(rafalib)
 mypar()
 #source(jPaste(root, "/code/functions.R"))
 source("~/Dropbox/Manuscript/mixOmics.org:DIABLO/functions/visualizationFunctions.R")
-#setwd("/Users/asingh/Dropbox/manuscript/mixOmics.org:DIABLO/other/mixOmicsv6/R/")
+#setwd("/Users/asingh/Dropbox/manuscript/mixOmics.org:DIABLO/results/enrichr/mixOmicsv6/R/")
 #lapply(list.files(), function(i) source(i))
 
 ## import clinical datasets
@@ -102,7 +102,7 @@ cohortDatFiltered <- cohortDat#[, colMeans(cohortDat) > cohort2lod]
 cohortDatFilterednorm <- scale(cohortDatFiltered)
 
 col <- paste(subjNames, time)
-col[col %in% names(table(col)[table(col) == 1])] <- "other"
+col[col %in% names(table(col)[table(col) == 1])] <- "results/enrichr"
 col2 <- as.numeric(factor(col))
 
 ## heatmap

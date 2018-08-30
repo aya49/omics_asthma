@@ -5,15 +5,15 @@
 
 
 ## logistics
-root = "~/projects/asthma"; commandArgs <- function(...) root  # root directory, used for _dirs.R
+root = "~/projects/asthma" # root directory, used for _dirs.R
 source(paste0(root, "/code/_dirs.R"))
 source(paste0(root, "/code/_func.R"))
 source(paste0(root, "/code/_func-asthma.R"))
 source(paste0(root, "/code/visualizationFunctions.R"))
 libr(append(pkgs(),c("pROC", "rafalib", "ROCR", "CellCODE", "GGally", "mixOmics")))
 
-no_cores = 5#detectCores()-3
-registerDoMC(no_cores)
+# no_cores = 5#detectCores()-3
+# registerDoMC(no_cores)
 
 
 ## options
@@ -27,121 +27,146 @@ width = 500
 
 ncomp = 2
 
-# if there is a cell feat, there must be a rna feat with gene as colnames
-feat_types1 = list(list(rna="rnaseqstarens.pre",
-                       rna.pc="rnapcgenes.pre",
-                       rna.elements="rnaelements.pre",
-                       gene="genotype"),
-                  list(gene="genotype"),
-                  list(rna.pc="rnapcgenes.pre"),
-                  list(rna.elements="rnaelements.pre"),
-                  list(rna="rnaseqstarens.pre"),
-                  list(rna="rnaseqstarens.pre",
-                       rna.pc="rnapcgenes.pre",
-                       rna.elements="rnaelements.pre",
-                       cell="cellseqgenes.pre", # get rid of rnaseq stuff that went into predicting cells
-                       metab="metab.pre",
-                       gene="genotype"),
-                  list(rna="rnaseqstarens.post",
-                       cell="cellseqgenes.post",
-                       metab="metab.post",
-                       gene="genotype"),
-                  list(rna="rnaseqstarens.diff",
-                       cell="cellseqgenes.diff",
-                       metab="metab.diff",
-                       gene="genotype"),
-                  list(rna="rnaseqstarens.pre",
-                       rna.pc="rnapcgenes.pre",
-                       rna.elements="rnaelements.pre",
-                       cell="cell.pre",
-                       metab="metab.pre",
-                       gene="genotype"),
-                  list(rna="rnaseqstarens.post",
-                       cell="cell.post",
-                       metab="metab.post",
-                       gene="genotype"),
-                  list(rna="rnaseqstarens.diff",
-                       cell="cell.diff",
-                       metab="metab.diff",
-                       gene="genotype"))
+scale_cont = F #if values are continuous, scale?
+caucasians_only = T
 
-feat_types = append(feat_types_annots,feat_types1)
+
+
+dnasigonly = T # if dna; only keep significant snps
+
+
+# if there is a cell feat, there must be a rna feat with gene as colnames
+# feat with same name will be binded together e.g. rna="rnapcgenes.pre" and rna="rnaelements.pre"
+feat_type_sets1 = list(unlist(list(rna="rnaseqstarens.pre",
+                                   rna.pc="rnapcgenes.pre",
+                                   rna.elements="rnaelements.pre",
+                                   dna="dna")),
+                       unlist(list(rna="rnaseqstarens.pre",
+                                   rna="rnapcgenes.pre",
+                                   rna="rnaelements.pre",
+                                   dna="dna")),
+                       unlist(list(dna="dna")),
+                       unlist(list(rna.pc="rnapcgenes.pre")),
+                       unlist(list(rna.elements="rnaelements.pre")),
+                       unlist(list(rna="rnaseqstarens.pre")),
+                       unlist(list(rna="rnaseqstarens.pre",
+                                   rna.pc="rnapcgenes.pre",
+                                   rna.elements="rnaelements.pre",
+                                   cell="cellseqgenes.pre", # get rid of rnaseq stuff that went into predicting cells
+                                   metab="metab.pre",
+                                   dna="dna")),
+                       unlist(list(rna="rnaseqstarens.post",
+                                   cell="cellseqgenes.post",
+                                   metab="metab.post",
+                                   dna="dna")),
+                       unlist(list(rna="rnaseqstarens.diff",
+                                   cell="cellseqgenes.diff",
+                                   metab="metab.diff",
+                                   dna="dna")),
+                       unlist(list(rna="rnaseqstarens.pre",
+                                   rna.pc="rnapcgenes.pre",
+                                   rna.elements="rnaelements.pre",
+                                   cell="cell.pre",
+                                   metab="metab.pre",
+                                   dna="dna")),
+                       unlist(list(rna="rnaseqstarens.post",
+                                   cell="cell.post",
+                                   metab="metab.post",
+                                   dna="dna")),
+                       unlist(list(rna="rnaseqstarens.diff",
+                                   cell="cell.diff",
+                                   metab="metab.diff",
+                                   dna="dna")))
+
+feat_type_sets = append(feat_types_annots,feat_type_sets1)
 
 celldiff = get(load(meta_col_rnacells_dir))
+if (caucasians_only) meta_file0 = meta_file0[grepl("caucasian",meta_file0[,"race"]),]
 
-for (feat_type in feat_types) {
-  m00 = lapply(feat_type, function(x) get(load(paste0(feat_dir,"/",x,".Rdata"))))
-  m00_names = Reduce("intersect",lapply(m00,rownames))
+for (feat_type_set in feat_type_sets) {
+  start1 = Sys.time()
+  cat("\n", unlist(feat_type_set), " ", sep=" ")
   
+  # get dna & gene/isoforms data
+  source(paste0(root,"/code/_func-asthma_mset0-load.R"))
+  
+  class_coli = 1
   for (file_ind_n in names(file_inds)) {
-    # prepare meta_file indices
-    file_ind = file_inds[[file_ind_n]]
-    if (file_ind_n!="all" & all(rownames(m00_names)%in%file_ind)) next()
-    if (file_ind_n=="all") file_ind = m00_names
-    
-    m0_names = intersect(m00_names,file_ind)
-    m0 = lapply(m00, function(x) x[m0_names,] )
-    
-    meta_col00 = lapply(feat_type, function(x) {
-      mcname = paste0(meta_col_dir,"-", str_split(x,"[.]")[[1]][1],".Rdata")
-      if (file.exists(mcname)) return(get(load(mcname)))
-      return(NA)
-    })
-    names(m0) = names(meta_col00) = names(feat_type)
-    
-    for (bin in c("12","01","")) {
+    # for (f1_bin in f1_bins) {
+      # get row files/samples & covariate
+      # get row files/samples & covariate
+      # get row files/samples & covariate
+      meta_file = meta_file0[meta_file0[,id_col] %in% Reduce(intersect,lapply(m_set0,rownames)),, drop=F]
+      rownames(meta_file) = meta_file[,id_col]
+      if (file_ind_n=="flipperdr") meta_file[meta_file[,flipper_col],class_col] = experiment
       
+      # trim matrices
+      source(paste0(root,"/code/_func-asthma_mset-trim.R"))
+      
+      # get row files/samples & covariate
+      meta_file = meta_file[match(rownames(m_set[[1]]),meta_file[,id_col]),]
+      if (file_ind_n=="flipperdr") meta_file[meta_file[,flipper_col],class_col] = experiment
       
       # prepare meta data for samples (their classes)
-      meta_file = meta_file0[match(m0_names,meta_file0[,id_col]),]
       Y = factor(meta_file[,class_col], levels = c("ER", "DR"))
       names(Y) = meta_file[,id_col]
       
+      # get col feature meta
+      meta_col_set = NULL
+      for (x in 1:length(feat_name)) {
+        file_name = paste0(meta_col_dir,feat_name[x],".Rdata")
+        if (!file.exists(file_name)) next()
+        meta_col_setx = get(load(file_name))
+        meta_col_set[[feat_type_set[x]]] = 
+          meta_col_setx[match(colnames(m_set[[feat_type_set[x]]]), meta_col_setx[,id_col]),]
+      }
+      cole = feat_type_set%in%names(meta_col_set)
+      
       # prepare actual data
       X0 = list()
-      meta_col0 = list()
-      for (x in names(m0)) {
-        mx = m0[[x]]
-        if (x=="gene") { #trim based on p value
+      for (x in names(m_set)) {
+        mx = m_set[[x]]
+        if (grepl("dna",x) & dnasigonly) { #trim based on p value
           gwf = list.files(gwas_dir, pattern=".Rdata", full.names=T)
-          gwfi = gwf[grepl("goodpplXall",gwf) & grepl("genotype",gwf)]
-          gwas_g = get(load(gwfi))
+          gwas_g = get(load(gwf[grepl(paste0(x,"-",file_ind_n,"Xall"),gwf)]))
           gwas_gl = gwas_g[,grepl("none",colnames(gwas_g))]
           mx = mx[,names(gwas_gl)[gwas_gl<pthres]]
-          
-          if (bin=="01") mx[mx==2] = 1
-          if (bin=="12") mx[mx==0] = 1
+          if (!is.null(dim(meta_col_set[[x]]))) meta_col_set[[x]] = meta_col_set[[x]][match(colnames(mx),meta_col_set[[x]][,id_col]),]
         }
-        mx = mx[apply(mx,1,function(y) any(!is.na(y))), 
-                apply(mx,2,function(y) sum(!is.na(y))>(good_na*length(y)))]
-        if (x=="gene") mx = mx[,apply(mx,2,function(x) min(table(x))>good_col & length(table(x))>1)]
-        if (!is.null(dim(meta_col00[[x]]))) meta_col0[[x]] = meta_col00[[x]][match(colnames(mx),meta_col00[[x]][,id_col]),]
-        if (x=="gene") colnames(mx) = meta_col0[[x]][,"dbSNP"]
-        if (grepl("rna",x)) colnames(mx) = meta_col0[[x]][,"symbol"]
-        if (grepl("rna",x) | x=="gene") {
+        if (grepl("dna",x)) colnames(mx)[!is.na(meta_col_set[[x]][,"dbSNP"])] = meta_col_set[[x]][!is.na(meta_col_set[[x]][,"dbSNP"]),"dbSNP"]
+        if (grepl("rna",x)) colnames(mx)[!is.na(meta_col_set[[x]][,"symbol"])] = meta_col_set[[x]][!is.na(meta_col_set[[x]][,"symbol"]),"symbol"]
+        if (grepl("rna",x) | grepl("dna",x)) {
           dupind = duplicated(colnames(mx), fromLast=F) | duplicated(colnames(mx), fromLast=T)
-          colnames(mx)[dupind] = paste0(colnames(mx)[dupind], "_", meta_col0[[x]][dupind,id_col])
+          colnames(mx)[dupind] = paste0(colnames(mx)[dupind], "_", meta_col_set[[x]][dupind,id_col])
         }
         X0[[x]] = mx
       }
 
+      # 0 has all the original feat names
       X = X0
-      meta_col = meta_col0
+      meta_col_set0 = meta_col_set 
       
       
       #get rid of rna genes that went into inferring cell count if cell count is used
       if (sum(grepl("cellseqgenes",names(X)))>0 & sum(grepl("rna",names(X)))>0)
         X[grepl("rna",names(X))] = lapply(X[grepl("rna",names(X))], function(X) x[,!colnames(x)%in%celldiff])
       
-      #bind rna type data sets together
-      if (sum(grepl("rna",names(meta_col0)))>1) {
-        Xrna = Reduce("cbind",X[grepl("rna",names(X))])
-        X = X[!grepl("rna",names(X))]
-        X$rna = Xrna
-        
-        meta_colrna = Reduce("rbind",meta_colrna[grepl("rna",names(meta_col))])
-        meta_col = meta_colrna[!grepl("rna",names(meta_col))]
-        
+      #bind feat with same name together
+      dupfeat = feat_type_set[feat_type_set%in%names(X)]
+      dupfeat = dupfeat[duplicated(names(dupfeat)) | duplicated(names(dupfeat), fromLast=T)]
+      if (length(dupfeat)>0) {
+        for (duf in unique(names(dupfeat))) {
+          dupfeati = dupfeat[names(dupfeat)%in%duf]
+          Xrna = Reduce("cbind",X[dupfeati])
+          X = X[!names(X)%in%dupfeati]
+          X[[duf]] = Xrna
+          
+          meta_col_setrna = meta_col_set[names(meta_col_set)%in%dupfeati]
+          rnacols = Reduce(intersect, lapply(meta_col_setrna, colnames))
+          meta_col_setrna = Reduce(rbind, lapply(meta_col_setrna, function(x) x[,rnacols]))
+          meta_col_set = meta_col_set[!names(meta_col_set)%in%dupfeati]
+          meta_col_set[[duf]] = meta_col_setrna
+        }
       }
       
       # prepare number of pls-da factors you want for each data
@@ -153,13 +178,15 @@ for (feat_type in feat_types) {
       for (tune_ in c("","tune")) {
         
         # prepare file name
-        pname = paste0(blocksplsda_dir, "/", paste(feat_type,collapse="-"), ifelse(bin=="","","."), bin, "-",  file_ind_n, "Xall", "_pthres-", pthres,ifelse(tune_=="","","_"),tune_)
+        pname = paste0(blocksplsda_dir, "/", paste(feat_type_set,collapse="-"), "-",  file_ind_n, "Xall", "_class-", paste(interested_cols,collapse="."),"_", paste0(names(table(meta_file[,class_col])),table(meta_file[,class_col]), collapse="v"), "_pthres-", pthres,ifelse(tune_=="","","_"),tune_)
+        # pname = paste0(blocksplsda_dir, "/", paste(feat_type_set,collapse="-"), ifelse(f1_bin=="","","."), f1_bin, "-",  file_ind_n, "Xall", "_class-", paste(interested_cols,collapse="."),"_", paste0(names(table(meta_file[,class_col])),table(meta_file[,class_col]), collapse="v"), "_pthres-", pthres,ifelse(tune_=="","","_"),tune_)
+        
         if (overwrite & file.exists(paste0(pname,".Rdata"))) next()
         
         keepX = lapply(names(X), function(x) {
           if (x=="cell") return(rep(2, ncomp))
-          if (grepl("rna",x) | x=="gene") return(rep(10, ncomp))
-          if (x=="metab") return(rep(5, ncomp))
+          if (grepl("rna",x) | grepl("dna",x)) return(rep(10, ncomp))
+          if (x=="metab") return(rep(2, ncomp))
         })
         names(keepX) = names(X)
         
@@ -193,7 +220,6 @@ for (feat_type in feat_types) {
           
           # use tuned keepX
           keepX = tune$choice.keepX
-          
         }
         
         ## block.splsda = horizontal integration PLS-DA model with a specified number of components per block either by Y or by its position indY in the list of blocks X
@@ -303,9 +329,9 @@ for (feat_type in feat_types) {
             
             # save features
             if (grepl("rna",feat)) {
-              hk.known = meta_col0[[feat]][match(sapply(strsplit(as.character(feat1[[feat]]), "[.]|_"), function(i) i[1]), meta_col0[[feat]][,"symbol"]),]
-            } else if (feat=="gene") {
-              hk.known = meta_col0[[feat]][match(sapply(strsplit(as.character(feat1[[feat]]), "[.]|_"), function(i) i[1]), meta_col0[[feat]][,"dbSNP"]),]
+              hk.known = meta_col_set[[feat]][match(sapply(strsplit(as.character(feat1[[feat]]), "[.]|_"), function(i) i[1]), meta_col_set[[feat]][,"symbol"]),]
+            } else if (feat=="dna") {
+              hk.known = meta_col_set[[feat]][match(sapply(strsplit(as.character(feat1[[feat]]), "[.]|_"), function(i) i[1]), meta_col_set[[feat]][,"dbSNP"]),]
             } else {
               hk.known = as.character(feat1[[feat]])
             }
@@ -346,6 +372,6 @@ for (feat_type in feat_types) {
           
         } #test
       } #tune_
-    } #bin
+    # } #f1_bin
   } #file_ind
-} #feat_type
+} #feat_type_set

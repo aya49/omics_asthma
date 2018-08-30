@@ -6,14 +6,12 @@
 
 
 ## logistics
-root = "~/projects/asthma"
-no_cores = 5#detectCores()-3
-commandArgs <- function(...) list(root,F,c("qdapTools","GGally","ROCR","rafalib","pROC","CellCODE"))  # devtools::install_github("mchikina/CellCODE")
-flipper_col = "flipper_calc"
-class_col = "response"
-controls = "ER"
-experiments = "DR"
-source(paste0(root, "/code/_prep.R"))
+root = "~/projects/asthma" # root directory, used for _dirs.R
+source(paste0(root, "/code/_dirs.R"))
+source(paste0(root, "/code/_func.R"))
+source(paste0(root, "/code/_func-asthma.R"))
+source(paste0(root, "/code/visualizationFunctions.R"))
+libr(append(pkgs(),c("qdapTools")))
 
 
 ## options

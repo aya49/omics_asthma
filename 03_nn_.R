@@ -18,7 +18,7 @@ meta_file_dir = paste0(meta_dir,"/file")
 meta_col_dir = paste0(meta_dir,"/col")
 
 feat_dir = paste0(result_dir,"/feat")
-# feat_genotype_dir = paste0(feat_dir,"/snp-file-genotype")
+# feat_dna_dir = paste0(feat_dir,"/snp-file-dna")
 
 
 ## output directory
@@ -65,21 +65,21 @@ ncomp = 2
 
 # if there is a cell feat, there must be a rna feat with gene as colnames
 feat_types = list(list(rna="rnaseqstarens.pre",
-                       gene="genotype"),
-                  list(gene="genotype"),
+                       gene="dna"),
+                  list(gene="dna"),
                   list(rna="rnaseqstarens.pre"),
                   list(rna="rnaseqstarens.pre",
                        cell="cellseqgenes.pre",
                        metab="metab.pre",
-                       gene="genotype"),
+                       gene="dna"),
                   list(rna="rnaseqstarens.post",
                        cell="cellseqgenes.post",
                        metab="metab.post",
-                       gene="genotype"),
+                       gene="dna"),
                   list(rna="rnaseqstarens.diff",
                        cell="cellseqgenes.diff",
                        metab="metab.diff",
-                       gene="genotype"))
+                       gene="dna"))
 
 
 meta_file0 = get(load(paste0(meta_file_dir,".Rdata")))
@@ -111,7 +111,7 @@ for (feat_type in feat_types) {
       mx = m0[[x]]
       if (x=="gene") { #trim based on p value
         gwf = list.files(gwas_dir, pattern=".Rdata", full.names=T)
-        gwfi = gwf[grepl("goodpplXall",gwf) & grepl("genotype",gwf)]
+        gwfi = gwf[grepl("goodpplXall",gwf) & grepl("dna",gwf)]
         gwas_g = get(load(gwfi))
         gwas_gl = gwas_g[,grepl("none",colnames(gwas_g))]
         mx = mx[,names(gwas_gl)[gwas_gl<pthres]]

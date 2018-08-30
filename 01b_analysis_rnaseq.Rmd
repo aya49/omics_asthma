@@ -1,0 +1,1161 @@
+---
+title: "discovery analysis rnaSeq"
+output:
+  html_document:
+    theme: yeti
+    highlight: zenburn
+    number_sections: true
+    toc: true
+    toc_float: 
+      collapsed: true
+      smooth_scroll: false
+    df_print: paged
+---
+
+```{r, echo = FALSE, results='hide', message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# logistics
+
+```{r}
+## logistics
+root = "~/projects/asthma" # root directory, used for _dirs.R
+source(paste0(root, "/code/_dirs.R"))
+source(paste0(root, "/code/_func.R"))
+source(paste0(root, "/code/_func-asthma.R"))
+source(paste0(root, "/code/_func-classifiers.R"))
+source(paste0(root, "/code/crossValidationPerf.R"))
+libr(append(pkgs(),c("mixOmics","tidyverse","igraph",
+                     "ggrepel","biomaRt","sear","RColorBrewer")))
+```
+
+prepare meta_filegraphics
+
+```{r}
+
+## load datasets (meta_filegraphics and rnaseq data)
+load(rnaseqa_datanew_dir) #rnaseq_meta_file
+# rnaseq_meta_file = rnaseq_demo
+# rnaseq_meta_file = rnaseq_meta_file[order(rownames(rnaseq_meta_file)),]
+
+# rnaseq_datasets = lapply(rnaseq_datasets, function(x) x[,order(colnames(x))])
+
+# time=Pre meta_file and data
+rnaseq_meta_file_pre <- subset(rnaseq_meta_file, Time == "Pre")
+rnaseq_datasets_pre <- lapply(rnaseq_datasets, function(i) i[,rownames(rnaseq_meta_file_pre)] )
+
+# time=Post meta_file and data
+rnaseq_meta_file_post <- subset(rnaseq_meta_file, Time == "Post")
+rnaseq_datasets_post <- lapply(rnaseq_datasets, function(i) i[,rownames(rnaseq_meta_file_post)] )
+
+# check if both pre and post are in the same order
+mapply(function(x, y){
+  all(gsub(".Pre", "", colnames(x)) == gsub(".Post", "", colnames(y)))
+}, x = rnaseq_datasets_pre, y = rnaseq_datasets_post)
+rnaseq_datasets_diff <- mapply(function(pre, post){
+  post - pre
+}, pre = rnaseq_datasets_pre, post = rnaseq_datasets_post)
+
+```
+
+# pre-challenge DE of discovery cohort
+
+## response vs cell counts
+
+```{r}
+# cell=non/leucocytes meta_file; make response a factor, choose 7 columns, except response collate all cell types into a col and their freq into a col
+cc_pre <- rnaseq_meta_file_pre %>% 
+  mutate(Response = factor(calculated_Response, levels = c("ER", "DR"))) %>% 
+  dplyr::select(Response, Leukocyte_Counts.x10.9., Neu_percent, 
+                lym_percent, mono_percent, eos_percent, baso_percent) %>% 
+  gather(Cells, freq, -Response)
+# rename cell populations
+cc_pre$Cells[cc_pre$Cells == "Leukocyte_Counts.x10.9."] <- "Leukocytes"
+cc_pre$Cells[cc_pre$Cells == "Neu_percent"] <- "Neutrophils"
+cc_pre$Cells[cc_pre$Cells == "lym_percent"] <- "Lymphocytes"
+cc_pre$Cells[cc_pre$Cells == "mono_percent"] <- "Monocytes"
+cc_pre$Cells[cc_pre$Cells == "eos_percent"] <- "Eosinophils"
+cc_pre$Cells[cc_pre$Cells == "baso_percent"] <- "Basophils"
+
+```
+
+### non/leucocytes ~ response
+
+```{r}
+# leukocytes
+a1 <- filter(cc_pre, Cells == "Leukocytes") %>% 
+  ggplot(aes(x = Response, y = freq, fill = Response)) +
+  geom_boxplot() + geom_jitter(width = 0.15) + 
+  facet_wrap(~Cells, scales = "free") +
+  ylab(expression("Leukocytes (x10"^9~" cells/L)")) +
+  customTheme(sizeStripFont = 10, xAngle = 0, hjust = 0.5, vjust = 0.5, 
+              xSize = 10, ySize = 10, xAxisSize = 10, yAxisSize = 10)
+# non-leukocytes
+a2 <- filter(cc_pre, Cells != "Leukocytes") %>%
+  mutate(Cells = factor(Cells, levels = c("Neutrophils", "Lymphocytes", "Monocytes", "Eosinophils", "Basophils"))) %>% 
+  ggplot(aes(x = Response, y = freq, fill = Response)) +
+  geom_boxplot() + geom_jitter(width = 0.15) + 
+  facet_wrap(~Cells, scales = "free", ncol = 5) +
+  ylab(expression("Proportion of cells (%)")) +
+  customTheme(sizeStripFont = 10, xAngle = 0, hjust = 0.5, vjust = 0.5, 
+              xSize = 10, ySize = 10, xAxisSize = 10, yAxisSize = 10)
+
+```
+
+### cell counts ~ response
+
+```{r}
+## which cell frequencies signficantly changes between er and dr at pre-challenge
+
+# pdf(rnaseq_cell_count_dir)
+for (cell_col in c("Leukocyte_Counts.x10.9.",  # NOT normal! # pw=0.36 # Pt=0.31
+                   "Neu_percent",  # null = not normal distri # Pt=0.19
+                   "lym_percent",  # normal # Pt=0.70
+                   "mono_percent",  # normal # Pt=0.24
+                   "eos_percent",  # NOT normal!  # pw=0.27
+                   "baso_percent") # NOT normal!  # pw=0.36
+     ) {
+  fit <- lm(rnaseq_meta_file_pre[,cell_col] ~ rnaseq_meta_file_pre$calculated_Response)
+  plot(fit, main=paste0(cell_col," ~ response"))
+  shapiro.test(fit$residuals) 
+  qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
+  wilcox.test(x = rnaseq_meta_file_pre[rnaseq_meta_file_pre$calculated_Response == "ER", cell_col],
+              y = rnaseq_meta_file_pre[rnaseq_meta_file_pre$calculated_Response == "DR", cell_col]) 
+}
+# graphics.off()
+
+
+```
+
+### non/normally distributed cells only
+
+```{r}
+# variables that are normally distributed
+rnaseq_meta_file_pre %>% dplyr::select(Leukocyte_Counts.x10.9., Neu_percent, lym_percent, mono_percent, calculated_Response) %>% 
+  gather(Cells, freq, -calculated_Response) %>% 
+  group_by(Cells, calculated_Response) %>% 
+  summarise(Mean = round(mean(freq, na.rm = TRUE), 2), SD = round(sd(freq, na.rm = TRUE), 2))
+
+# variables that are NOT normally distributed
+rnaseq_meta_file_pre %>% dplyr::select(eos_percent, baso_percent, calculated_Response) %>% 
+  gather(Cells, freq, -calculated_Response) %>% 
+  group_by(Cells, calculated_Response) %>% 
+  dplyr::summarise(Median = round(median(freq, na.rm = TRUE), 2), 
+                   Q1 = quantile(freq, 0.25, na.rm = TRUE), Q3 = quantile(freq, 0.75, na.rm = TRUE))
+
+
+```
+
+## response ~ meta_filegraphics
+
+tables
+
+```{r}
+table(rnaseq_meta_file_pre$calculated_Response)
+table(rnaseq_meta_file_pre$SEX, rnaseq_meta_file_pre$calculated_Response)
+# 13/19 # proporiton of female (ER)
+# 11/17 # proporiton of female (DR)
+table(droplevels(rnaseq_meta_file_pre$Allergen_cleanLabel), rnaseq_meta_file_pre$calculated_Response)
+table(droplevels(rnaseq_meta_file_pre$SITE), rnaseq_meta_file_pre$calculated_Response)
+
+```
+
+### response ~ meta_file
+
+```{r}
+  pdf(rnaseq_demo_dir)
+
+for (cell_col in c("Wt..Kg.",  # not normal # pw=0.23
+                   "HT.cm.",  # normal #pt = 0.91
+                   "AGE", # not normal  # pw=0.65
+                   "BLFEV",# normal #pt = 0.95
+                   "PRFEV",  # not normal  # pw=0.91
+                   "EAR", # normal # pw=0.12
+                   "LAR", #not normal # Pt=2.86e-14
+                   "PC20", # NOT normal! # pw=0.11
+                   "AIS") # normal  # Pt = 0.01
+     ) {
+fit <- lm(rnaseq_meta_file_pre[,cell_col] ~ rnaseq_meta_file_pre$calculated_Response)
+plot(fit)
+shapiro.test(fit$residuals) ## not normal
+qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
+wilcox.test(x = rnaseq_meta_file_pre[rnaseq_meta_file_pre$calculated_Response == "ER", cell_col], 
+            y = rnaseq_meta_file_pre[rnaseq_meta_file_pre$calculated_Response == "DR", cell_col])  # pw=0.23
+}
+graphics.off()
+```
+
+### non/normally distributed meta_file only
+
+```{r}
+# variables that are NOT normally distributed
+rnaseq_meta_file_pre %>% dplyr::select(Wt..Kg.,AGE,PRFEV, EAR, PC20, calculated_Response) %>% 
+  gather(Cells, freq, -calculated_Response) %>% 
+  group_by(Cells, calculated_Response) %>% 
+  dplyr::summarise(Median = round(median(freq, na.rm = TRUE), 2), 
+                   Q1 = quantile(freq, 0.25, na.rm = TRUE), Q3 = quantile(freq, 0.75, na.rm = TRUE))
+
+# variables that are normally distributed
+rnaseq_meta_file_pre %>% dplyr::select(HT.cm., BLFEV, LAR, AIS, calculated_Response) %>% 
+  gather(meta_file, freq, -calculated_Response) %>% 
+  group_by(meta_file, calculated_Response) %>% 
+  summarise(Mean = round(mean(freq, na.rm = TRUE), 2), SD = round(sd(freq, na.rm = TRUE), 2))
+
+
+```
+
+
+## gene counts ~ response
+
+```{r}
+# genes ~ response
+design_resp <- model.matrix(~factor(rnaseq_meta_file_pre$calculated_Response, levels = c("ER", "DR")))
+nrow(rnaseq_meta_file_pre); table(rnaseq_meta_file_pre$calculated_Response)
+deg_pre <- lapply(1 : length(rnaseq_datasets_pre), function(i){
+  fit <- eBayes(lmFit(rnaseq_datasets_pre[[i]], design_resp))
+  top <- topTable(fit, coef = 2, adjust.method = "BH", n = nrow(fit)) #top genes
+  top$NumOfGenes <- 1:nrow(top)
+  top$Dataset <- rep(names(rnaseq_datasets_pre)[i], nrow(top)) # "ucscGeneCounts"  "ucscGeneIsoCounts" "starEnsemblExp" "trinityGeneIsoCounts"
+  top$Comparison <- "Pre"
+  top$Cell_counts <- "Unadjusted"
+  top
+})
+names(deg_pre) <- names(rnaseq_datasets_pre)
+
+# genes ~ response + leukocytes
+design_resp.leuk <- model.matrix(~factor(rnaseq_meta_file_pre$calculated_Response, levels = c("ER", "DR"))
+                                 + Leukocyte_Counts.x10.9., data = rnaseq_meta_file_pre)
+nrow(rnaseq_meta_file_pre[rownames(design_resp.leuk), ]); table(rnaseq_meta_file_pre[rownames(design_resp.leuk), "calculated_Response"])
+deg_pre_cc <- lapply(1 : length(rnaseq_datasets_pre), function(i){
+  fit <- eBayes(lmFit(rnaseq_datasets_pre[[i]][, rownames(design_resp.leuk)], design_resp.leuk))
+  top <- topTable(fit, coef = 2, adjust.method = "BH", n = nrow(fit))
+  top$NumOfGenes <- 1:nrow(top)
+  top$Dataset <- rep(names(rnaseq_datasets_pre)[i], nrow(top))
+  top$Comparison <- "Pre"
+  top$Cell_counts <- "Adjusted"
+  top
+})
+names(deg_pre_cc) <- names(rnaseq_datasets_pre)
+
+```
+
+# post-challenge DE of discovery cohort
+
+## gene counts ~ response
+
+```{r}
+# gene counts ~ response
+design_resp <- model.matrix(~factor(rnaseq_meta_file_post$calculated_Response, levels = c("ER", "DR")))
+
+deg_diff <- lapply(1 : length(rnaseq_datasets_diff), function(i){
+  fit <- eBayes(lmFit(rnaseq_datasets_diff[[i]], design_resp))
+  top <- topTable(fit, coef = 2, adjust.method = "BH", n = nrow(fit))
+  top$NumOfGenes <- 1:nrow(top)
+  top$Dataset <- rep(names(rnaseq_datasets_diff)[i], nrow(top))
+  top$Comparison <- "Interaction"
+  top$Cell_counts <- "Unadjusted"
+  top
+})
+names(deg_diff) <- names(rnaseq_datasets_diff)
+
+# gene counts ~ response + leukocyte(post - pre)
+design_respDat <- data.frame(response = rnaseq_meta_file_post$calculated_Response,
+                             cc = rnaseq_meta_file_post[, "Leukocyte_Counts.x10.9."] - rnaseq_meta_file_pre[, "Leukocyte_Counts.x10.9."])
+rownames(design_respDat) <- rownames(rnaseq_meta_file_post)
+nrow(rnaseq_meta_file_post[rownames(na.omit(design_respDat)),])
+table(rnaseq_meta_file_post[rownames(na.omit(design_respDat)), "calculated_Response"])
+
+design_resp.cc <- model.matrix(~response+cc, data = design_respDat)
+table(design_resp.cc[,"responseER"])
+
+deg_diff_cc <- lapply(1 : length(rnaseq_datasets_diff), function(i){
+  fit <- eBayes(lmFit(rnaseq_datasets_diff[[i]][, rownames(design_resp.cc)], design_resp.cc))
+  top <- topTable(fit, coef = 2, adjust.method = "BH", n = nrow(fit))
+  top$NumOfGenes <- 1:nrow(top)
+  top$Dataset <- rep(names(rnaseq_datasets_diff)[i], nrow(top))
+  top$Comparison <- "Interaction"
+  top$Cell_counts <- "Adjusted"
+  top
+})
+names(deg_diff_cc) <- names(rnaseq_datasets_diff)
+
+```
+
+## P20 ~ response
+
+```{r}
+# PC20 ~ response; wilcox(P20postER, P20postDR)
+fit <- lm(rnaseq_meta_file_post$PC20 ~ rnaseq_meta_file_post$calculated_Response)
+plot(fit)
+shapiro.test(fit$residuals) ## not normal
+qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
+wilcox.test(x = rnaseq_meta_file_post$PC20[rnaseq_meta_file_post$calculated_Response == "ER"], 
+            y = rnaseq_meta_file_post$PC20[rnaseq_meta_file_post$calculated_Response == "DR"])  # pw=0.11
+```
+
+### non/normal variables
+
+```{r}
+
+# variables that are NOT normally distributed
+rnaseq_meta_file_post %>% dplyr::select(PC20, calculated_Response) %>% 
+  gather(Cells, freq, -calculated_Response) %>% 
+  group_by(Cells, calculated_Response) %>% 
+  dplyr::summarise(Median = round(median(freq, na.rm = TRUE), 2), 
+                   Q1 = quantile(freq, 0.25, na.rm = TRUE), Q3 = quantile(freq, 0.75, na.rm = TRUE))
+```
+
+## cell ~ gene counts of post-challenge
+
+prepare cell types
+
+```{r}
+## Cell-types
+cbc_diff <- rnaseq_meta_file_post[, c("Leukocyte_Counts.x10.9.", "Neu_percent", 
+                                 "lym_percent", "mono_percent", "eos_percent", "baso_percent")] - rnaseq_meta_file_pre[, c("Leukocyte_Counts.x10.9.", "Neu_percent", 
+                                                                                                                      "lym_percent", "mono_percent", "eos_percent", "baso_percent")]
+
+cc_diff <- cbc_diff %>% 
+  mutate(Response = factor(rnaseq_meta_file_pre$calculated_Response, levels = c("ER", "DR"))) %>% 
+  dplyr::select(Response, Leukocyte_Counts.x10.9., Neu_percent, 
+                lym_percent, mono_percent, eos_percent, baso_percent) %>% 
+  gather(Cells, freq, -Response)
+cc_diff$Cells[cc_diff$Cells == "Leukocyte_Counts.x10.9."] <- "Leukocytes"
+cc_diff$Cells[cc_diff$Cells == "Neu_percent"] <- "Neutrophils"
+cc_diff$Cells[cc_diff$Cells == "lym_percent"] <- "Lymphocytes"
+cc_diff$Cells[cc_diff$Cells == "mono_percent"] <- "Monocytes"
+cc_diff$Cells[cc_diff$Cells == "eos_percent"] <- "Eosinophils"
+cc_diff$Cells[cc_diff$Cells == "baso_percent"] <- "Basophils"
+
+```
+
+### non/leucocytes ~ response
+
+```{r}
+a1 <- filter(cc_diff, Cells == "Leukocytes") %>% 
+  ggplot(aes(x = Response, y = freq, fill = Response)) +
+  geom_boxplot() + geom_jitter(width = 0.15) + 
+  facet_wrap(~Cells, scales = "free") +
+  ylab(expression("Post minus pre counts")) +
+  customTheme(sizeStripFont = 10, xAngle = 0, hjust = 0.5, vjust = 0.5, 
+              xSize = 10, ySize = 10, xAxisSize = 10, yAxisSize = 10) +
+  geom_hline(yintercept = 0, linetype = "dashed", col = "red")
+a2 <- filter(cc_diff, Cells != "Leukocytes") %>% 
+  mutate(Cells = factor(Cells, levels = c("Neutrophils", "Lymphocytes", "Monocytes", "Eosinophils", "Basophils"))) %>% 
+  ggplot(aes(x = Response, y = freq, fill = Response)) +
+  geom_boxplot() + geom_jitter(width = 0.15) + 
+  facet_wrap(~Cells, scales = "free", ncol = 5) +
+  ylab(expression("Post minus pre proportion (fold-change)")) +
+  customTheme(sizeStripFont = 10, xAngle = 0, hjust = 0.5, vjust = 0.5, 
+              xSize = 10, ySize = 10, xAxisSize = 10, yAxisSize = 10) +
+  geom_hline(yintercept = 0, linetype = "dashed", col = "red")
+
+```
+
+### cell counts ~ response
+
+```{r}
+## which cell frequencies signficantly changes between er and dr at pre-challenge
+
+# Leukocytes
+fit <- lm(cbc_diff$Leukocyte_Counts.x10.9. ~ rnaseq_meta_file_post$calculated_Response)
+plot(fit)
+shapiro.test(fit$residuals)
+qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
+summary(fit) # Pt=0.57
+
+# Neutrophils
+fit <- lm(cbc_diff$Neu_percent ~ rnaseq_meta_file_post$calculated_Response)
+plot(fit)
+shapiro.test(fit$residuals)
+qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
+summary(fit) # Pt=0.85
+
+# Lymphocytes
+fit <- lm(cbc_diff$lym_percent ~ rnaseq_meta_file_post$calculated_Response)
+plot(fit)
+shapiro.test(fit$residuals)
+qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
+summary(fit) # Pt=0.80
+
+# Monocytes
+fit <- lm(cbc_diff$mono_percent ~ rnaseq_meta_file_post$calculated_Response)
+plot(fit)
+shapiro.test(fit$residuals)
+qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
+summary(fit) # Pt=0.65
+
+# Eosinophils
+fit <- lm(cbc_diff$eos_percent ~ rnaseq_meta_file_post$calculated_Response)
+plot(fit)
+shapiro.test(fit$residuals)  # NOT normal!
+qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
+wilcox.test(x = cbc_diff$eos_percent[rnaseq_meta_file_post$calculated_Response == "ER"], 
+            y = cbc_diff$eos_percent[rnaseq_meta_file_post$calculated_Response == "DR"])  # pw=0.33
+
+# Basophils
+fit <- lm(cbc_diff$baso_percent ~ rnaseq_meta_file_post$calculated_Response)
+plot(fit)
+shapiro.test(fit$residuals) 
+qqnorm(fit$residuals); qqline(fit$residuals, col = 2)
+summary(fit) # Pt=0.22
+
+```
+
+# adj p val ~ num of genes
+
+```{r}
+## Figure 1B
+## genes x 4 x (pre, post-pre, pre+ leuk, post-pre+ leuk) by bayes lm fit with response
+sigDat <- rbind(do.call(rbind, deg_pre), do.call(rbind, deg_diff), do.call(rbind, deg_pre_cc), do.call(rbind, deg_diff_cc)) 
+sigDat$Dataset[sigDat$Dataset == "starEnsemblExp"] <- "Ensembl"
+sigDat$Dataset[sigDat$Dataset == "trinityGeneIsoCounts"] <- "Trinity"
+sigDat$Dataset[sigDat$Dataset == "ucscGeneCounts"] <- "UCSC genes"
+sigDat$Dataset[sigDat$Dataset == "ucscGeneIsoCounts"] <- "UCSC gene-isoforms"
+sigDat$Dataset <- factor(sigDat$Dataset, levels = c("UCSC genes", "UCSC gene-isoforms", "Ensembl", "Trinity", ""))
+
+cbPalette <- brewer.pal(3, "Set1")
+pdf(paste0(rnaseq_dir, "/result/Figure2a.pdf"), width = 15, height = 5)
+ggplot(sigDat, aes(x = NumOfGenes, y = adj.P.Val, color = Comparison, linetype = Cell_counts)) + 
+  theme(panel.grid.major = element_line(colour = "#CCCCCC", linetype = "dashed")) +
+  geom_line(size = 1.5) +
+  facet_grid(~Dataset) + scale_x_log10() + annotation_logticks(sides = "b") +
+  customTheme(sizeStripFont = 15, xAngle = 0, hjust = 0.5, vjust = 0.5, 
+              xSize = 12, ySize = 12, xAxisSize = 12, yAxisSize = 12) +
+  xlab("Number of significant mRNA transcripts") +
+  ylab("False Discovery Rate (FDR)") +
+  geom_hline(yintercept = 0.15, col = "red", linetype = "dashed") + 
+  scale_color_manual(values=cbPalette, name = "Comparison") +
+  annotate("text", x=10, y = 0.17, label = "FDR=0.15", col = "red")
+dev.off()
+
+```
+
+# adj p val overlap with/out leuk
+
+```{r}
+# number of significant adjusted p values per data
+sapply(deg_pre, function(i) sum(i$adj.P.Val < 0.15) )
+sapply(deg_pre_cc, function(i) sum(i$adj.P.Val < 0.15) )
+
+# number of significant adjusted p values per data; intersect between pre-challenge and pre + leuk 
+sapply(1 : length(deg_pre), function(i){
+  length(intersect(rownames(subset(deg_pre[[i]], adj.P.Val < 0.15)), rownames(subset(deg_pre_cc[[i]], adj.P.Val < 0.15))))
+})
+# '' transcript names
+deg_pre_cc_common <- lapply(1 : length(deg_pre), function(i){
+  deg_pre[[i]][intersect(rownames(subset(deg_pre[[i]], adj.P.Val < 0.15)), rownames(subset(deg_pre_cc[[i]], adj.P.Val < 0.15))), ]
+})
+# '' num of t value >0 and <0
+lapply(deg_pre_cc_common, function(i) c(sum(i$t > 0), sum(i$t <0)) )
+
+# not signficant 
+deg_pre_cc_Notcommon <- lapply(1 : length(deg_pre), function(i){
+  deg_pre[[i]][setdiff(rownames(deg_pre[[i]]), intersect(rownames(subset(deg_pre[[i]], adj.P.Val < 0.15)), rownames(subset(deg_pre_cc[[i]], adj.P.Val < 0.15)))), ]
+})
+
+```
+
+# MA plots 
+## pre-challenge
+
+```{r}
+colPalette <- c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3")
+
+## sig transcript in common between pre & pre + leuk
+topPre_sig <- do.call(rbind, deg_pre_cc_common)
+topPre_sig$Dataset[topPre_sig$Dataset == "starEnsemblExp"] <- "Ensembl"
+topPre_sig$Dataset[topPre_sig$Dataset == "trinityGeneIsoCounts"] <- "Trinity"
+topPre_sig$Dataset[topPre_sig$Dataset == "ucscGeneCounts"] <- "UCSC genes"
+topPre_sig$Dataset[topPre_sig$Dataset == "ucscGeneIsoCounts"] <- "UCSC gene-isoforms"
+topPre_sig$Dataset <- factor(topPre_sig$Dataset, levels = c("UCSC genes", "UCSC gene-isoforms", "Ensembl", "Trinity"))
+
+## sig transcript not in common between pre & pre + leuk
+topPre_nonsig <- do.call(rbind, deg_pre_cc_Notcommon)
+topPre_nonsig$Dataset[topPre_nonsig$Dataset == "starEnsemblExp"] <- "Ensembl"
+topPre_nonsig$Dataset[topPre_nonsig$Dataset == "trinityGeneIsoCounts"] <- "Trinity"
+topPre_nonsig$Dataset[topPre_nonsig$Dataset == "ucscGeneCounts"] <- "UCSC genes"
+topPre_nonsig$Dataset[topPre_nonsig$Dataset == "ucscGeneIsoCounts"] <- "UCSC gene-isoforms"
+topPre_nonsig$Dataset <- factor(topPre_nonsig$Dataset, levels = c("UCSC genes", "UCSC gene-isoforms", "Ensembl", "Trinity"))
+
+```
+
+### logFC? ~ avgexpr of top pre-challenge sig 
+
+```{r}
+
+pdf(rnaseq_2b_dir, width = 15, height = 5)
+ggplot(topPre_nonsig, aes(x = AveExpr, y = logFC)) + geom_point() +
+  facet_wrap(~Dataset, ncol = 4) +
+  geom_point(data = topPre_sig, aes(x = AveExpr, y = logFC, color = Dataset)) +
+  customTheme(sizeStripFont = 15, xAngle = 0, hjust = 0.5, vjust = 0.5, 
+              xSize = 12, ySize = 12, xAxisSize = 12, yAxisSize = 12) +
+  theme(legend.position = "none") +
+  ylab(expression("log"[2]~"fold-change (DR minus ER)")) +
+  xlab(expression("Average expression (log"[2]~"counts per million (cpm))")) +
+  geom_hline(yintercept = 0, linetype = "dashed", col = "gray") +
+  scale_color_manual(values=colPalette, name = "Datasets")
+dev.off()
+
+```
+
+### annotate significant in common transcripts as genes 
+
+pathways enrichment?
+
+```{r}
+# ensembl 
+mart = useMart(biomart="ensembl",  
+               # path="biomart/martservice",
+               dataset="hsapiens_gene_ensembl") 
+               # host = "www.ensembl.org", 
+               # ensemblRedirect = FALSE)
+attr = c('description', 'ucsc', 'chromosome_name', 'strand', 'hgnc_symbol', 'refseq_mrna')
+trinity_map_dir = trinity_map_dir
+
+mapID_genSym <- mapply(
+  function(x, y) { annotate_transcripts(features=rownames(x), filter = y, mart=mart, attr=attr, trinity_map_dir=trinity_map_dir) }, 
+  x = deg_pre_cc_common, 
+  y = list("ucsc", "ucsc", "ensembl_gene_id", "trinity")
+)
+
+# sig genes across all data in common between with/out leuk of pre-challenge
+sigGenes <- unique(unlist(mapID_genSym))
+length(sigGenes);
+write.csv(sigGenes, rnaseq_sig_dir)
+
+```
+
+## determine cellular specificity
+
+```{r}
+# enrichment analysis using hypergeometric test
+sea00 <- sear(input=sigGenes, type = 'mrna')
+sea0 = filter(sea00, collection %in% c("TISSUES")) %>% 
+  arrange(fdr)
+sea0$geneset <- as.character(sea0$geneset)
+sea0$geneset[sea0$subcollection == "CNS"] <- "CNS"
+sea0$geneset <- factor(sea0$geneset)
+sea <- sea0 %>% dplyr::group_by(subcollection, geneset) %>% 
+  dplyr::summarise(fdr = mean(fdr))
+sea$subcollection <- factor(sea$subcollection, 
+                              levels = toupper(c("cns", "thymus", "tonsils", "spleen", "lymph", "bcells","myeloid", "nkcells","blood","rbcs","neutrophils", "tcells","th1cells","th2cells","tregs","cd8tcells","cd4tcells")))
+subCol <- sea %>% dplyr::group_by(subcollection) %>% 
+  dplyr::arrange(subcollection) %>% dplyr::select(subcollection, geneset, fdr) %>% as.data.frame() 
+subCol$geneset <- factor(as.character(subCol$geneset), levels = unique(as.character(subCol$geneset)))
+
+#dev.off(); dev.off();
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7",
+               brewer.pal(9, "Set1"))
+pdf(rnaseq_2c_dir, width = 8, height = 5.5)
+ggplot(subCol, aes(x = geneset, y = -log10(fdr), fill = subcollection)) + 
+  geom_bar(stat = "identity") +
+  customTheme(sizeStripFont=10, xAngle=90, hjust=1, vjust=0.5, 
+              xSize=10, ySize=10, xAxisSize=10, yAxisSize=10) +
+  ylab(expression("-log"[10]~"(BH-FDR)")) + xlab("") + scale_fill_manual(values=cbPalette, name = "Tissue")
+dev.off()
+
+```
+
+### Pathway analysis
+
+```{r}
+biocartaPathways <- read.delim(results/enrichr_difbc_dir)
+biocartaPathways <- subset(biocartaPathways, Adjusted.P.value < 0.15)
+keggPathways <- read.delim(results/enrichr_difkegg_dir)
+keggPathways <- subset(keggPathways, Adjusted.P.value < 0.15)
+wikiPathways <- read.delim(results/enrichr_erwiki_dir)
+wikiPathways <- subset(wikiPathways, Adjusted.P.value < 0.15)
+wikiPathways <- wikiPathways[grep("Homo", wikiPathways$Term), ]
+nrow(biocartaPathways); nrow(keggPathways); nrow(wikiPathways)
+
+genrich <- rbind(biocartaPathways[1:10, ], keggPathways[1:10, ], wikiPathways[1:10, ]) %>% 
+  mutate(pathway = unlist(lapply(strsplit(as.character(Term), "_"), function(i) i[1]))) %>% 
+  group_by(pathway) %>% 
+  dplyr::summarise_all(funs(paste(., collapse = ";"))) %>% as.data.frame
+rownames(genrich) <- genrich$pathway
+
+
+# network
+int = function (s1, s2) {
+  length(intersect(s1, s2))/length(union(s1, s2))
+}
+ind <- lapply(1 : nrow(genrich), function(i){
+  unlist(strsplit(as.character(genrich[i, "Genes"]), ";"))
+})
+names(ind) <- rownames(genrich)
+ref <- ind
+links <- t(combn(names(ref), 2)) %>% as.data.frame(.) %>% 
+  dplyr::tbl_df(.) %>% dplyr::rename(source = V1, target = V2) %>% 
+  dplyr::mutate(int = unlist(purrr::map2(ref[as.character(source)], 
+                                         ref[as.character(target)], int))) 
+
+# Source: http://stackoverflow.com/a/7367534/496488
+wrap_strings <- function(vector_of_strings,width){
+  as.character(sapply(vector_of_strings, FUN=function(x){
+    paste(strwrap(x, width=width), collapse="\n")
+  }))
+}
+links <- links[links$int > 0.2, ]
+links$source[links$source %in% c("T cell receptor signaling pathway", "T Cell Receptor Signaling Pathway","TCR Signaling Pathway")] <- "TCR Signaling Pathway"
+links$target[links$target %in% c("T cell receptor signaling pathway", "T Cell Receptor Signaling Pathway","TCR Signaling Pathway")] <- "TCR Signaling Pathway"
+links$source <- wrap_strings(links$source, 20)
+links$target <- wrap_strings(links$target, 20)
+## Function to wrap long strings
+## remove duplicates
+#links <- links[!(as.character(links$source) %in% c("Non-homologous end joining", "MAPK signaling pathway")), ]
+nodes <- unique(as.character(as.matrix(links[, 1:2])))
+net <- graph_from_data_frame(d=links, vertices=nodes, directed=FALSE) 
+V(net)$color <- "goldenrod1"
+#V(net)$size <- 2^-log10(as.numeric(genrich[nodes, "Adjusted.P.value"]))
+pdf(rnaseq_2d_dir, width = 10, height = 10)
+plot(net, layout = layout_with_fr, vertex.label.cex=0.7, edge.curved=.3, vertex.frame.color="red")
+dev.off()
+
+```
+
+# Biomarkers Analysis
+
+```{r}
+##-------------------------------------------------
+#
+# 1) Run Biomarker Pipeline to estimate performance
+#
+##-------------------------------------------------
+## Estimate test error
+cpus <- 8
+folds <- 5
+nfolds <- 200
+topRanked = 500
+covMat = NULL
+alpha <- c(0.9, 0.9, 0.9, 0.9)
+# first run preSelectFolds=NULL, then import folds.iter
+folds.iter <- lapply(readRDS(rnapc_preeperfcov_dir), function(i) i$folds.iter) 
+response <- factor(rnaseq_meta_file_pre$calculated_Response, levels = c("ER", "DR"))
+names(response) <- rownames(rnaseq_meta_file_pre)
+
+#t0 <- proc.time()
+#cv <- list()
+#for(i in 1:length(rnaseq_datasets_pre)){
+#  X <- t(rnaseq_datasets_pre[[i]])                           # n x p dataset
+#  Y <- response
+#  stopifnot(all(rownames(X) == names(Y)))
+#  perf =  crossValidationPerf(X = X, Y = Y, folds = folds, nfolds = nfolds, topRanked = 500, covMat = NULL, alpha = alpha[i], 
+#                              cpus = cpus, file.path="~/Dropbox/Asthma/biomarkerPanels/reAnalysis/src/", #file.name="crossValidationPerf.R", preSelectFolds=NULL)
+#  
+#  cv[[i]] <- perf
+#}
+#t1 <- proc.time()
+#delta = (t1-t0)/60   ## time in minutes (14.1 minutes)
+#delta
+#saveRDS(cv, paste0(rnaseq_dir, "/results/rnaseq_biomarkerPanelPerformanceResults.rds"))
+
+cv <- readRDS(rnapc_panelperfresult_dir)
+## Determine average panel length per dataset
+lapply(cv, function(i){
+  c(mean(unlist(i$PanelLength)), sd(unlist(i$PanelLength)))
+})
+
+
+## calculate AUC for each dataset
+library(pROC)
+AUC <- list()
+for(j in 1:nfolds){
+  auc <- pbsEnet <- pbsRf <- groupEnet <- groupRf <- list()
+  for(i in 1:length(rnaseq_datasets_pre)){
+    perf <- cv[[i]]
+    pbsEnet0 <- unlist(perf$SubjScore$Enet[[j]])
+    pbsRf0 <- unlist(perf$SubjScore$Rf[[j]])
+    groupEnet0 <- response[names(pbsEnet0)]
+    groupRf0 <- response[names(pbsRf0)]
+    pbsEnet[[i]] <- pbsEnet0
+    pbsRf[[i]] <- pbsRf0
+    groupEnet[[i]] <- groupEnet0
+    groupRf[[i]] <- groupRf0
+    all(names(pbsEnet) == names(groupEnet))
+    all(names(pbsEnet) == names(groupRf))
+    rocIterEnet = roc(response = groupEnet0, predictor = pbsEnet0, plot = FALSE, percent = TRUE, na.rm =TRUE, direction = "<")
+    rocIterRf = roc(response = groupRf0, predictor = pbsRf0, plot = FALSE, percent = TRUE, na.rm =TRUE)
+    rocAUC <- c(as.numeric(gsub("Area under the curve:", "", rocIterEnet$auc)),
+                as.numeric(gsub("Area under the curve:", "", rocIterRf$auc)))
+    names(rocAUC) <- c("Elastic net", "Random forest")
+    auc[[i]] <- rocAUC
+  }
+  names(auc) <- names(rnaseq_datasets_pre)
+  AUC[[j]] <- auc
+}
+
+## add performance of CBC panel only
+cc_pre <- na.omit(rnaseq_meta_file_pre[, c("BLFEV", "PC20", "Leukocyte_Counts.x10.9.","Neu_percent","lym_percent","mono_percent","eos_percent","baso_percent")])
+response_cc <- response[rownames(cc_pre)]
+table(response_cc)
+fitEnet <- enet(X = as.matrix(cc_pre), Y = response_cc, alpha = 0, lambda = NULL, 
+                family = "binomial", X.test = NULL, Y.test = NULL, filter = "none", topranked = 500, 
+                keepVar = NULL, pop.prev = 0.5, cutoff = NULL)
+cv_enet_cc <- perf.enet(fitEnet, validation = "Mfold", M = 5, iter = 200, threads = 5, progressBar = FALSE)
+cv_enet_cc$perf
+fitRf <- amritr::rforest(X = as.matrix(cc_pre), Y = response_cc, 
+                         family = "binomial", X.test = NULL, Y.test = NULL, filter = "none", topranked = 500)
+cv_rf_cc <- perf.rf(fitRf, validation = "Mfold", M = 5, iter = 200, threads = 5, progressBar = FALSE)
+cv_rf_cc$perf
+
+ccPerf <- data.frame(Dataset = rep("Clinical", 2), Classifier = c("Elastic net", "Random forest"),
+                     MeanAUC = 100*c(as.numeric(cv_enet_cc$perf[1, "Mean"]), as.numeric(cv_rf_cc$perf[1, "Mean"])),
+                     sdAUC = 100*c(as.numeric(cv_enet_cc$perf[1, "SD"]), as.numeric(cv_rf_cc$perf[1, "SD"])))
+
+aucDats <- AUC %>% zip_nPure() %>% lapply(., function(i) do.call(rbind, i)) %>% 
+  do.call(rbind, .) %>% as.data.frame %>% tbl_df %>% mutate(Dataset = rep(names(rnaseq_datasets_pre), each = nfolds)) %>% 
+  gather(Classifier, freq, -Dataset) %>% 
+  dplyr::group_by(Dataset, Classifier) %>% 
+  dplyr::summarise(MeanAUC = mean(freq), sdAUC = sd(freq))
+aucDats <- rbind(as.data.frame(aucDats), as.data.frame(ccPerf))
+aucDats$Dataset[aucDats$Dataset == "ucscGeneCounts"] <- "UCSC genes"
+aucDats$Dataset[aucDats$Dataset == "ucscGeneIsoCounts"] <- "UCSC gene-isoforms"
+aucDats$Dataset[aucDats$Dataset == "starEnsemblExp"] <- "Ensembl"
+aucDats$Dataset[aucDats$Dataset == "trinityGeneIsoCounts"] <- "Trinity"
+aucDats$Dataset <- factor(aucDats$Dataset, levels = c("Clinical", "UCSC genes","UCSC gene-isoforms",
+                                                      "Ensembl","Trinity"))
+aucDats$Comparison <- "Pre-challenge biomarker panels"
+
+# change AUC to proportion
+aucDats$MeanAUC <- aucDats$MeanAUC/100
+aucDats$sdAUC <- aucDats$sdAUC/100
+
+## plot AUROC
+cbPalette <- brewer.pal(3, "Set2")
+pdf(rnaseq_3a_dir, width = 6, height = 4)
+ggplot(aucDats, aes(x = Dataset, y = MeanAUC, color = Classifier)) + 
+  geom_point(stat="identity", position=position_dodge(0.5), size = 5) +
+  geom_errorbar(aes(ymin=MeanAUC-sdAUC, ymax=MeanAUC+sdAUC), width=.5, stat="identity", position=position_dodge(0.5), size = 1) + 
+  customTheme(sizeStripFont=15, xAngle=10, hjust=0.65, vjust=1, 
+              xSize=8, ySize=15, xAxisSize=15, yAxisSize=15) + ylim(c(.35, .8)) +
+  ylab("Mean±SD AUROC \n (200 x 5-fold cross-validation)") + geom_hline(yintercept = .7, lty = 2) + 
+  xlab("Datasets") + 
+  scale_color_manual(values=cbPalette, name = "Classifer") +
+  facet_wrap(~Comparison) +
+  theme(axis.text.x = element_text(colour=c("black", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3")))
+dev.off()
+
+```
+
+## Select biomarker candidates
+
+```{r}
+## identify frequently occuring transcripts and select candidates for nanoString Elements platform
+mart = useMart(biomart="ENSEMBL_MART_ENSEMBL", host="grch37.ensembl.org", path="/biomart/martservice" ,dataset="hsapiens_gene_ensembl")
+filterList <- c('ucsc', 'ucsc', 'ensembl_gene_id', 'trinity')
+attr = c('description', 'ucsc', 'chromosome_name', 'strand', 'hgnc_symbol', 'refseq_mrna')
+FreqPanels <- list()
+for(i in 1 : length(rnaseq_datasets_pre)){
+  freq1 <- table(unlist(cv[[i]]$PanelFeatures$Enet))/(folds*nfolds)
+  freq2 <- table(unlist(cv[[i]]$PanelFeatures$Rf))/(folds*nfolds)
+  features <- unique(c(names(freq1[order(freq1, decreasing = TRUE)][1:100]),
+                       names(freq2[order(freq2, decreasing = TRUE)][1:100])))
+  
+  filter <- filterList[[i]]
+  if(filter %in% c("ucsc", "trinity")){
+    features = features
+  }
+  if(filter == "ensembl_gene_id"){
+    features <- unlist(lapply(strsplit(features, "\\."), function(i) i[1]))
+  }
+  
+  gene <- rep(NA, length(features))
+  if(filter %in% c("ucsc", "ensembl_gene_id")){
+    for(j in 1 : length(features)){
+      hk.known <- getBM(attributes = attr,
+                        filters = filterList[[i]],
+                        values = features[j],
+                        mart = mart)$hgnc_symbol
+      if(length(hk.known) == 0){
+        gene[j] <- paste(NA, j, sep=".")
+      } else {
+        gene[j] <- paste(unique(hk.known), collapse="_")
+      }
+    }
+    names(gene) <- features 
+  }
+  if(filter == "trinity"){
+    trinityMapFile <- read.delim("/Users/asingh/Dropbox/Asthma/biomarkerPanels/data/discovery/rnaseq/asthma.trinity.blastx.outfmt6.txt")
+    trinityMapFile$Contig <- unlist(lapply(strsplit(as.character(trinityMapFile$query_id), "_"), function(i) paste(i[1], i[2], sep="_")))
+    trinityMapFile$UniProt <- unlist(lapply(strsplit(unlist(lapply(strsplit(as.character(trinityMapFile$subject_id), "\\|"), function(i) i[[2]])), split="_"), function(x) x[1]))
+    trinityMapFile$GenSym <- unlist(lapply(strsplit(unlist(lapply(strsplit(as.character(trinityMapFile$subject_id), "\\|"), function(i) i[[3]])), split="_"), function(x) x[1]))
+    gene <- unlist(lapply(1 : length(features), function(z){
+      hk.known <- unique(trinityMapFile$GenSym[!is.na(match(trinityMapFile$query_id, features[z]))])
+      if(length(hk.known) == 0){
+        hk.known <- paste(NA, z, sep=".")
+      } else {
+        hk.known <- unique(hk.known)
+      }
+      return(hk.known)
+    }))
+    names(gene) <- features 
+  }
+  FreqPanels[[i]] <- gene
+}
+names(FreqPanels) <- names(rnaseq_datasets_pre)
+#saveRDS(FreqPanels, paste0(rnaseq_dir, "/results/biomarkerCandidateSelection.rds"))
+
+FreqPanels <- readRDS(paste0(rnaseq_dir, "/results/biomarkerCandidateSelection.rds"))
+
+```
+
+```{r}
+nanoElementsCandidates <- read.csv("~/Dropbox/Asthma/biomarkerPanels/data/discovery/elementsTargets.csv")
+nanoElementsCandidates$GenSym <- as.character(nanoElementsCandidates$GenSym)
+nanoElementsCandidates$GenSym[nanoElementsCandidates$GenSym == "7-Sep"] <- "SETP7"
+nanoElementsCandidates$GenSym2 <- as.character(nanoElementsCandidates$GenSym2)
+nanoElementsCandidates$GenSym2[nanoElementsCandidates$GenSym2 == "7-Sep"] <- "SETP7"
+nanoElementsCandidates$GenSym2[nanoElementsCandidates$GenSym2 == "ENST00000361789.1"] <- "ENSG00000198727"
+nanoElementsCandidates$GenSym2[nanoElementsCandidates$GenSym2 == "ENST00000361390.1"] <- "ENSG00000198888"
+nanoElementsCandidates$GenSym2[nanoElementsCandidates$GenSym2 == "ENST00000585152.1"] <- "ENSG00000264868"
+
+
+## UCSC genes
+ucscGenes_candidates <- rbind(nanoElementsCandidates[as.character(nanoElementsCandidates$GenSym2) %in% as.character(FreqPanels$ucscGeneCounts), ],
+                              nanoElementsCandidates[as.character(nanoElementsCandidates$GenSym2) %in% unlist(strsplit(names(FreqPanels$ucscGeneCounts), ",")), ])
+# remove isoforms
+ucscGenes_candidates <- ucscGenes_candidates[-grep("isoform", ucscGenes_candidates$GenSym), ]
+
+## UCSC gene-isoforms
+ucscGeneIso_candidates <- rbind(nanoElementsCandidates[as.character(nanoElementsCandidates$GenSym2) %in% as.character(FreqPanels$ucscGeneIsoCounts), ],
+                                nanoElementsCandidates[as.character(nanoElementsCandidates$GenSym2) %in% unlist(strsplit(names(FreqPanels$ucscGeneIsoCounts), ",")), ])
+
+## Ensembl
+ensembl_candidates <- rbind(nanoElementsCandidates[as.character(nanoElementsCandidates$GenSym2) %in% as.character(FreqPanels$starEnsemblExp), ],
+                            nanoElementsCandidates[gsub(".1", "", as.character(nanoElementsCandidates$GenSym2)) %in% names(FreqPanels$starEnsemblExp), ])
+
+## Trinity
+trinity_candidates <- rbind(nanoElementsCandidates[as.character(nanoElementsCandidates$GenSym2) %in% as.character(FreqPanels$trinityGeneIsoCounts), ],
+                            nanoElementsCandidates[as.character(nanoElementsCandidates$GenSym2) %in% unlist(strsplit(names(FreqPanels$trinityGeneIsoCounts), ",")), ])
+
+
+```
+
+## overlap between panels
+
+```{r}
+library(VennDiagram)
+first <- as.character(ucscGenes_candidates$GenSym) 
+second <- as.character(ucscGeneIso_candidates$GenSym)
+third <- as.character(ensembl_candidates$GenSym)
+fourth <- as.character(trinity_candidates$GenSym)
+venn.plot <- draw.quad.venn(
+  area1 = length(first),
+  area2 = length(second),
+  area3 = length(third),
+  area4 = length(fourth),
+  n12 = length(intersect(first, second)),
+  n13 = length(intersect(first, third)),
+  n14 = length(intersect(first, fourth)),
+  n23 = length(intersect(second, third)),
+  n24 = length(intersect(second, fourth)),
+  n34 = length(intersect(third, fourth)),
+  n123 = length(Reduce(intersect, list(first, second, third))),
+  n124 = length(Reduce(intersect, list(first, second, fourth))),
+  n134 = length(Reduce(intersect, list(first, third, fourth))),
+  n234 = length(Reduce(intersect, list(second, third, fourth))),
+  n1234 = length(Reduce(intersect, list(first, second, third, fourth))),
+  category = c("UCSC genes", "UCSC gene-isoforms", "Ensembl", "Trinity"),
+  #fill = c("dodgerblue", "goldenrod1", "darkorange1", "seagreen3"),
+  fill = c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3"),
+  lty = "dashed",
+  cex = 1,
+  cat.cex = 1,
+  margin = 0.1,
+  #cat.col = c("dodgerblue", "goldenrod1", "darkorange1", "seagreen3")
+  cat.col = c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3")
+);
+
+grid.newpage();
+pdf(paste0(rnaseq_dir, "/results/Figures/Figure3/Figure3b.pdf"), width = 5, height = 5)
+grid.draw(venn.plot);
+dev.off()
+
+## total number of targets
+length(c(first, second, third, fourth))
+length(unique(c(first, second, third, fourth)))
+
+```
+
+## Determine House-keeping genes (using both pre and post challenge samples)
+
+```{r}
+library(NormqPCR) # selectHKs
+## determine top 50 low cv genes in each dataset
+genDats2 <- lapply(rnaseq_datasets, function(i){
+  x <- apply(i, 1, function(i) sd(i, na.rm = TRUE)/mean(i, na.rm = TRUE))
+  x1 <- i[names(x[order(x)][1:50]), ]
+  return(x1)
+})
+
+## UCSC genes
+res.BM <- selectHKs(t(genDats2$ucscGeneCounts), method = "geNorm", Symbols = rownames(genDats2$ucscGeneCounts), minNrHK = 10,
+                    log = FALSE)
+ucscHk <- as.character(res.BM$ranking[1:3])
+
+## Ensembl transcripts
+res.BM <- selectHKs(t(genDats2$starEnsemblExp), method = "geNorm", Symbols = rownames(genDats2$starEnsemblExp), minNrHK = 10,
+                    log = FALSE)
+ensemblHk <- as.character(res.BM$ranking[1:3])
+
+## Ensembl transcripts
+res.BM <- selectHKs(t(genDats2$trinityGeneIsoCounts), method = "geNorm", Symbols = rownames(genDats2$trinityGeneIsoCounts), minNrHK = 10,
+                    log = FALSE)
+trinityHk <- as.character(res.BM$ranking[1:3])
+
+hk <- list(ucscGenes = ucscHk, ensembl = ensemblHk, trinity = trinityHk)
+
+## identify frequently occuring transcripts and select candidates for nanoString Elements platform
+mart = useMart(biomart="ENSEMBL_MART_ENSEMBL", host="grch37.ensembl.org", path="/biomart/martservice" ,dataset="hsapiens_gene_ensembl")
+filterList <- c('ucsc', 'ensembl_gene_id', 'trinity')
+attr = c('description', 'ucsc', 'chromosome_name', 'strand', 'hgnc_symbol', 'refseq_mrna')
+hkList <- list()
+for(i in 1 : length(hk)){
+  features <- hk[[i]]
+  
+  filter <- filterList[[i]]
+  if(filter %in% c("ucsc", "trinity")){
+    features = features
+  }
+  if(filter == "ensembl_gene_id"){
+    features <- unlist(lapply(strsplit(features, "\\."), function(i) i[1]))
+  }
+  
+  gene <- rep(NA, length(features))
+  if(filter %in% c("ucsc", "ensembl_gene_id")){
+    for(j in 1 : length(features)){
+      hk.known <- getBM(attributes = attr,
+                        filters = filterList[[i]],
+                        values = features[j],
+                        mart = mart)$hgnc_symbol
+      if(length(hk.known) == 0){
+        gene[j] <- paste(NA, j, sep=".")
+      } else {
+        gene[j] <- paste(unique(hk.known), collapse="_")
+      }
+    }
+    names(gene) <- features 
+  }
+  if(filter == "trinity"){
+    trinityMapFile <- read.delim(rnaseqa_trinbl_dir)
+    trinityMapFile$Contig <- unlist(lapply(strsplit(as.character(trinityMapFile$query_id), "_"), function(i) paste(i[1], i[2], sep="_")))
+    trinityMapFile$UniProt <- unlist(lapply(strsplit(unlist(lapply(strsplit(as.character(trinityMapFile$subject_id), "\\|"), function(i) i[[2]])), split="_"), function(x) x[1]))
+    trinityMapFile$GenSym <- unlist(lapply(strsplit(unlist(lapply(strsplit(as.character(trinityMapFile$subject_id), "\\|"), function(i) i[[3]])), split="_"), function(x) x[1]))
+    gene <- unlist(lapply(1 : length(features), function(z){
+      hk.known <- unique(trinityMapFile$GenSym[!is.na(match(trinityMapFile$query_id, features[z]))])
+      if(length(hk.known) == 0){
+        hk.known <- paste(NA, z, sep=".")
+      } else {
+        hk.known <- unique(hk.known)
+      }
+      return(hk.known)
+    }))
+    names(gene) <- features 
+  }
+  hkList[[i]] <- gene
+}
+names(hkList) <- names(hk)
+
+#$ucscGenes
+#uc003bsz.2,uc003bta.2,uc003btb.2,uc003btc.2,uc003btd.4,uc003btf.4,uc003btg.4,uc003bth.4,uc003bti.4,uc003btj.4,uc003btk.3,uc010hco.1,uc011atj.2,uc021wsu.1 
+#                                                                                                                                "ARPC4_ARPC4-TTLL3_TTLL3" 
+#                                                                                                              uc001rux.2,uc001ruy.2,uc001ruz.2,uc010sml.1 
+#                                                                                                                                 #                "TMBIM6" 
+#                                                                                                                                    uc003cwu.3,uc010hku.3 
+#                                                                                                                                                   "RHOA" 
+#
+#$ensembl
+#ENSG00000108510 ENSG00000169905 ENSG00000095787 
+#        "MED13"      "TOR1AIP2"           "WAC" 
+
+#$trinity
+#comp56949_c0_seq1 comp56952_c0_seq1 comp18288_c0_seq1 
+#          "GTPB6"           "VPS29"           "TMEM2" 
+
+
+```
+
+
+## MA plot
+
+```{r}
+rnaseq_datasets_biomarkers_ucscGenes <- rnaseq_datasets$ucscGeneCounts[ names(FreqPanels$ucscGeneCounts)[as.character(FreqPanels$ucscGeneCounts) %in% ucscGenes_candidates$GenSym2], ]
+rnaseq_datasets_biomarkers_ucscGenes_hk <- rnaseq_datasets$ucscGeneCounts[names(hkList$ucscGenes), ]
+
+rnaseq_datasets_biomarkers_ucscGeneIso <- rnaseq_datasets$ucscGeneIsoCounts[unique(c(names(FreqPanels$ucscGeneIsoCounts)[as.character(FreqPanels$ucscGeneIsoCounts) %in% ucscGeneIso_candidates$GenSym2], names(FreqPanels$ucscGeneIsoCounts)[names(FreqPanels$ucscGeneIsoCounts) %in% ucscGeneIso_candidates$GenSym2])), ]
+
+rnaseq_datasets_biomarkers_ensembl <- rnaseq_datasets$starEnsemblExp[unique(c(rownames(rnaseq_datasets$starEnsemblExp)[unlist(lapply(strsplit(rownames(rnaseq_datasets$starEnsemblExp), "\\."), function(i) i[1])) %in% names(FreqPanels$starEnsemblExp)[as.character(FreqPanels$starEnsemblExp) %in% ensembl_candidates$GenSym2]], rownames(rnaseq_datasets$starEnsemblExp)[unlist(lapply(strsplit(rownames(rnaseq_datasets$starEnsemblExp), "\\."), function(i) i[1])) %in% ensembl_candidates$GenSym2])), ]
+rnaseq_datasets_biomarkers_ensembl_hk <- rnaseq_datasets$starEnsemblExp[unlist(lapply(strsplit(rownames(rnaseq_datasets$starEnsemblExp), "\\."), function(i) i[1])) %in% names(hkList$ensembl), ]
+
+rnaseq_datasets_biomarkers_trinity <- rnaseq_datasets$trinityGeneIsoCounts[unique(c(names(FreqPanels$trinityGeneIsoCounts)[as.character(FreqPanels$trinityGeneIsoCounts) %in% trinity_candidates$GenSym2], names(FreqPanels$trinityGeneIsoCounts)[names(FreqPanels$trinityGeneIsoCounts) %in% trinity_candidates$GenSym2])), ]
+rnaseq_datasets_biomarkers_trinity_hk <- rnaseq_datasets$trinityGeneIsoCounts[names(hkList$trinity), ]
+
+rnaseqBiomarkers <- rbind(rnaseq_datasets_biomarkers_ucscGenes, rnaseq_datasets_biomarkers_ucscGenes_hk,
+                          rnaseq_datasets_biomarkers_ucscGeneIso, 
+                          rnaseq_datasets_biomarkers_ensembl, rnaseq_datasets_biomarkers_ensembl_hk,
+                          rnaseq_datasets_biomarkers_trinity, rnaseq_datasets_biomarkers_trinity_hk)
+datasetLabels <- rep(c("UCSC genes", "UCSC gene-isoforms", "Ensembl", "Trinity"), c(sum(nrow(rnaseq_datasets_biomarkers_ucscGenes), nrow(rnaseq_datasets_biomarkers_ucscGenes_hk)),
+                                                                                    nrow(rnaseq_datasets_biomarkers_ucscGeneIso),
+                                                                                    sum(nrow(rnaseq_datasets_biomarkers_ensembl), nrow(rnaseq_datasets_biomarkers_ensembl_hk)),
+                                                                                    sum(nrow(rnaseq_datasets_biomarkers_trinity), nrow(rnaseq_datasets_biomarkers_trinity_hk))))
+featType <- rep(c("Biomarker", "House-keeper", "Biomarker", "Biomarker", "House-keeper", "Biomarker", "House-keeper"), c(nrow(rnaseq_datasets_biomarkers_ucscGenes), nrow(rnaseq_datasets_biomarkers_ucscGenes_hk),
+                                                                                                                         nrow(rnaseq_datasets_biomarkers_ucscGeneIso),
+                                                                                                                         nrow(rnaseq_datasets_biomarkers_ensembl), nrow(rnaseq_datasets_biomarkers_ensembl_hk),
+                                                                                                                         nrow(rnaseq_datasets_biomarkers_trinity), nrow(rnaseq_datasets_biomarkers_trinity_hk)))
+
+mrnaNames <- list(ucscGenes = rownames(rnaseq_datasets_biomarkers_ucscGenes), 
+                  ucscGeneIso = rownames(rnaseq_datasets_biomarkers_ucscGeneIso), 
+                  ensembl = rownames(rnaseq_datasets_biomarkers_ensembl), 
+                  trinity = rownames(rnaseq_datasets_biomarkers_trinity))
+
+```
+
+## MA-plot
+## pre-challenge
+
+```{r}
+all(colnames(rnaseqBiomarkers) == rownames(rnaseq_meta_file))
+rnaseqBiomarkers_pre <- rnaseqBiomarkers[, rnaseq_meta_file$time == "Pre"]
+design_resp <- model.matrix(~factor(rnaseq_meta_file_pre$calculated_Response, c("ER", "DR")))
+fit <- eBayes(lmFit(rnaseqBiomarkers_pre, design_resp))
+top <- topTable(fit, coef = 2, adjust.method = "BH", n = nrow(fit), sort.by = "none")
+
+col_datasetLabels <- rep(NA, length(datasetLabels))
+col_datasetLabels[datasetLabels == "UCSC genes"] <- "#66C2A5"
+col_datasetLabels[datasetLabels == "UCSC gene-isoforms"] <- "#FC8D62"
+col_datasetLabels[datasetLabels == "Ensembl"] <- "#8DA0CB"
+col_datasetLabels[datasetLabels == "Trinity"] <- "#E78AC3"
+plot(top$logFC ~ top$AveExpr, col = col_datasetLabels, pch = 19)
+#points(top$logFC ~ top$AveExpr, col = 1, pch = 21)
+abline(h = c(-0.15, 0.15), lty = 2)
+legend("topright", c("UCSC genes", "UCSC gene-isoforms", "Ensembl", "Trinity"), 
+       col = c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3"), pch = 19, bty = "n")
+
+df <- data.frame(FC = top$logFC,
+                 AveExpr =  top$AveExpr,
+                 datasets = datasetLabels)
+colPalette <- c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854")
+pdf(rnaseq_3c_dir, width = 6, height = 4)
+ggplot(df, aes(x = AveExpr, y = FC, color=datasets)) + geom_point(size = 3) +
+  geom_hline(yintercept = -0.15, lty=2) + geom_hline(yintercept = 0.1, lty=2) + 
+  customTheme(sizeStripFont=15, xAngle=0, hjust = 0.5, vjust = 0.5, xSize=10, ySize=15, xAxisSize=15, yAxisSize=15) + 
+  ylab(expression("log"[2]~"fold-change (DR minus ER)")) + xlab(expression("Average Expression log"[2]~"cpm")) +  
+  scale_color_manual(values=colPalette, name = "Datasets") +
+  annotate("text",x=12.5,y=0,label="House-keepers", size = 3) +
+  theme(legend.position = c(0.83, 0.8))
+dev.off()
+
+
+```
+
+## apply pre-challenge panels applied to post-challenge data
+
+```{r}
+response <- factor(rnaseq_meta_file_pre$calculated_Response, levels = c("ER", "DR"))
+names(response) <- gsub(".Pre", "", rownames(rnaseq_meta_file_pre))
+
+sapply(rnaseq_datasets_pre, function(i){all(gsub(".Pre", "", colnames(i)) == names(response))})
+sapply(rnaseq_datasets_post, function(i){all(gsub(".Post", "", colnames(i)) == names(response))})
+
+## elastic net
+set.seed(53)
+postChallenge_perf <- mapply(function(X.train, X.test, biomarkers){
+  fit <- enet(X = t(X.train)[, biomarkers], Y = response, alpha = 0, lambda = NULL, 
+              family = "binomial", X.test = t(X.test)[, biomarkers], Y.test = response, 
+              filter = "none", topranked = 10, keepVar = NULL, pop.prev = 0.6, cutoff = NULL)
+  fit$perfTest
+}, X.train = rnaseq_datasets_pre, X.test = rnaseq_datasets_post, biomarkers = mrnaNames)
+postChallenge_perf
+
+## elastic net
+set.seed(53)
+postChallenge_perf <- mapply(function(X.train, X.test, biomarkers){
+  fit <- enet(X = t(X.train)[, biomarkers], Y = response, alpha = 0, lambda = NULL, 
+              family = "binomial", X.test = t(X.test)[, biomarkers], Y.test = response, 
+              filter = "none", topranked = 10, keepVar = NULL, pop.prev = 0.6, cutoff = NULL)
+  fit$perfTest
+}, X.train = rnaseq_datasets_pre, X.test = rnaseq_datasets_pre, biomarkers = mrnaNames)
+postChallenge_perf
+
+
+## pca plot
+biomarkersExpPre <- rbind(rnaseq_datasets_pre$ucscGeneCounts[mrnaNames$ucscGenes, ], 
+                          rnaseq_datasets_pre$ucscGeneIsoCounts[mrnaNames$ucscGeneIso, ],
+                          rnaseq_datasets_pre$starEnsemblExp[mrnaNames$ensembl, ],
+                          rnaseq_datasets_pre$trinityGeneIsoCounts[mrnaNames$trinity, ])
+biomarkersExpPost <- rbind(rnaseq_datasets_post$ucscGeneCounts[mrnaNames$ucscGenes, ], 
+                           rnaseq_datasets_post$ucscGeneIsoCounts[mrnaNames$ucscGeneIso, ],
+                           rnaseq_datasets_post$starEnsemblExp[mrnaNames$ensembl, ],
+                           rnaseq_datasets_post$trinityGeneIsoCounts[mrnaNames$trinity, ])
+
+result <- pca(t(cbind(biomarkersExpPre, biomarkersExpPost)), scale = TRUE, center = TRUE)
+
+
+
+pdf(rnaseq_3d_dir, width = 6, height = 4)
+result$x %>% as.data.frame %>% 
+  mutate(response = factor(c(as.character(response), as.character(response)), c("ER", "DR")),
+         time = factor(rep(c("Pre", "Post"), nrow(resultPre$x)), c("Pre", "Post"))) %>% 
+  ggplot(aes(x = PC1, y = PC2, color = response)) +
+  geom_hline(yintercept = 0, col = "gray", linetype = "dashed") +
+  geom_vline(xintercept = 0, col = "gray", linetype = "dashed") + 
+  geom_point() +
+  facet_wrap(~time) + stat_ellipse(level = 0.68) +
+  customTheme(sizeStripFont = 15, xAngle = 0, hjust = 0.5, vjust = 0.5, 
+              xSize = 15, ySize = 15, xAxisSize = 15, yAxisSize = 15) +
+  xlab(paste0("Principal Component 1 (", round(100*result$explained_variance["PC1"], 1), "%)")) +
+  ylab(paste0("Principal Component 2 (", round(100*result$explained_variance["PC2"], 1), "%)"))
+dev.off()
+
+```
+
+
+
+## Volcano plot ERvsDR (post-minus)
+
+```{r}
+rnaseqBiomarkers_post <- rnaseqBiomarkers[, rnaseq_meta_file$time == "Post"]
+all(rnaseq_meta_file[colnames(rnaseqBiomarkers_post), "NAME"] == rnaseq_meta_file[colnames(rnaseqBiomarkers_pre), "NAME"])
+rnaseqBiomarkers_diff <- rnaseqBiomarkers_post - rnaseqBiomarkers_pre
+design_resp <- model.matrix(~factor(rnaseq_meta_file_pre$calculated_Response, c("ER", "DR")))
+fit_int <- eBayes(lmFit(rnaseqBiomarkers_diff, design_resp))
+top_int <- topTable(fit_int, coef = 2, adjust.method = "BH", n = nrow(fit_int), sort.by = "none")
+
+top_int$logPval <- -log10(top_int$P.Value)
+top_int$Gene <- top_int$ID
+top_int$Gene[top_int$Gene %in% c("uc001mli.2", "uc002trc.3", "uc002uug.3")] <- as.character(FreqPanels$ucscGeneIsoCounts)[names(FreqPanels$ucscGeneIsoCounts) %in% c("uc001mli.2", "uc002trc.3", "uc002uug.3")]
+top_int$Dataset <- datasetLabels
+top_int <- top_int[order(top_int$P.Value), ]
+
+library(ggrepel)
+thres <- top_int$logPval[top_int$adj.P.Val < 0.15]
+deGen <- ggplot(top_int, aes(x = logFC, y = logPval, color = Dataset)) + geom_point(size = 2) +
+  scale_color_manual(values=colPalette, name = "Datasets") + 
+  geom_hline(aes(yintercept = thres[length(thres)]), lty = 2, col = "red") +
+  geom_vline(aes(xintercept = 0), lty = 2, color = "gray") +
+  geom_text_repel(data=filter(top_int, logPval >= thres[length(thres)]), aes(label=Gene)) + 
+  customTheme(sizeStripFont = 10, xAngle = 0, hjust = 0.5, vjust = 0.5, xSize = 15, ySize = 15, xAxisSize = 15, yAxisSize = 15) +
+  scale_x_continuous(expression("log"[2]~"Fold-change"), limits = c(-0.8, 0.8)) +
+  scale_y_continuous(expression("-log"[10]~"P-value")) +
+  annotate("text", x = 0.65, y = 3, label = "BH-FDR=0.15", col = "red") +
+  ggtitle("Response of biomarker transcripts \n to allergen-challenge (Interaction)") + theme(legend.position = "none")
+
+```
+
+
+## save biomarker panels to file (remove trinity house-keepers)
+
+```{r}
+houseKeepers=as.character(nanoElementsCandidates$GenSym2)[as.character(nanoElementsCandidates$GenSym2) %in% unlist(strsplit(unlist(hkList), "_"))]
+
+save(ucscGenes_candidates = ucscGenes_candidates, 
+     ucscGeneIso_candidates = ucscGeneIso_candidates, 
+     ensembl_candidates = ensembl_candidates, 
+     trinity_candidates = trinity_candidates,
+     houseKeepers = houseKeepers,
+     file = rnaseq_to_ns_dir)
+
+```
+

@@ -16,7 +16,7 @@ initial folder structure: code, data
 ```
 ├─── code (this repository)
 ├──+ data
-|  ├─+ genotype (affymetrix axiom .calls matrix): note there is one genotyping DNA data per patient
+|  ├─+ dna (affymetrix axiom .calls matrix): note there is one genotyping DNA data per patient
 |  | ├── plink (plink software for imputation)
 |  | ├── hapmap (hapmap ref for imputation)
 |  | └── reference_SNP
@@ -38,16 +38,16 @@ initial folder structure: code, data
 
 - **result/meta/file (subject x subject meta data)**: subject meta data
   - id: indicates subject id
-  - response: a sample is ER if its associated minimum FEV (forced expiratory volume) over times 180-420 min after asthmatic allergen challenge is over -15, otherwise its a DR i.e. min(c("F180L","F240L","F300L","F360L","F420L")) > -15 is ER, <= -15 is DR
+  - response: a sample is ER if its associated minimum FEV (forced expiratory volume) over times 180-420 min after asthmatic allergen challenge is over -15, results/enrichrwise its a DR i.e. min(c("F180L","F240L","F300L","F360L","F420L")) > -15 is ER, <= -15 is DR
   - flipper: T if a subject (a unique 'id') has multiple samples taken and those samples have inconsistent 'response'
-  - filename_genotype: well
+  - filename_dna: well
   - filename_rnaseq: .bam filename
 
 - **result/meta/file.raw (sample x subject + sample meta data)**: same as above except includes filenames for samples
   - id: indicates subject id; each subject has one or two unique samples (column 'time' = 'Pre' & 'Post') sampled before and after their asthma allergen challenge
   - time: all/some data sets do not contain samples from 'time' = 'Pre'/'Post'; note it is difficult to callibrate at what time the dual response occurs, therefore, we use 'time' = 'Pre' as reference
 
-- **result/feat/\<data_type\>.\<pre/post\> (subject x feature)**: feature matrices; these are split into .<pre/post> indicating whether the sample was taken before or after the asthma allergen challenge based on availability; note: since genotype does not change, we have only one version
+- **result/feat/\<data_type\>.\<pre/post\> (subject x feature)**: feature matrices; these are split into .<pre/post> indicating whether the sample was taken before or after the asthma allergen challenge based on availability; note: since dna does not change, we have only one version
 
 - **result/meta/col-\<data\_type\> (feature x feature meta data)**: feature meta data
 
@@ -57,7 +57,7 @@ folder structure after **data pre-processing**
 ```
 ├─── code (this repository)
 ├──+ data
-|  ├─+ genotype
+|  ├─+ dna
 |  | ├── plink (plink software for imputation)
 |  | └── hapmap (hapmap ref for imputation)
 |  ├─+ RNAseq
@@ -74,7 +74,7 @@ folder structure after **data pre-processing**
 
 #### input raw fastq > output sample x base/isoform/gene matrix of counts/abundence
 1. install packages required: **fastqc** > **star** > **rsem**
-  - one of the easiest ways to do this is via [python](https://docs.python.org/3/using/unix.html#getting-and-installing-the-latest-version-of-python) and then [conda](https://conda.io/docs/user-guide/install/index.html#installing-conda-on-a-system-that-has-other-python-installations-or-packages) after which you can create an environment to install your packages in. click on the links to see how to do this in your respective operating system. linux example below.
+  - one of the easiest ways to do this is via [python](https://docs.python.org/3/using/unix.html#getting-and-installing-the-latest-version-of-python) and then [conda](https://conda.io/docs/user-guide/install/index.html#installing-conda-on-a-system-that-has-results/enrichr-python-installations-or-packages) after which you can create an environment to install your packages in. click on the links to see how to do this in your respective operating system. linux example below.
 
 ```bash
 
@@ -122,12 +122,12 @@ chmod u+x count1.sh
 
 
 
-### genotype (Affymetrix Axiom)
+### dna (Affymetrix Axiom)
 - converting probe id to SNP id: [GeneChip Array Annotation Files](https://www.thermofisher.com/ca/en/home/life-science/microarray-analysis/microarray-data-analysis/genechip-array-annotation-files.html)
 
 
 #### imputation
-we use **ricopili** to infer continuous probabilistic values for missing SNPs using reference HapMap data; original tutorial [here](https://sites.google.com/a/broadinstitute.org/ricopili/). there are other options such as splink2, whichever one is suitable.
+we use **ricopili** to infer continuous probabilistic values for missing SNPs using reference HapMap data; original tutorial [here](https://sites.google.com/a/broadinstitute.org/ricopili/). there are results/enrichr options such as splink2, whichever one is suitable.
 
 ensure that you have already installed software and reference data listed [here](https://sites.google.com/a/broadinstitute.org/ricopili/installation/external-software#TOC-External-Software-Packages). In linux:
 
@@ -248,7 +248,7 @@ folder structure after calculating statistics
 ```
 ├─── code (this repository)
 ├──+ data
-|  ├─+ genotype
+|  ├─+ dna
 |  | ├── plink (plink software for imputation)
 |  | └── hapmap (hapmap ref for imputation)
 |  ├─+ RNAseq

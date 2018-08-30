@@ -18,7 +18,7 @@ meta_file_dir = passte0(meta_dir,"/file")
 meta_col_dir = paste0(meta_dir,"/col")
 
 feat_dir = paste0(result_dir,"/feat")
-# feat_genotype_dir = paste0(feat_dir,"/snp-file-genotype")
+# feat_dna_dir = paste0(feat_dir,"/snp-file-dna")
 
 
 ## output directory
@@ -122,7 +122,7 @@ cohortDatFiltered = cohortDat#[, colMeans(cohortDat) > cohort2lod]
 cohortDatFilterednorm = scale(cohortDatFiltered)
 
 col = paste(subjNames, time)
-col[col %in% names(table(col)[table(col) == 1])] = "other" # unique name time
+col[col %in% names(table(col)[table(col) == 1])] = "results/enrichr" # unique name time
 col2 = as.numeric(factor(col))
 
 ## heatmap

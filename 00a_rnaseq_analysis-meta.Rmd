@@ -1,0 +1,402 @@
+---
+title: "discovery preprocessing rnaSeq"
+subtitle: "input: HiSeq data & demographics; output: raw rnaseq data (input into feat_rnaseq-alternative)"
+output:
+  html_document:
+    theme: yeti
+    highlight: zenburn
+    number_sections: true
+    toc: true
+    toc_float: 
+      collapsed: true
+      smooth_scroll: false
+    df_print: paged
+---
+
+```{r, echo = FALSE, results='hide', message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# logistics
+
+```{r}
+## logistics
+root = "~/projects/asthma" # root directory, used for _dirs.R
+source(paste0(root, "/code/_dirs.R"))
+source(paste0(root, "/code/_func.R"))
+source(paste0(root, "/code/_func-asthma.R"))
+source(paste0(root, "/code/_func-classifiers.R"))
+libr(append(pkgs(),c("rafalib","pracma")))
+
+
+```
+
+# compile meta_file
+
+```{r}
+## import clinical data
+meta_fileall = readRDS(meta_file_rnaseqa_dir)
+rownames(meta_fileall) = paste(meta_fileall$concealedID, meta_fileall$Time, sep=".")
+
+# meta_fileall = get(load(paste0(meta_fileall_dir,".Rdata")))
+
+# meta_fileall = filter(meta_fileall, cohort %in% c("Discovery", "Validation")) #306 --> 280 rows
+meta_fileall = filter(meta_fileall, Cohort %in% c("Discovery", "Validation")) #306 --> 280 rows
+meta_fileall = meta_fileall[order(meta_fileall$Mac_Response),]
+
+# id_namedate = subject names _ date 
+meta_fileall$id_namedate = paste("uniqueID",
+                                 as.numeric(factor(as.character(meta_fileall[,"NAME"]))),
+                                 as.numeric(factor(as.character(meta_fileall[,"AIC_YMD"]))), sep="_")
+
+# id_name = subject names 
+meta_fileall$id_name = paste("ID", as.numeric(factor(as.character(meta_fileall[,"NAME"]))), sep="_")
+meta_fileall$id_name = factor(meta_fileall$id_name)
+
+# scale breathing test at diff times columns based on blfev
+meta_fileall_uns = as.matrix(meta_fileall[, c("BLFEV","F10L","F20L","F30L","F45L","F60L","F90L","F120L",
+                                              "F180L","F240L","F300L","F360L","F420L")])
+dropFEV1 = as.data.frame(t(100*scale(t(meta_fileall_uns), 
+                                     center=as.numeric(meta_fileall$BLFEV), scale=as.numeric(meta_fileall$BLFEV))))
+
+
+
+## EAR (early asthmatic response) and LAR (late asthmatic response) are maximum drops (min for negative) 
+# at the two groups of time intervals; rounded
+ear = suppressWarnings( apply(dropFEV1, 1, function(x) {min(x[1:8], na.rm=T)}) )
+ear[ear == "Inf"] = NA
+lar = suppressWarnings( apply(dropFEV1, 1, function(x) {min(x[9:13], na.rm=T)}) )
+lar[lar == "Inf"] = NA
+meta_fileall$EAR = round(ear, 1)
+meta_fileall$LAR = round(lar, 1)
+
+time = gsub("L", "", substring(colnames(dropFEV1), 2))
+# time = vapply(str_split(colnames(dropFEV1), "_"),'[',3, FUN.VALUE=character(1)) %>% as.numeric
+time[1] = 0;
+time = as.numeric(time)/60
+
+# AUR trapz: area of a function for each patient, all and LAS time vs drops
+meta_fileall$AUC = apply(dropFEV1, 1, function(y) trapz(x=time, y=y) )
+meta_fileall$AUC_LAR = apply(dropFEV1, 1, function(y) trapz(x=time[9:13], y=y[9:13]) )
+
+#AIS: PC20 of pre/post
+ais = meta_fileall[meta_fileall$Time == "Pre", "PC20"] / meta_fileall[meta_fileall$Time == "Post", "PC20"]
+names(ais) = meta_fileall$id_namedate[meta_fileall$Time == "Pre"]
+meta_fileall$AIS = ais
+
+# calculate a reponse
+meta_fileall$calculated_Response = rep(NA, nrow(meta_fileall))
+meta_fileall$calculated_Response[meta_fileall$LAR > -15] = "ER"
+meta_fileall$calculated_Response[meta_fileall$LAR <= -15] = "DR"
+meta_fileall$calculated_Response[as.character(meta_fileall$Mac_Response) == "Control"] = "Control"
+
+# remove samples with missing data
+meta_file = meta_fileall[!is.na(meta_fileall$calculated_Response), ]
+rownames(meta_file) = paste(meta_file$id_namedate, meta_file$Time, sep=".")
+
+# make colours based on phenotype for plots
+phen = c("black","red","green","grey")[as.numeric(factor(meta_fileall$Mac_Response))]
+
+# save
+save(meta_file, file=paste0(meta_file_dir,".orig.Rdata"))
+write.csv(meta_file, file=paste0(meta_file_dir,".orig.csv"))
+
+
+
+
+## Map HiSeqID to alias
+mapHiSeqToID0 = read.csv(meta_hiseq_to_id_dir)
+rownames(mapHiSeqToID0) = unlist(lapply(strsplit(as.character(mapHiSeqToID0$Filename.Prefix), split = "_"), function(x) x[2]))
+
+mapHiSeqToID = mapHiSeqToID0[order(mapHiSeqToID0$Alias), ]
+
+meta_fileRNASeq00 = meta_file[meta_file$rnaseqID_quebec %in% mapHiSeqToID$Alias, ]
+meta_fileRNASeq0 = meta_fileRNASeq00[order(meta_fileRNASeq00$rnaseqID_quebec), ]
+all(mapHiSeqToID$Alias == meta_fileRNASeq0$rnaseqID_quebec)
+meta_fileRNASeq = cbind(meta_fileRNASeq0, 
+                        mapHiSeqToID[match(meta_fileRNASeq0$rnaseqID_quebec, mapHiSeqToID$Alias),!colnames(mapHiSeqToID)%in%colnames(meta_fileRNASeq0)])
+meta_fileRNASeq$ID = unlist(lapply(strsplit(as.character(meta_fileRNASeq$Filename.Prefix), "_"), function(i){i[2]}))
+
+## describe demographics
+meta_fileRNASeq2 = meta_fileRNASeq[meta_fileRNASeq$rnaseq_coreSet_biomarkerAnalysis=="Y",]
+meta_fileRNASeq2$Time = relevel(factor(meta_fileRNASeq2$Time), ref = "Pre")
+
+# 
+# # merge
+# meta_file_ = get(load(paste0(meta_file_dir,".Rdata")))
+# 
+# 
+# unique_id_time = paste0(meta_fileRNASeq2$NAME,"_",meta_fileRNASeq2$Time)
+# meta_file = meta_fileRNASeq2[order(unique_id_time),]
+# unique_id_time = sort(unique_id_time)
+# delind = NULL
+# for (uit in unique(unique_id_time)) {
+#   uind = rownames(meta_fileRNASeq2)[unique_id_time == uit]
+#   if (length(uind)==1) next
+#   if (any(uind%in%rownames(meta_fileRNASeq2))) {
+#     delind = append(delind, rownames(meta_fileRNASeq2)[!rownames(meta_fileRNASeq2)%in%rownames(meta_fileRNASeq2) & unique_id_time == uit])
+#   } else {
+#     meta_file_u = meta_file[uind,]
+#     delind = append(delind, uind[!uind%in%uind[which.max(meta_file_u$LAR - (-15))]])
+#   }
+# }
+# meta_file_clean = meta_file[!rownames(meta_file)%in%delind,]
+# meta_file_clean = meta_file_clean[(duplicated(meta_file_clean$id,fromLast=F) | duplicated(meta_file_clean$id,fromLast=T)),]
+# 
+# meta_file_1 = meta_file_clean[order(meta_file_clean$id),c("id", "time", "EAR", "LAR", "AUC", "AIS", "calculated_Response")]
+# meta_file_1pre = meta_file_1[meta_file_1$time=="Pre",]
+# pre_id = match(meta_file_$id, as.character(meta_file_1pre$id))
+# meta_file_1post = meta_file_1[meta_file_1$time=="Post",]
+# 
+# meta_file_add = cbind(meta_file_1pre[,c("id","EAR", "LAR", "AUC", "AIS", "calculated_Response")],
+#                       meta_file_1post[,c("AIS")])
+# colnames(meta_file_add) = c("id","EAR","LAR","AUC","AIS_pre","response_calc","AIS_post")
+# 
+# meta_file__ = merge(meta_file_, meta_file_add, by="id", all=T)
+# 
+# save(meta_file__, file=paste0(meta_file_dir,".Rdata"))
+# write.csv(meta_file__, file=paste0(meta_file_dir,".csv"))
+
+```
+
+## plot: LAR ~ AUC(EAR + LAR) + Subject
+
+```{r}
+summary(lm(LAR ~ AUC + id_name, data = meta_fileall))
+plot(LAR ~ AUC, data = meta_fileall, pch = 19, col = phen, 
+     ylab = "Max drop during LAR (3-7h) per subject", 
+     xlab = "Area above the FEV1 time vs drop profile curve",
+     main = "LAR ~ AUC(EAR + LAR)")
+# plot(LAR ~ AUC, data = meta_fileall, pch = 21, cex=1.5, col = phen)
+abline(lm(LAR ~ AUC, data = meta_fileall))
+text(x = 20, y = -30, labels = paste0("Pearson r = ", round(cor(meta_fileall$LAR, meta_fileall$AUC, use = "pairwise.complete.obs"), 2)))
+
+```
+
+## plot: LAR ~ AUC_LAR(LAR late times only) + Subject
+
+```{r}
+summary(lm(LAR ~ AUC_LAR + id_name, data = meta_fileall))
+plot(LAR ~ AUC_LAR, data = meta_fileall, pch = 19, col = phen,
+     ylab = "Max drop during LAR (3-7h)", 
+     xlab = "AUC (3-7h)",
+     main = "LAR ~ AUC_LAR(LARs only)")
+# points(LAR ~ AUC_LAR, data = meta_fileall, pch = 21, cex=1, col = 1)
+abline(lm(LAR ~ AUC_LAR, data = meta_fileall))
+text(x = 20, y = -30, labels = paste0("Pearson r = ", round(cor(meta_fileall$LAR, meta_fileall$AUC_LAR, use = "pairwise.complete.obs"), 2)))
+text(x = 20, y = -40, labels = "p < 2.2e-16")
+
+```
+
+## plot: AIS=P20pre/P20post ~ LAR + Subject
+
+```{r}
+summary(lm(AIS ~ LAR + id_name, data = meta_fileall))
+plot(AIS ~ LAR, data = meta_fileall, pch = 19, col = phen, 
+     xlab = "Max drop during LAR (3-7h)", 
+     ylab="AIS (Allergen Induced Shift)",
+     main = "AIS=P20pre/P20post ~ LAR")
+# points(AIS ~ LAR, data = meta_fileall, pch = 21, cex=1, col = "black")
+abline(lm(AIS ~ LAR, data = meta_fileall))
+text(x = 5, y = 10, labels = paste0("Pearson r = ", round(cor(meta_fileall$AIS, meta_fileall$LAR, use = "pairwise.complete.obs"), 2)))
+text(x = 5, y = 8, labels = "p = 0.60")
+
+```
+
+# compile RNAseq data
+
+```{r}
+# 1) UCSC genes
+uscsgenes_paths_g = list.files(rnaseq_ucsc_dir, full.names=T)
+
+ucscGeneCounts0 = Reduce('cbind',lapply(uscsgenes_paths_g, function(x) fread(x, select="expected_count")))
+rownames(ucscGeneCounts0) = as.character(fread(uscsgenes_paths_g[1], select=2, data.table=F)[,1])
+colnames(ucscGeneCounts0) = unlist(gsub(".genes.results", "", gsub("rsem.UCSC_", "", fileNames(uscsgenes_paths_g))))
+
+
+# 2) UCSC gene-isoforms
+uscsgenes_paths_i = list.files(rnaseq_iso_dir, full.names=T)
+
+ucscGeneIsoCounts0 = Reduce("cbind",lapply(uscsgenes_paths_i, function(x) as.vector(fread(x, select="expected_count"))))
+rownames(ucscGeneCounts0) = as.character(read.delim(uscsgenes_paths_g[1])$transcript)
+colnames(ucscGeneIsoCounts0) = unlist(gsub(".isoforms.results", "", gsub("rsem.UCSC_", "", fileNames(uscsgenes_paths_i))))
+
+
+# 3) Ensembl dataset
+starEnsembl = read.delim(rnaseq_grch38_dir, header=F)
+dim(starEnsembl)   # 60249  x 102
+
+sampleNames = as.character(as.matrix(starEnsembl[2,-c(1:6)]))
+starEnsembl.dat = starEnsembl[-c(1,2),]
+colnames(starEnsembl.dat) = c(as.character(as.matrix(starEnsembl[2,c(1:6)])), gsub(".*(HI.*Index_[0-9]{1,2}.[0-9]{1,2}).*", "\\1", sampleNames))
+rownames(starEnsembl.dat) = starEnsembl.dat$Geneid
+starEnsemblExp00 = starEnsembl.dat[, -c(1:6)] ## 60247 (60155+92ercc) x 96
+starEnsemblExp0 = sapply(1:ncol(starEnsemblExp00), function(i) as.numeric(as.character(starEnsemblExp00[, i])))
+rownames(starEnsemblExp0) = rownames(starEnsemblExp00)
+colnames(starEnsemblExp0) = unlist(lapply(strsplit(colnames(starEnsemblExp00), split = "_"), function(i) i[2]))
+
+
+# 4) Trinity dataset
+## contigs-isoforms
+trinity_paths = list.files(rnaseq_trin_dir, full.names=T)
+
+trinityGeneIsoCounts0 = Reduce("cbind",lapply(trinity_paths, function(x) fread(x, select="expected_count")))
+rownames(trinityGeneIsoCounts0) = as.character(read.delim(trinity_paths[1])$transcript)
+colnames(trinityGeneIsoCounts0) = unlist(gsub(".isoforms.results", "", gsub("rsem.UCSC_", "", fileNames(trinity_paths))))
+
+
+## dimension of datasets
+dim(ucscGeneCounts0);      #42,465 x 96
+dim(ucscGeneIsoCounts0);   #89,357 x 96
+dim(starEnsemblExp0);      #60,247 x 96
+dim(trinityGeneIsoCounts0); # 258,403 x 96
+
+## re-order samples in rna-seq datasets
+ucscGeneCounts = as.matrix(ucscGeneCounts0)[,meta_fileRNASeq$ID]
+ucscGeneIsoCounts = as.matrix(ucscGeneIsoCounts0)[, meta_fileRNASeq$ID]
+starEnsemblExp = as.matrix(starEnsemblExp0)[, meta_fileRNASeq$ID]
+trinityGeneIsoCounts = as.matrix(trinityGeneIsoCounts0)[, meta_fileRNASeq$ID]
+
+all(meta_fileRNASeq$ID2 == colnames(ucscGeneCounts))
+all(meta_fileRNASeq$ID2 == colnames(ucscGeneIsoCounts))
+all(meta_fileRNASeq$ID2 == colnames(starEnsemblExp))
+all(meta_fileRNASeq$ID2 == colnames(trinityGeneIsoCounts))
+
+colnames(ucscGeneCounts) = rownames(meta_fileRNASeq)
+colnames(ucscGeneIsoCounts) = rownames(meta_fileRNASeq)
+colnames(starEnsemblExp) = rownames(meta_fileRNASeq)
+colnames(trinityGeneIsoCounts) = rownames(meta_fileRNASeq)
+```
+
+# get RNA-Seq data ready for analysis
+
+```{r}
+# source(paste0(rnaseq_dir, "/code/discovery/functions.R"))
+
+
+## Descriptive statistics (at pre-challenge)
+meta_fileRNASeq2Pre = subset(meta_fileRNASeq2, Time == "Pre")
+## Pre-challenge
+variables = c("weight", "height", "age", "blfev", "prfev", "Leukocyte_Counts.x10.9.",
+              "Neu_percent", "lym_percent", "mono_percent", "eos_percent",
+              "baso_percent", "EAR", "LAR", "PC20", "AIS")
+# summaryStat = descriptiveStat(meta_fileRNASeq2Pre, groups="calculated_Response")#, variables, paired=F, pairing=NULL)
+# 
+# as.data.frame(summaryStat$meanSD)
+# as.data.frame(summaryStat$pval)
+
+## Categorical variables
+# table(meta_fileRNASeq2Pre$calculated_Response, droplevels(meta_fileRNASeq2Pre$SEX)) # droplevels?
+# table(meta_fileRNASeq2Pre$calculated_Response, droplevels(meta_fileRNASeq2Pre$Allergen_cleanLabel))
+
+```
+
+## Identity lower limit of detection; filter transcripts
+
+```{r}
+all(rownames(meta_fileRNASeq) == colnames(ucscGeneCounts))
+all(rownames(meta_fileRNASeq) == colnames(ucscGeneIsoCounts))
+all(rownames(meta_fileRNASeq) == colnames(starEnsemblExp))
+all(rownames(meta_fileRNASeq) == colnames(trinityGeneIsoCounts))
+
+ucscGeneCounts2 = ucscGeneCounts[, rownames(meta_fileRNASeq2)]
+ucscGeneIsoCounts2 = ucscGeneIsoCounts[, rownames(meta_fileRNASeq2)]
+starEnsemblExp2 = starEnsemblExp[, rownames(meta_fileRNASeq2)]
+trinityGeneIsoCounts2 = trinityGeneIsoCounts[, rownames(meta_fileRNASeq2)]
+
+## normalize data according to log2 cpm
+# ucscGeneCountsNorm = normalizelibSum(ucscGeneCounts2)
+# ucscGeneIsoCountsNorm = normalizelibSum(ucscGeneIsoCounts2)
+# starEnsemblExpNorm = normalizelibSum(as.matrix(starEnsemblExp2))
+# trinityGeneIsoCountsNorm = normalizelibSum(trinityGeneIsoCounts2)
+ucscGeneCountsNorm = cpm(ucscGeneCounts2,log=T)
+ucscGeneIsoCountsNorm = cpm(ucscGeneIsoCounts2,log=T)
+starEnsemblExpNorm = cpm(as.matrix(starEnsemblExp2),log=T)
+trinityGeneIsoCountsNorm = cpm(trinityGeneIsoCounts2,log=T)
+
+
+## determine filtering cut-off based on linearity QC
+ercc = starEnsemblExpNorm[60156:60247, ]
+erccDat = data.frame(x = rep(as.numeric(ercc), ncol(ercc)))
+erccConc0 = read.delim(rnaseq_control_dir, row.names =2)
+erccConc = erccConc0[rownames(ercc), ]
+erccDat2 = as.data.frame(ercc)
+erccDat2$Conc = erccConc$concentration.in.Mix.1..attomoles.ul.
+#pdf(paste0(WhereAmI, "figs/2-92ercc_discoverycohort.pdf"), width = 4, height = 4)
+erccDat2 %>% gather(Subj, Counts, -Conc) %>% 
+  ggplot(aes(x = Conc, y = Counts)) + geom_point() +
+  scale_x_log10() +
+  geom_segment(aes(x = 0, xend = 14, 
+                   y = 3, yend = 3), lty = 2) +
+  geom_segment(aes(x = 14, xend = 14, 
+                   y = -5, yend = 3), lty = 2) + 
+  customTheme(sizeStripFont=10, xAngle=0, hjust=0.5, vjust=0.5, 
+              xSize=10, ySize=10, xAxisSize=10, yAxisSize=10) +
+  xlab("Concentration (Attomoles/uL)") + 
+  ylab(expression("log"[2]~"cpm")) +
+  annotate("text", x = 0.5, y = , 3.5, label = "cutoff = 3")
+#dev.off()
+
+```
+
+# Final RNA-Seq datasets
+
+```{r}
+## remove features below 3 log2 cpm
+genDats0 = list(ucscGeneCounts=ucscGeneCountsNorm,
+                ucscGeneIsoCounts=ucscGeneIsoCountsNorm,
+                starEnsemblExp=starEnsemblExpNorm,
+                trinityGeneIsoCounts=trinityGeneIsoCountsNorm)
+# 2 group comparison
+group = paste0(meta_fileRNASeq$time, meta_fileRNASeq$calculated_Response)[rownames(meta_fileRNASeq2)]
+design = model.matrix(~calculated_Response * SITE + SEX + Time, data=meta_fileRNASeq[rownames(meta_fileRNASeq2),])
+
+genDats = lapply(genDats0, function(x){
+  # y = x
+  # y[y < 3] = NA
+  # na.omit(y)
+  large_count_ind = apply(x,1,median) > 3
+  x = x[large_count_ind,]
+  x[x<0] = 0
+  
+  mdge = DGEList(counts=na.omit(x), group=group)
+  # ttm normalization
+  m2 = calcNormFactors(mdge)
+  # m3 = voom(m2,design,plot=F)
+  m4 = as.matrix(m2)
+  m4[m4<3] = NA
+  m4
+})
+lapply(genDats, dim)
+
+## sample histograms
+
+for (m0n in names(genDats)) {
+  x = na.omit(genDats[[m0n]])
+  plotSampleHist(x, m0n, xlim=c(-5, 20), ylim=c(0, 800))
+}
+
+```
+
+## save datasets to file
+
+```{r}
+rnaseq_meta_file = meta_fileRNASeq2
+rnaseq_datasets = genDats
+lapply(rnaseq_datasets, function(i){
+  all(colnames(i) == rownames(rnaseq_meta_file))
+})
+
+## add RNA-Seq HiSeq info and demographics
+mapHiSeqToID$rnaseqID_quebec = mapHiSeqToID$Alias
+rnaseq_meta_file2 = inner_join(x = rnaseq_meta_file, y = mapHiSeqToID, by = "rnaseqID_quebec")
+all(rnaseq_meta_file2$rnaseqID_quebec == rnaseq_meta_file$rnaseqID_quebec)
+rownames(rnaseq_meta_file2) = rownames(rnaseq_meta_file)
+rnaseq_meta_file = rnaseq_meta_file2
+
+save(rnaseq_meta_file=rnaseq_meta_file, rnaseq_datasets=rnaseq_datasets,
+     file = rnaseqa_datanew_dir)
+
+
+```
+

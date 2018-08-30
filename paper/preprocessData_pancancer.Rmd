@@ -246,7 +246,7 @@ abline(h = 0, lty = 2, col = "red")
 
 ```{r, fig.width=7, fig.height=10}
 group <- samples[rownames(expDat)]
-group[group != "L_ST_026"] <- "other samples"
+group[group != "L_ST_026"] <- "results/enrichr samples"
 
 pcaDat <- prcomp(expDat, scale. = TRUE)
 ## color replicates

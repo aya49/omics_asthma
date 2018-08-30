@@ -21,15 +21,16 @@ library(ggthemes)
 library(cowplot)
 library(ggraph)
 library(igraph)
+# !diagnostics off
+library(tint)
 
 # helpers
-source('~/projects/asthma/example_diablo/code/mixOmics_plotting_helpers.r')
-setwd('~/projects/asthma/example_diablo')
+root = '~/projects/asthma/example_diablo'
+source(paste0(root, '/code/mixOmics_plotting_helpers.r'))
+setwd(root)
 ```
 
 ```{r setup}
-# !diagnostics off
-library(tint)
 # invalidate cache when the package version changes
 knitr::opts_chunk$set(tidy = FALSE, warning = FALSE, error = FALSE, message = FALSE, 
                       cache.extra = packageVersion('tint'), dev = 'svg', dpi = 300)
@@ -53,7 +54,7 @@ repeat {
 
 ```{r load_data, cache=TRUE}
 # load datasets ----
-meta <- readRDS('data/metadata.rds')
+meta <- readRDS(paste0(root, '/data/metadata.rds'))
 
 # include cell counts
 cells <- dplyr::select(meta, CD8:NK) %>% as.matrix()
@@ -61,15 +62,15 @@ rownames(cells) <- meta$sample.id
 
 X <- list(
   # 'Imputed cells'      = cells,
-  'Flow cytometry'     = readRDS('data/hipc_flow_concs.rds'),
-  # 'Flow cytometry'     = readRDS('data/hipc_flow_concs.rds') %>% asinh(),
-  # 'Flow cytometry'     = readRDS('data/hipc_flow_autoprops_concs.rds'),
-  'Luminex cytokine'   = readRDS('data/hipc_cytokine_concs.rds'),
-  'Metabolomics'       = readRDS('data/hipc_metabolomics_concs.rds'),
-  # 'Metabolomics'       = readRDS('data/hipc_metabolomics_eigens.rds'),
-  'Proteomics'         = readRDS('data/hipc_protein_ratios_updated.rds'),
-  # 'Transcriptomics'    = readRDS('data/hipc_hancock_counts_sva_resequenced.rds')
-  'Transcriptomics'    = readRDS('data/hipc_hancock_counts_resequenced.rds')
+  'Flow cytometry'     = readRDS(paste0(root, '/data/hipc_flow_concs.rds')),
+  # 'Flow cytometry'     = readRDS(paste0(root, '/data/hipc_flow_concs.rds') %>% asinh(),
+  # 'Flow cytometry'     = readRDS(paste0(root, '/data/hipc_flow_autoprops_concs.rds')),
+  'Luminex cytokine'   = readRDS(paste0(root, '/data/hipc_cytokine_concs.rds')),
+  'Metabolomics'       = readRDS(paste0(root, '/data/hipc_metabolomics_concs.rds')),
+  # 'Metabolomics'       = readRDS(paste0(root, '/data/hipc_metabolomics_eigens.rds')),
+  'Proteomics'         = readRDS(paste0(root, '/data/hipc_protein_ratios_updated.rds')),
+  # 'Transcriptomics'    = readRDS(paste0(root, '/data/hipc_hancock_counts_sva_resequenced.rds'))
+  'Transcriptomics'    = readRDS(paste0(root, '/data/hipc_hancock_counts_resequenced.rds'))
 )
 
 # # remove H09 - outlier - to test...
@@ -210,7 +211,7 @@ A %>%
   plot_grid(plotlist = ., labels = names(.), nrow = 1, label_x = 0.2)
 ```
 
-It is clear that the development of the immune system over the first week of life is a major source of variation in most of the data blocks, though some days are more difficult to separate than others.
+It is clear that the development of the immune system over the first week of life is a major source of variation in most of the data blocks, though some days are more difficult to separate than results/enrichrs.
 
 ## Cross-validation
 `r newthought('Next, we will fit a supervised, constrained multi-omics')` model (fully constrained DIABLO) to study the question of immune ontogeny in the first week of life across the various data blocks. This model has a number of hyperparameters that need to be specified, such as number of components, and number of features/component.
@@ -543,7 +544,7 @@ I <- A %>%
                   type.measure = 'class'))
 ```
 
-The first components across the data blocks are all highly correlated to each other, and our response (days of life), by design. Each component can be thought of as a functional unit maximally correlated to the response. As such, comparing their membership can be insightful.
+The first components across the data blocks are all highly correlated to each results/enrichr, and our response (days of life), by design. Each component can be thought of as a functional unit maximally correlated to the response. As such, comparing their membership can be insightful.
 
 ## Model correlation structure
 `r newthought('Let us take a look at the correlation structure')` of the resulting model compared to that of models built separately on the various OMIC blocks.
@@ -813,7 +814,7 @@ e <- map(e, ~ .[. != ''])
 library(UpSetR)
 svg('manuscript_figures/fig1_features_upset_plot.svg', width = 4, height = 4)
 temp <- fromList(e[c(1, 2, 4)])
-temp$name <- NA # upset can't highlight individual bars otherwise ?!?
+temp$name <- NA # upset can't highlight individual bars results/enrichrwise ?!?
 upset(
   temp,
   nintersects = NA,
@@ -866,7 +867,7 @@ f <- e2 %>%
 
 svg('manuscript_figures/fig1_genesets_upset_plot.svg', width = 4, height = 4)
 temp <- fromList(map(f, pull, geneset)[c(1, 2, 4)])
-temp$name <- NA # upset can't highlight individual bars otherwise ?!?
+temp$name <- NA # upset can't highlight individual bars results/enrichrwise ?!?
 upset(
   temp, 
   nintersects = NA,

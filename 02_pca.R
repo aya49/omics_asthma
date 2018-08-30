@@ -5,15 +5,15 @@
 ## last modified 20180524
 
 ## logistics
-root = "~/projects/asthma"; commandArgs <- function(...) root  # root directory, used for _dirs.R
+root = "~/projects/asthma" # root directory, used for _dirs.R
 source(paste0(root, "/code/_dirs.R"))
 source(paste0(root, "/code/_func.R"))
 source(paste0(root, "/code/_func-asthma.R"))
 source(paste0(root, "/code/_func-classifiers.R"))
 libr(append(pkgs(),c("RDRToolbox")))
 
-no_cores = detectCores()-2 #number of cores to use for parallel processing
-registerDoMC(no_cores)
+# no_cores = 1#detectCores()-2 #number of cores to use for parallel processing
+# registerDoMC(no_cores)
 
 
 ## options
@@ -23,7 +23,7 @@ cont_col = 15 #if a column has more than this unique values, it's continuous
 scale_cont = T #if a column is continuous, scale it
 
 
-interested_cols = c("sex","genotype_centre","genotype_batch", "allergen", 
+interested_cols = c("sex","dna_centre","dna_batch", "allergen", 
                     "race","response",
                     "age","bmi","weight", "height") 
 interested_cont_cols = c("age","bmi","weight", "height")
@@ -51,44 +51,20 @@ feat_types = feat_types_annot
 ## start
 start = Sys.time()
 
-
 for (feat_type in feat_types) {
   cat("\n", feat_type)
   
-  m0 = get(load(paste0(feat_dir,"/",feat_type,".Rdata")))
-  if (sum(colnames(m0)%in%meta_file0[,id_col])==ncol(m0)) m0 = t(m0)
+  # load m0 using: meta_file0, feat_dir, feat_type, col_inds0 --> m0, col_inds
+  source(paste0(root, "/code/_func-asthma_m0-load.R")) 
   
-  col_inds_i = sapply(names(col_inds0), function(x) grepl(x,feat_type))
-  if (sum(col_inds_i)==0) {
-    col_inds = list(all=c(""))
-  } else {
-    col_inds = col_inds0[[col_inds_i]]
-  }
-  
-  
+  class_coli = 1
   for (file_ind_n in names(file_inds)) {
-    file_ind = file_inds[[file_ind_n]]
-    if (file_ind_n=="all") file_ind = rownames(m0)
-    # file_ind_n = paste0("-",file_ind_n)
-    
     for (col_ind_n in names(col_inds)) {
-      col_ind = col_inds[[col_ind_n]]
-      if (col_ind_n=="all") col_ind = colnames(m0)
-      # col_ind_n = paste0(".",col_ind_n)
-
-      m = m0[rownames(m0)%in%file_ind, colnames(m0)%in%col_ind]
-      m = delna(m)
-      if (any(dim(m)==0) | sum(!is.na(m))<sum(is.na(m))) next()
-      m_cont_col = apply(m,2,function(x) length(unique(x))>cont_col)
-      if (scale_cont) m[,m_cont_col] = scale(as.numeric(as.matrix(m[,m_cont_col])))
-      m[is.na(m)] = -1
       
-      cat(" (",file_ind_n, " x ",col_ind_n,"; ",nrow(m)," x ",ncol(m),") ")
-      
-      
+      # prep m, meta_file, meta_col: m0 class_coli, class_cols, file_ind_n, file_inds
+      source(paste0(root, "/code/_func-asthma_m-trim.R")); if (nextm) next()
       meta_file = meta_file0[match(rownames(m),meta_file0[,id_col]),]
-      # meta_col = meta_col0[match(colnames(m),meta_col0[,cid_col]),]
-      if (file_ind_n=="flipperdr") meta_file[meta_file[,flipper_col],class_col] = experiments
+      if (file_ind_n=="flipperdr") meta_file[meta_file[,flipper_col],class_col] = experiment[class_coli]
       
       
       ## get interested columns
@@ -97,7 +73,6 @@ for (feat_type in feat_types) {
       interested_col_ind = which(colnames(meta_file)%in%interested_cols)
       uniquecols = apply(meta_file_factor, 2, function(x) nrow(meta_file_factor)==length(unique(x)))
       meta_file_attonly = meta_file_factor[,!uniquecols]
-      
       
       
       ## pca analysis ------------------------------------------------

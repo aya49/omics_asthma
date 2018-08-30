@@ -168,7 +168,7 @@ demo1_val <- subset(demo0, rnaseq_coreSet_biomarkerAnalysis != "Y")
 demo1_val <- subset(demo1_val, calculated_Response != "Control")
 ## remove replicates from discovery cohort
 demo1_val <- demo1_val[!(demo1_val$NAME %in% demo1_dis$NAME), ]
-## remove subjects that were challenged with allergens other than that of the discovery cohort
+## remove subjects that were challenged with allergens results/enrichr than that of the discovery cohort
 demo1_val <- demo1_val[as.character(demo1_val$Allergen_cleanLabel) %in%  unique(as.character(demo1_dis$Allergen_cleanLabel)), ]
 ## remove subjects with repeat challenges
 rmSubj <- names(table(as.character(demo1_val$NAME))[table(as.character(demo1_val$NAME)) > 1])
@@ -285,7 +285,7 @@ asthmaDat %>% group_by(fileName) %>% dplyr::summarise(TotalSum = sum(Count), Coh
 ## plot assay counts
 Dat2 <- asthmaDat
 Dat2$Name <- as.character(Dat2$Name)
-Dat2$Name[Dat2$Name != "HBA2"] <- "other genes"
+Dat2$Name[Dat2$Name != "HBA2"] <- "results/enrichr genes"
 Dat3 <- Dat2 %>% group_by(fileName, Name) %>% dplyr::summarise(TotalSum = sum(Count), Cohort=unique(Cohort)) %>% 
   dplyr::select(TotalSum, Cohort, Name) 
 
