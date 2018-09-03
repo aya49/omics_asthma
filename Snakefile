@@ -16,9 +16,9 @@ rule all:
 
 rule downloadGTF:
     output:
-        expand("{downloadDir}gtf/gencode.v27.annotation.gtf", downloadDir = config["downloadDir"])
+        expand("{downloadDir}gtf/gensrc.v27.annotation.gtf", downloadDir = config["downloadDir"])
     params:
-        url = "ftp://ftp.sanger.ac.uk/pub/gencode/Gencode_human/release_27/gencode.v27.annotation.gtf.gz",
+        url = "ftp://ftp.sanger.ac.uk/pub/gensrc/Gensrc_human/release_27/gensrc.v27.annotation.gtf.gz",
         downloadDir = config["downloadDir"]
     shell:
         "wget -O - {params.url} | gunzip -c > {output}"
@@ -27,14 +27,14 @@ rule downloadFASTA:
     output:
         expand("{downloadDir}fasta/GRCh38.p10.genome.fa", downloadDir = config["downloadDir"])
     params:
-        url = "ftp://ftp.sanger.ac.uk/pub/gencode/Gencode_human/release_27/GRCh38.p10.genome.fa.gz",
+        url = "ftp://ftp.sanger.ac.uk/pub/gensrc/Gensrc_human/release_27/GRCh38.p10.genome.fa.gz",
         downloadDir = config["downloadDir"]
     shell:
         "wget -O - {params.url} | gunzip -c > {output}"
 
 rule generateRSEMIndex:
     input:
-        gtf = expand("{downloadDir}gtf/gencode.v27.annotation.gtf", downloadDir = config["downloadDir"]),
+        gtf = expand("{downloadDir}gtf/gensrc.v27.annotation.gtf", downloadDir = config["downloadDir"]),
         fasta = expand("{downloadDir}fasta/GRCh38.p10.genome.fa", downloadDir = config["downloadDir"])
     output:
         expand("{downloadDir}index/rsem/", downloadDir = config["downloadDir"])

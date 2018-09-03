@@ -6,10 +6,10 @@
 
 ## logistics
 root = "~/projects/asthma"; commandArgs <- function(...) root  # root directory, used for _dirs.R
-source(paste0(root, "/code/_dirs.R"))
-source(paste0(root, "/code/_func.R"))
-source(paste0(root, "/code/_func-asthma.R"))
-source(paste0(root, "/code/visualizationFunctions.R"))
+source(paste0(root, "/src/_dirs.R"))
+source(paste0(root, "/src/_func.R"))
+source(paste0(root, "/src/_func-asthma.R"))
+source(paste0(root, "/src/visualizationFunctions.R"))
 libr(append(pkgs(),c("qdapTools")))
 
 no_cores = 8#detectCores()-3
@@ -152,7 +152,10 @@ a = foreach (ei = 1:length(eqtl_paths)) %dopar% { try({
     }
     
     # load gwas
-    pval1 = get(load(pval_paths[grepl(paste0(feat_type_set[1],"-",file_ind_n,"Xall"),pval_paths)]))
+    pval1 = lapply(feat_type_set, function(x) {
+      pp = pval_paths[grepl(paste0(x,"-",file_ind_n,"Xall"),pval_paths)]
+      get(load( ifelse(grepl("cauc",eqtl_name),pp[grepl("cauc",pp)],pp[!grepl("cauc",pp)]) ))
+    })
     pvalt1 = pval1[,grepl("none",colnames(pval1))]
     pvalt1 = pvalt1[match(colnames(m1),names(pvalt1))]
     

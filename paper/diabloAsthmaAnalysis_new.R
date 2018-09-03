@@ -6,7 +6,7 @@
 ##########################################################################
 root = "~/projects/asthma"
 
-source(paste0(root, "/code/_func.R"))
+source(paste0(root, "/src/_func.R"))
 library(GGally)
 library(reshape2)
 library(ggplot2)
@@ -20,7 +20,7 @@ library(CellCODE) # devtools::install_github("mchikina/CellCODE")
 library(pROC)
 library(rafalib)
 mypar()
-#source(jPaste(root, "/code/functions.R"))
+#source(jPaste(root, "/src/functions.R"))
 source("~/Dropbox/Manuscript/mixOmics.org:DIABLO/functions/visualizationFunctions.R")
 #setwd("/Users/asingh/Dropbox/manuscript/mixOmics.org:DIABLO/results/enrichr/mixOmicsv6/R/")
 #lapply(list.files(), function(i) source(i))
@@ -481,7 +481,7 @@ asthmaExpDiff <- t(asthmaExp[, rownames(asthmaDemoPost)]) - t(asthmaExp[, rownam
 load("~/projects/asthma/data/RNAseq_nanostring/data/discovery/rnaseq/allRnaseqDatasets_rawData.RDATA")
 load("~/projects/asthma/data/RNAseq_nanostring/data/discovery/rnaseq/allRnaseqDatasets_normalized.RDATA")
 ## use ensembl datasets
-source("~/projects/asthma/data/RNAseq_nanostring/code/discovery/functions.R")
+source("~/projects/asthma/data/RNAseq_nanostring/src/discovery/functions.R")
 # remove ERCC controls
 ensemblDat0 <- normalizelibSum(starEnsemblExp[-(60156:nrow(starEnsemblExp)), colnames(genDats$starEnsemblExp)])
 ensemblDat <- ensemblDat0[, !is.na(match(colnames(ensemblDat0), rownames(asthmaDemoPost)))]-ensemblDat0[, !is.na(match(colnames(ensemblDat0), rownames(asthmaDemoPre)))]

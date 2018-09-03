@@ -26,7 +26,7 @@ library(tint)
 
 # helpers
 root = '~/projects/asthma/example_diablo'
-source(paste0(root, '/code/mixOmics_plotting_helpers.r'))
+source(paste0(root, '/src/mixOmics_plotting_helpers.r'))
 setwd(root)
 ```
 

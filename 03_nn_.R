@@ -31,8 +31,8 @@ blockplsda_dir = paste0(super_dir,"/blockplsda"); dir.create(blockplsda_dir,show
 
 
 
-source("code/_func.R")
-source("code/visualizationFunctions.R")
+source("src/_func.R")
+source("src/visualizationFunctions.R")
 
 libr(c("biomaRt", "mixOmics",
        "limma", "GGally", "ggplot2",

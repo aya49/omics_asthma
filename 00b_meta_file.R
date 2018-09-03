@@ -7,9 +7,9 @@
 
 ## logistics
 root = "~/projects/asthma" # root directory, used for _dirs.R
-source(paste0(root, "/code/_dirs.R"))
-source(paste0(root, "/code/_func.R"))
-source(paste0(root, "/code/_func-asthma.R"))
+source(paste0(root, "/src/_dirs.R"))
+source(paste0(root, "/src/_func.R"))
+source(paste0(root, "/src/_func-asthma.R"))
 libr(append(pkgs(),c("pracma")))
 
 
@@ -88,6 +88,8 @@ meta_file01 = meta_file01[u_id,]
 
 
 ## meta 2: general ------------------------------
+# meta_file02a = read.csv(meta_file_data_dir, check.names=T); colnames(meta_file02a)[8] = "NAME"
+# meta_file02a = meta_file02a[!grepl("Normal",meta_file02a$NAME),]
 meta_file02a = read.xls(meta_file_extra_dir, check.names=T)
 meta_file02a = meta_file02a[!grepl("Normal",meta_file02a$NAME),]
 
@@ -98,11 +100,14 @@ meta_file02a$NAME[grepl("WRF",meta_file02a$NAME)] = "WRF"
 meta_file02_id = paste(meta_file02a$NAME, meta_file02a$AIC_YMD, meta_file02a$Time)
 
 
-## meta 3: pan-cancer -------------------------
+## meta 3: all (pan-cancer too) -------------------------
 meta_file03 = readRDS(meta_file_rnapc_dir)
 meta_file03 = meta_file03[!grepl("Normal",meta_file03$NAME),] #delete controls
 meta_file03$NAME[grepl("WRF",meta_file03$NAME)] = "WRF"
 meta_file03_id = paste(meta_file03$NAME, meta_file03$AIC_YMD, meta_file03$Time)
+
+flippers_pc = unique(meta_file03$NAME)[sapply(unique(meta_file03$NAME), function(x) any(meta_file03$ranseq_flipper[meta_file03$NAME==x]=="Y"))]
+flippers_non_pc = meta_file03$NAME[!meta_file03$NAME%in%flippers_pc]
 
 #check if there are subjects in pan-cancer meta not in general meta
 pc_id = paste0(meta_file03$NAME, "_", meta_file03$AIC_YMD)
@@ -124,27 +129,33 @@ meta_file040[grepl("WRF",meta_file040[,"NAME"]),"NAME"] = "WRF"
 
 
 ## meta 4.5: cell ---------------------------------
-meta_file1_temp0 = fread(meta_file_temp1_dir, data.table=F)
-meta_file1_temp0[grepl("WRF",meta_file1_temp0[,"Name"]),"Name"] = "WRF"
-meta_file1_temp0[,"Filename"] = gsub(".bam","",meta_file1_temp0[,"Filename"])
-meta_file04.5 = meta_file1_temp0
-meta_file04.5$Sample.ID[is.na(meta_file04.5$Sample.ID)] = meta_file04.5$Subject[is.na(meta_file04.5$Sample.ID)]
+# meta_file1_temp0 = fread(meta_file_temp1_dir, data.table=F)
+# meta_file1_temp0[grepl("WRF",meta_file1_temp0[,"Name"]),"Name"] = "WRF"
+# meta_file1_temp0[,"Filename"] = gsub(".bam","",meta_file1_temp0[,"Filename"])
+# meta_file04.5 = meta_file1_temp0
+# meta_file04.5$Sample.ID[is.na(meta_file04.5$Sample.ID)] = meta_file04.5$Subject[is.na(meta_file04.5$Sample.ID)]
 
-all(meta_file040$Filename.Prefix%in%meta_file04.5$Filename) #T!
-meta_file040 = meta_file040[match(meta_file04.5$Filename, meta_file040$Filename.Prefix),]
+load(rnaseqa_data_dir)
+meta_file04 = demoRNASeq
+meta_file04$NAME = as.character(meta_file04$NAME)
+meta_file04[grepl("WRF",meta_file04[,"NAME"]),"NAME"] = "WRF"
 
-# combine 04, 04.5
-intercol = intersect(colnames(meta_file04.5), colnames(meta_file040))
-meta_file04.5[,intercol] = sapply(intercol, function(x) {
-  vals = meta_file04.5[,x]
-  misval = is.na(vals) | vals==""
-  if(sum(misval)>0) vals[misval] = meta_file040[misval,x]
-  vals
-})
+# all(meta_file040$Filename.Prefix%in%meta_file04.5$Filename) #T!
+# all(meta_file04.5$Filename%in%meta_file040$Filename.Prefix) #F!
+# meta_file040 = meta_file040[match(meta_file04.5$Filename, meta_file040$Filename.Prefix),]
 
-meta_file04 = cbind(meta_file040[,!colnames(meta_file040)%in%append(colnames(meta_file04.5),c("Filename.Prefix"))],meta_file04.5)
-meta_file04$MST_LST_numbers[is.na(meta_file04$MST_LST_numbers)] = meta_file04$Sample.ID[is.na(meta_file04$MST_LST_numbers)]
-meta_file04$MST_LST_numbers[grepl("L_ST_025",meta_file04$MST_LST_numbers)] = "L_ST_025"
+# # combine 04, 04.5
+# intercol = intersect(colnames(meta_file04.5), colnames(meta_file040))
+# meta_file04.5[,intercol] = sapply(intercol, function(x) {
+#   vals = meta_file04.5[,x]
+#   misval = is.na(vals) | vals==""
+#   if(sum(misval)>0) vals[misval] = meta_file040[misval,x]
+#   vals
+# })
+
+# meta_file04 = cbind(meta_file040[,!colnames(meta_file040)%in%append(colnames(meta_file04.5),c("Filename.Prefix"))],meta_file04.5)
+# meta_file04$MST_LST_numbers[is.na(meta_file04$MST_LST_numbers)] = meta_file04$Sample.ID[is.na(meta_file04$MST_LST_numbers)]
+# meta_file04$MST_LST_numbers[grepl("L_ST_025",meta_file04$MST_LST_numbers)] = "L_ST_025"
 
 #check for missing responses, L_ST_025 has no response
 meta_file04$rp04 = meta_file04$Response_usedInRNAseqBiomarkerAnalysis
@@ -252,13 +263,18 @@ meta_file021$SITE = tolower(meta_file021$SITE)
 meta_file022 = meta_file021
 for (meta_file_tmp in list(meta_file01,meta_file03,meta_file04)) {
   print(sum(!meta_file_tmp$NAME%in%meta_file022$NAME)) #0
+  
   if (sum(duplicated(meta_file_tmp$NAME))==0 & !is.null(meta_file_tmp$NAME)) { #meta_file01
     meta_file_tmpt = meta_file_tmp[match(meta_file022$NAME,meta_file_tmp$NAME),]
+    
   } else if (sum(rownames(meta_file_tmp)%in%paste0(meta_file022$id_namedate, ".", meta_file022$Time))>0) { #meta_file03
     meta_file_tmpt = meta_file_tmp[match(paste0(meta_file022$id_namedate, ".", meta_file022$Time),rownames(meta_file_tmp)),]
-  } else if (sum(meta_file_tmp$MST_LST_numbers%in%meta_file022$MST_LST_numbers)>(nrow(meta_file_tmp)-3) & !is.null(meta_file_tmp$MST_LST_numbers)) { #meta_file04; 2 samples not in 022; no worrites they don't have responses!
+    
+  } else if (!is.null(meta_file_tmp$Filename.Prefix)) { #meta_file04; 2 samples not in 022; no worrites they don't have responses!
     # meta_file_tmpt = meta_file_tmp[match(meta_file022$rnaseqID_quebec,meta_file_tmp$rnaseqID_quebec),] # SHOULD BE THIS ONE, but if i do this... i need to put back in samples with less of results/enrichr data types done on, so, ill stick to this for now :)
-    meta_file_tmpt = meta_file_tmp[match(meta_file022$MST_LST_numbers,meta_file_tmp$MST_LST_numbers),]
+    tmpid = paste0(meta_file_tmp$NAME,"_",meta_file_tmp$Time,"_",meta_file_tmp$AIC_YMD)
+    m022id = paste0(meta_file022$NAME,"_",meta_file022$Time,"_",meta_file022$AIC_YMD)
+    meta_file_tmpt = meta_file_tmp[match(m022id,tmpid),]
   }
   meta_file022 = cbind(meta_file022, meta_file_tmpt[,!colnames(meta_file_tmpt)%in%colnames(meta_file022)])
   # meta_file022 = merge(meta_file_tmpt[,!colnames(meta_file_tmpt)%in%colnames(meta_file022) | colnames(meta_file01)%in%"NAME"], meta_file022, by="NAME", all=T, suffixes=c("",""))
@@ -296,15 +312,19 @@ meta_file022 = meta_file022[!is.na(meta_file022[,response_col]),]
 meta_file022_temp = meta_file022
 
 # isolate one sample only for each subject's pre/post; based on response_calc
-backup_col = "response_mac"
-meta_file02_id = paste0(meta_file022$NAME,"_",meta_file022$Time)
-u_ind = sapply(unique(meta_file02_id), function(x) {
-  n_ind = which(meta_file02_id==x)
+# backup_col = "response_mac"
+u_ind = sapply(unique(meta_file022$NAME), function(x) {
+  n_ind = which(meta_file022$NAME==x)
+  if (max(table(meta_file022[n_ind,"Time"]))<2) return(n_ind)
   y = meta_file022[n_ind,"response"]
   n_ind1 = n_ind[y==mode_set(y)]
-  n_ind1[which.max(apply(meta_file022[n_ind1,],1, function(y) sum(y!="" & !is.na(y))))]
+  yl = lapply(unique(meta_file022[n_ind,"AIC_YMD"]), #dates
+              function(z) meta_file022[meta_file022$NAME==x & meta_file022$AIC_YMD==z,])
+  names(yl) = unique(meta_file022[n_ind,"AIC_YMD"])
+  n_date = names(yl)[which.max(sapply(yl, function(yli) ifelse(is.na(yli$Cohort), sum(yli!="" & !is.na(yli)), Inf) ))]
+  n_ind[meta_file022[n_ind,"AIC_YMD"]==n_date]
 })
-meta_file022 = meta_file022[u_ind,]
+meta_file022 = meta_file022[as.vector(u_ind),]
 meta_file022 = meta_file022[,apply(meta_file022,2,function(x) !all(is.na(x) | x==""))]
 
 ## extract cells feature -------------------------------------------
@@ -359,22 +379,24 @@ if (writecsv) write.csv(cells_post, file=paste0(feat_cell_dir,".post.csv"))
 
 ## delete columns from merged meta_file & final response annotation ---------------------------------------
 # (save raw version with both response=pre/post, anresults/enrichr one with just pre)
-meta_file2 = meta_file022[,c(1:3,5:14,16:116,4,117:ncol(meta_file022))] # data availability
-colnames(meta_file2)[c(1:5,7:11,14,34:35,39,41,45,71,112)] =
+meta_file2 = meta_file022[,c(1:14,16:ncol(meta_file022))] # data availability
+colnames(meta_file2)[c(1:3,5:6,8:12,15,35:36,40,42,46,72,107)] =
   c("sponsor","centre","drug","id","date","race","sex",
     "weight","height","age","allergen","time","response_mac",
-    "cohort","id_mstlst","flipper_rnaseq","response_gen","filename_rnaseq")
+    "cohort","id_mstlst","flipper_rnaseq","response_dna","filename_rnaseq")
 # Read.Set.Id = filename_rnaseq
 meta_file2 = meta_file2[,apply(meta_file2,2,function(x) any(!is.na(x)))]
+# convert data to right format: char, numeric, factor
 for (ci in 1:ncol(meta_file2)) {
   x = meta_file2[,ci]
-  if( sum(!is.na(as.numeric(x[!is.na(x)])))/sum(!is.na(x))>.7 & sum(!is.na(x))>0)
+  if (sum(!is.na(as.numeric(as.character(x[!is.na(x)]))))/sum(!is.na(x))>.7 & sum(!is.na(x))>0) {
     meta_file2[,ci] = as.numeric(x)
+  } else { meta_file2[,ci] = as.character(x) }
 }
 
 
 # annotate response based on majority; does everything twice... but not computationally expensive so alright
-meta_file2$response_gen = sapply(meta_file2$id, function(x)
+meta_file2$response_dna = sapply(meta_file2$id, function(x)
   ifelse (!x%in%meta_file010$NAME, NA, mode_set(meta_file010$Gen_Response)) )
 meta_file2$response_mac = sapply(meta_file2$id, function(x)
   ifelse (!x%in%meta_file02$NAME, NA, mode_set(meta_file02$Mac_Response)) )
@@ -382,13 +404,15 @@ meta_file2$response_calc = sapply(meta_file2$id, function(x)
   ifelse (!x%in%meta_file02$NAME, NA, mode_set(meta_file02$response_calc)) )
 
 # add flipper info
-meta_file2$flipper_calc = meta_file2$flipper_gen = meta_file2$flipper_mac = NA
+meta_file2$flipper_calc = meta_file2$flipper_gen = meta_file2$flipper_mac = meta_file2$flipper_rnaseq = NA
 meta_file2$flipper_calc[meta_file2$id%in%flippers_calc] =
   meta_file2$flipper_gen[meta_file2$id%in%flippers_gen] =
-  meta_file2$flipper_mac[meta_file2$id%in%flippers_mac] = T
+  meta_file2$flipper_rnaseq[meta_file2$id%in%flippers_pc] =
+  meta_file2$flipper_mac[meta_file2$id%in%flippers_mac] = TRUE
 meta_file2$flipper_calc[meta_file2$id%in%flippers_non_calc] =
   meta_file2$flipper_gen[meta_file2$id%in%flippers_non_gen] =
-  meta_file2$flipper_mac[meta_file2$id%in%flippers_non_mac] = F
+  meta_file2$flipper_rnaseq[meta_file2$id%in%flippers_non_pc] =
+  meta_file2$flipper_mac[meta_file2$id%in%flippers_non_mac] = FALSE
 
 
 # isolate meta table with id as subject name
@@ -408,10 +432,17 @@ if (writecsv) write.csv(meta_file2, file=paste0(meta_file_dir,".raw.csv"))
 save(meta_file, file=paste0(meta_file_dir,".Rdata"))
 if (writecsv) write.csv(meta_file, file=paste0(meta_file_dir,".csv"))
 
-goodppl = meta_file$id[!meta_file[,paste0("flipper",responsetype_col)]]
+
+# isolate non-flippers: let's just use the ones from the previous paper! there are 6 flippers by calculation here though, and there are at least two flippers based on all the columns
+demo = get(load(rnaseqa_datanorm_dir))
+goodppl = unique(as.character(demo$NAME))
+goodppl[grepl("WRF",goodppl)] = "WRF"
+# goodppl = meta_file$id[!meta_file[,paste0("flipper",responsetype_col)]] # based on calculated data
 save(goodppl, file=paste0(meta_file_dir,"_id_goodppl.Rdata"))
 
-flipperdr = meta_file$id[meta_file[,flipper_col] | meta_file$response=="ER"]
+flipperdr = meta_file$id[meta_file$id%in%goodppl & meta_file$response=="ER"]
+flipperdr = append(flipperdr, meta_file$id[!meta_file$id%in%goodppl & meta_file$cohort%in%"Discovery" & meta_file$response=="DR"])
+# flipperdr = meta_file$id[meta_file[,flipper_col] | meta_file$response=="ER"] # based on calculated data
 save(flipperdr, file=paste0(meta_file_dir,"_id_flipperdr.Rdata"))
 
 
@@ -426,7 +457,8 @@ fltime_colind = colnames(meta_file)[grepl("F[0-9]+L",colnames(meta_file))]
 fldf = melt(meta_file[append(c("id","response"),fltime_colind)], measure.vars=fltime_colind)
 fldf$variable = as.numeric(gsub("[A-Z]","",fldf$variable))
 
-#### need to debug...
+
+#### this part doesn't work, it was for testing new pretty plots, don't worry
 fldfa = ddply(fldf, .(response, variable), function(x)
   c(mean=mean(x$value), sd = sd(x$value),
     lower=as.numeric(quantile(x$value, .25)), upper=as.numeric(quantile(x$value, .75))) )
@@ -443,9 +475,3 @@ ggsave(filename=paste0(stat_dir,"/fev.png"),
          xlab("time (min after allergen exposure)") +
          ylab("mean FEV (forced expiratory volume)"),
        scale = 1.5, width = 5, height = 3, units = c("in"))
-
-
-
-
-
-

@@ -6,9 +6,9 @@
 
 ## logistics
 root = "~/projects/asthma" # root directory, used for _dirs.R
-source(paste0(root, "/code/_dirs.R"))
-source(paste0(root, "/code/_func.R"))
-source(paste0(root, "/code/_func-asthma.R"))
+source(paste0(root, "/src/_dirs.R"))
+source(paste0(root, "/src/_func.R"))
+source(paste0(root, "/src/_func-asthma.R"))
 libr(append(pkgs(), c("TxDb.Hsapiens.UCSC.hg19.knownGene", "annotables", "biomaRt", "org.Hs.eg.db"))) #org.* annotation packages; can forge own and interact with using library("AnnotationDbi"))))
 
 
@@ -18,7 +18,7 @@ expr_cutoff = 3
 
 
 ## load RNA-Seq datasets
-load(rnaseqa_data_dir)
+load(rnaseqa_data_dir) # discovery only
 # load("~/projects/asthma/data/RNAseq/allRnaseqDatasets_normalized.RDATA")
 
 datalist = list(rnaseqstarensgenes=starEnsemblExp, rnaseqtrinisoforms=trinityGeneIsoCounts, rnasequcscgenes=ucscGeneCounts, rnasequcscisoforms=ucscGeneIsoCounts)
@@ -33,8 +33,8 @@ demo$NAME[grepl("WRF",demo$NAME)] = "WRF"
 
 expdata_group = factor(paste0(demo$NAME,demo$Time,demo$CorrectResponse))
 
-preind = as.character(demo$Time)=="Pre"
-postind = as.character(demo$Time)=="Post"
+preind = as.character(demo$Time)=="Pre"# & !is.na(demo$NAME)
+postind = as.character(demo$Time)=="Post"# & !is.na(demo$NAME)
 
 # ensembl datasets
 ensembl = useMart("ENSEMBL_MART_ENSEMBL")

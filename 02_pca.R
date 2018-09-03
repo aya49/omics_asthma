@@ -6,10 +6,10 @@
 
 ## logistics
 root = "~/projects/asthma" # root directory, used for _dirs.R
-source(paste0(root, "/code/_dirs.R"))
-source(paste0(root, "/code/_func.R"))
-source(paste0(root, "/code/_func-asthma.R"))
-source(paste0(root, "/code/_func-classifiers.R"))
+source(paste0(root, "/src/_dirs.R"))
+source(paste0(root, "/src/_func.R"))
+source(paste0(root, "/src/_func-asthma.R"))
+source(paste0(root, "/src/_func-classifiers.R"))
 libr(append(pkgs(),c("RDRToolbox")))
 
 # no_cores = 1#detectCores()-2 #number of cores to use for parallel processing
@@ -55,16 +55,14 @@ for (feat_type in feat_types) {
   cat("\n", feat_type)
   
   # load m0 using: meta_file0, feat_dir, feat_type, col_inds0 --> m0, col_inds
-  source(paste0(root, "/code/_func-asthma_m0-load.R")) 
+  source(paste0(root, "/src/_func-asthma_m0-load.R")) 
   
   class_coli = 1
   for (file_ind_n in names(file_inds)) {
     for (col_ind_n in names(col_inds)) {
       
       # prep m, meta_file, meta_col: m0 class_coli, class_cols, file_ind_n, file_inds
-      source(paste0(root, "/code/_func-asthma_m-trim.R")); if (nextm) next()
-      meta_file = meta_file0[match(rownames(m),meta_file0[,id_col]),]
-      if (file_ind_n=="flipperdr") meta_file[meta_file[,flipper_col],class_col] = experiment[class_coli]
+      source(paste0(root, "/src/_func-asthma_m-trim.R")); if (nextm) next()
       
       
       ## get interested columns

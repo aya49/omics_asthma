@@ -14,7 +14,7 @@ library(psych)  # geometric.mean()
 library(NormqPCR) # selectHKs
 library(amritr)
 
-source("~/Dropbox/Asthma/biomarkerPanels/code/discovery/functions.R")
+source("~/Dropbox/Asthma/biomarkerPanels/src/discovery/functions.R")
 load("~/Dropbox/Asthma/biomarkerPanels/data/discovery/rnaseq/allRnaseqDatasets_normalized.RDATA")
 
 #----------------------------------------------
@@ -58,11 +58,11 @@ data$Sample <- sampleMap[gsub(".RCC", "", unlist(lapply(strsplit(as.character(da
 GeneNames <- as.character(data$Name)
 GeneNames[data$Accession == "NM_001788.5"] <- "SEPT7"
 data$Name <- GeneNames
-codeClass <- as.character(data$CodeClass)
-codeClass[data$Name == "comp56964_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
-codeClass[data$Name == "comp56975_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
-codeClass[data$Name == "comp56957_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
-data$CodeClass <- factor(codeClass)
+srcClass <- as.character(data$CodeClass)
+srcClass[data$Name == "comp56964_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
+srcClass[data$Name == "comp56975_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
+srcClass[data$Name == "comp56957_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
+data$CodeClass <- factor(srcClass)
 asthmaDis <- data
 
 #----------------------------------------------
@@ -108,11 +108,11 @@ data$Sample <- mappingFile[sampleMap, "V.ID"]
 GeneNames <- as.character(data$Name)
 GeneNames[data$Accession == "NM_001788.5"] <- "SEPT7"
 data$Name <- GeneNames
-codeClass <- as.character(data$CodeClass)
-codeClass[data$Name == "comp56964_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
-codeClass[data$Name == "comp56975_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
-codeClass[data$Name == "comp56957_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
-data$CodeClass <- factor(codeClass)
+srcClass <- as.character(data$CodeClass)
+srcClass[data$Name == "comp56964_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
+srcClass[data$Name == "comp56975_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
+srcClass[data$Name == "comp56957_c0_seq1_hk"] <- "Housekeeping_Code_Summary"
+data$CodeClass <- factor(srcClass)
 asthmaVal <- data
 
 asthmaDat <- rbind(asthmaDis, asthmaVal)

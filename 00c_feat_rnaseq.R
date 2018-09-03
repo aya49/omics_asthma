@@ -7,10 +7,10 @@
 
 ## logistics
 root = "~/projects/asthma" # root directory, used for _dirs.R
-source(paste0(root, "/code/_dirs.R"))
-source(paste0(root, "/code/_func.R"))
-source(paste0(root, "/code/_func-asthma.R"))
-libr(pkgs())
+source(paste0(root, "/src/_dirs.R"))
+source(paste0(root, "/src/_func.R"))
+source(paste0(root, "/src/_func-asthma.R"))
+libr(append(pkgs(), c("TxDb.Hsapiens.UCSC.hg19.knownGene", "annotables", "biomaRt", "org.Hs.eg.db")))
 
 
 ## options
@@ -21,6 +21,18 @@ wdth=600
 height=500
 
 pthres = .025
+
+# ensembl datasets
+ensembl = useMart("ENSEMBL_MART_ENSEMBL")
+mart = useDataset("hsapiens_gene_ensembl",mart=ensembl)
+reqcol = c('ensembl_gene_id','entrezgene','refseq_mrna','ucsc', 'hgnc_symbol',
+           'chromosome_name','start_position','end_position', 'description')
+reqcoln = c("ensgene","entrez","refseq_mrna","ucsc","symbol","chr","start","end","description")
+
+## annotatable data set
+grch38_dt = merge(as.data.frame(grch38_tx2gene), as.data.frame(grch38), by="ensgene")
+save(grch38_dt, file=paste0(grch38_dir,".Rdata"))
+if (writecsv) write.csv(grch38_dt, file=paste0(grch38_dir,".csv"))
 
 #match cutoffs with amrit's analysis
 expr_cutoff = list()
@@ -191,7 +203,7 @@ for (m0n in names(feats)) {
   # m1 = na.omit(m1)
 
   png(file=paste0(preprocess_dir,"/", fileNames(feat_rnaseq_dir),m0n, "_cpmfiltered-heat.png"), width=wdth, height=height)
-  heatmap(cor(cpm_log[,order(meta_fileraw[,class_col])]))
+  heatmap(cor(cpm_log[,order(meta_fileraw[match(colnames(cpm_log),meta_fileraw$filename_rnaseq),class_col])]))
   graphics.off()
   
   # pca <- prcomp(t(cpm_log), scale. = TRUE)
@@ -252,7 +264,7 @@ for (m0n in names(feats)) {
   # if (writecsv) write.csv(m4, file=paste0(feat_rnaseq_dir,".csv"))
   
   
-  ### onwards is tests... incomplete
+  ### onwards is tests... skip this part
   try ({
     # test DE; similar to fisher exact test
     m4 = DGEList(counts=m4, group=group)
@@ -306,10 +318,10 @@ for (m0n in names(feats)) {
 ## save -----------------------------
 for (m0n in names(feats)) {
   m0 = feats[[m0n]]
-  counts_pre = m0[meta_file$filename_rnaseq.pre[!is.na(meta_file$filename_rnaseq.pre)],]
-  counts_post = m0[meta_file$filename_rnaseq.post[!is.na(meta_file$filename_rnaseq.post)],]
-  rownames(counts_post) = meta_file[!is.na(meta_file$filename_rnaseq.post),id_col]
-  rownames(counts_pre) = meta_file[!is.na(meta_file$filename_rnaseq.pre),id_col]
+  counts_pre = m0[rownames(m0)%in%meta_file$filename_rnaseq.pre,]
+  counts_post = m0[rownames(m0)%in%meta_file$filename_rnaseq.post,]
+  rownames(counts_pre) = meta_file[match(rownames(counts_pre), meta_file$filename_rnaseq.pre),id_col]
+  rownames(counts_post) = meta_file[match(rownames(counts_post), meta_file$filename_rnaseq.post),id_col]
   
   counts_diff = counts_post - counts_pre
   
@@ -322,8 +334,33 @@ for (m0n in names(feats)) {
   if (writecsv) write.csv(counts_diff, file=paste0(feat_rnaseq_dir,m0n,".diff.csv"))
 
   mcol = meta_cols[[m0n]]
-  save(mcol, file=paste0(meta_col_rnaseq_dir,m0n,".Rdata"))
-  if (writecsv) write.csv(mcol, file=paste0(meta_col_rnaseq_dir,m0n,".csv"))
+  
+  features = mcol[,apply(mcol,2,function(x) any(grepl("ENSG",x)))]
+  
+  # get more data on features
+  features_ = str_extract(features, "ENSG[0-9]+")
+  colidn = 'ensembl_gene_id'
+  colid = grep(colidn,reqcol)
+  meta_col = meta_col_ = Reduce('merge', lapply(reqcol[-colid], function(reqcol_) 
+    getBM(attributes=c(colidn, reqcol_),
+          filters = colidn,
+          values = features_,
+          mart = mart)) )
+  colnames(meta_col) = append(reqcoln[colid],reqcoln[-colid])
+  meta_col = meta_col[match(features_,meta_col[,reqcoln[colid]]),]
+  grch38_dts = grch38_dt[match(meta_col[,"ensgene"],grch38_dt["ensgene"]),]
+  
+  intercol = intersect(colnames(meta_col),colnames(grch38_dts))
+  meta_col[,intercol] = sapply(intercol, function(x) {
+    colx = meta_col[,x]
+    colxna = is.na(colx)
+    colx[colxna] = grch38_dts[colxna,x]
+    colx
+  })
+  meta_col = cbind(mcol,meta_col)
+
+  save(meta_col, file=paste0(meta_col_rnaseq_dir,m0n,".Rdata"))
+  if (writecsv) write.csv(meta_col, file=paste0(meta_col_rnaseq_dir,m0n,".csv"))
   
 }
 

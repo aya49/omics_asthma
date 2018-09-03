@@ -5,14 +5,14 @@
 
 
 
-## logistics
+## logisticss
 root = "~/projects/asthma" # root directory, used for _dirs.R
-source(paste0(root, "/code/_dirs.R"))
-source(paste0(root, "/code/_func.R"))
-source(paste0(root, "/code/_func-asthma.R"))
+source(paste0(root, "/src/_dirs.R"))
+source(paste0(root, "/src/_func.R"))
+source(paste0(root, "/src/_func-asthma.R"))
 libr(pkgs())
 
-no_cores = detectCores()-3 #number of cores to use for parallel processing
+no_cores = detectCores()-6 #number of cores to use for parallel processing
 registerDoMC(no_cores)
 
 
@@ -55,7 +55,7 @@ for (feat_type in sort(feat_types,decreasing=T)) { start1 = Sys.time(); try({
   cat("\n", feat_type, sep="")
   
   # load m0 using: meta_file0, feat_dir, feat_type, col_inds0 --> m0, col_inds
-  source(paste0(root, "/code/_func-asthma_m0-load.R")) 
+  source(paste0(root, "/src/_func-asthma_m0-load.R")) 
   
   class_coli = 1 # response
   # for (class_coli in 1:length(class_col)) {
@@ -64,19 +64,13 @@ for (feat_type in sort(feat_types,decreasing=T)) { start1 = Sys.time(); try({
       # for (f1_bin in f1_bins) {
       
       # prep m, meta_file, meta_col: m0 class_coli, class_cols, file_ind_n, file_inds
-      source(paste0(root, "/code/_func-asthma_m-trim.R")); if (nextm) next()
-      if (scale_cont) m[,m_cont_col] = scale(as.numeric(as.matrix(m[,m_cont_col])))
-      meta_file = meta_file0[match(rownames(m),meta_file0[,id_col]),]
-      if (file_ind_n=="flipperdr") meta_file[meta_file[,flipper_col],class_col] = experiment
+      source(paste0(root, "/src/_func-asthma_m-trim.R")); if (nextm) next()
+      if (length(unique(meta_file[,class_col]))<2) { cat(" skipped, no variety in class "); next() } 
       
       # meta_col = meta_col0[match(colnames(m),meta_col0[,cid_col]),]
       class_names = levels(factor(meta_file[,class_col]))
       class = as.numeric(factor(meta_file[,class_col]))
       coni = class%in%grep(control,class_names)
-      
-      # filename; 
-      pname0 = paste0(gwas_dir,"/",feat_type,"-",file_ind_n,"X",col_ind_n,"_class-",class_col,"_", paste0(names(table(meta_file[,class_col])),table(meta_file[,class_col]), collapse="v"))
-      # pname0 = paste0(gwas_dir,"/",feat_type,ifelse(f1_bin!="",".",""), f1_bin,"-",file_ind_n,"X",col_ind_n,"_class-",class_col,"_", paste0(names(table(meta_file[,class_col])),table(meta_file[,class_col]), collapse="v"))
       
       
       loop_ind = loop_ind_f(1:ncol(m),no_cores)
@@ -97,6 +91,10 @@ for (feat_type in sort(feat_types,decreasing=T)) { start1 = Sys.time(); try({
           })
         })
       }
+      
+      # filename; 
+      pname0 = paste0(gwas_dir,"/",feat_type,"-",file_ind_n,"X",col_ind_n,"_class-",class_col,"_", paste0(names(table(meta_file[,class_col])),table(meta_file[,class_col]), collapse="v"))
+      # pname0 = paste0(gwas_dir,"/",feat_type,ifelse(f1_bin!="",".",""), f1_bin,"-",file_ind_n,"X",col_ind_n,"_class-",class_col,"_", paste0(names(table(meta_file[,class_col])),table(meta_file[,class_col]), collapse="v"))
       
       for (test in tests) {
         # filename; overwrite?

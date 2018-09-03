@@ -275,7 +275,7 @@ circosPlot_diablo = function(object, corThreshold,cex.label,
   ###
   ###   Authors: Michael Vacher (minor changes by Amrit :)
   ###
-  ###   Parts of this code has been modified from the original OmicCircos package obtained from: 
+  ###   Parts of this src has been modified from the original OmicCircos package obtained from: 
   ###   Ying Hu Chunhua Yan <yanch@mail.nih.gov> (2015). OmicCircos: High-quality circular visualization of omics data. R package version 1.6.0.
   ############################## 
   
@@ -1355,7 +1355,7 @@ circosPlot_diabloModif = function(object, corThreshold, cex.label,
   ###
   ###   Authors: Michael Vacher (minor changes by Amrit :)
   ###
-  ###   Parts of this code has been modified from the original OmicCircos package obtained from: 
+  ###   Parts of this src has been modified from the original OmicCircos package obtained from: 
   ###   Ying Hu Chunhua Yan <yanch@mail.nih.gov> (2015). OmicCircos: High-quality circular visualization of omics data. R package version 1.6.0.
   ############################## 
   

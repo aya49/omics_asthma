@@ -18,10 +18,10 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 ## logistics
 root = "~/projects/asthma" # root directory, used for _dirs.R
-source(paste0(root, "/code/_dirs.R"))
-source(paste0(root, "/code/_func.R"))
-source(paste0(root, "/code/_func-asthma.R"))
-source(paste0(root, "/code/_func-classifiers.R"))
+source(paste0(root, "/src/_dirs.R"))
+source(paste0(root, "/src/_func.R"))
+source(paste0(root, "/src/_func-asthma.R"))
+source(paste0(root, "/src/_func-classifiers.R"))
 libr(append(pkgs(),c("mixOmics","tidyverse","amritr","nlme","elasticnet")))
 
 load(meta_file_rnae_dir)

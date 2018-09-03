@@ -1,6 +1,8 @@
+## trim feat matrices!
+
 nextm = F
 
-# prep m
+# prep m from raw matrix m0
 m1 = m0[rownames(m0)%in%meta_file0[,id_col],, drop=F]
 
 class_col = class_cols[class_coli]
@@ -22,6 +24,7 @@ if (file_ind_n!="all" & all(colnames(m1)%in%col_ind)) nextm = T
 if (col_ind_n=="all") col_ind = colnames(m1)
 # col_ind_n = paste0(".",col_ind_n)
 
+# get rid of rows/cols with too many na or is homogenous
 m = as.matrix(m1)[rownames(m1)%in%file_ind, colnames(m1)%in%col_ind]
 class(m) = "numeric"
 m = m[apply(m,1,function(x) any(!is.na(x))),,drop=F]
@@ -37,8 +40,19 @@ if (any(dim(m)==0) | sum(!is.na(m))<sum(is.na(m))) {
 m = m[,apply(m,2,function(x) length(unique(x[!is.na(x)]))>1)]
 if (ncol(m)==0) nextm = T
 
+# are columns continuous values?
 m_cont_col = apply(m,2,function(x) length(unique(x))>cont_col)
 
-m[is.na(m)] = -1
+# scale continuous columns?
+if (exists("scale_cont")) { if (scale_cont) m[,m_cont_col] = scale(as.numeric(as.matrix(m[,m_cont_col]))) }
+
+# handle na
+# m[is.na(m)] = -1
+
 
 cat(" (",file_ind_n, " x ",col_ind_n,"; ",nrow(m)," x ",ncol(m),") ", sep="")
+
+## prepare meta_file
+meta_file = meta_file0[match(rownames(m),meta_file0[,id_col]),]
+# if (file_ind_n=="flipperdr") meta_file[meta_file[,flipper_col],class_col] = experiment
+if (file_ind_n=="flipperdr") meta_file[!meta_file[,id_col]%in%goodppl,class_col] = experiment

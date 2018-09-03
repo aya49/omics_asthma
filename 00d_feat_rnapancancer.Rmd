@@ -15,9 +15,9 @@ output:
 ```{r setup}
 ## logistics
 root = "~/projects/asthma" # root directory, used for _dirs.R
-source(paste0(root, "/code/_dirs.R"))
-source(paste0(root, "/code/_func.R"))
-source(paste0(root, "/code/_func-asthma.R"))
+source(paste0(root, "/src/_dirs.R"))
+source(paste0(root, "/src/_func.R"))
+source(paste0(root, "/src/_func-asthma.R"))
 libr(append(pkgs(),c("affy","GGally","ggbiplot","NormqPCR","tufte")))
 
 # invalidate cache when the tufte version changes
@@ -87,10 +87,10 @@ demoPre <- demoPre0[sampleMap, ]
 * *Imaging QC (nSolver default)*: Flag lanes when percent FOV registration is less than 75
 
 ## 2b. Binding Density
-* the Digital analyzer does not count codes that overlap
-* if too many codes overlap, there can be significant data loss
+* the Digital analyzer does not count srcs that overlap
+* if too many srcs overlap, there can be significant data loss
 * Binding densitiy (image saturation) = measure of the # of optical features per square micron
-* binding density > 2: significant numbers of codes ignored, affects quantification and linearity of the assay
+* binding density > 2: significant numbers of srcs ignored, affects quantification and linearity of the assay
 * *Binding Density QC (nSolver default)*: Flag lanes when binding density is outside of 0.005-2.25 range
 
 ```{r positiveControls, fig.width = 10, fig.height = 6, fig.fullwidth = TRUE, fig.cap = "FOV ratio and Binding density.", warning=FALSE, cache=TRUE}

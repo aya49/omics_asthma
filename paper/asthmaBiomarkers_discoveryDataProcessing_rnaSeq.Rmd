@@ -38,7 +38,7 @@ data_dir = paste0(root, "/data/RNAseq")
 ## output directory
 
 ## libraries
-source("code/_func.R")
+source("src/_func.R")
 libr("dplyr")
 libr("ggplot2")
 libr("pracma")
@@ -177,7 +177,7 @@ colnames(ucscGeneIsoCounts0) = unlist(gsub(".isoforms.results", "", gsub("rsem.U
 
 
 # 3) Ensembl dataset
-starEnsembl = read.delim(paste0(data_dir, "/ensembl/asthma.GRCh38_ERCC.gencode21.trimmedCounts.txt"), header=F)
+starEnsembl = read.delim(paste0(data_dir, "/ensembl/asthma.GRCh38_ERCC.gensrc21.trimmedCounts.txt"), header=F)
 dim(starEnsembl)   # 60249  x 102
 
 sampleNames = as.character(as.matrix(starEnsembl[2,-c(1:6)]))
@@ -241,7 +241,7 @@ colnames(trinityGeneIsoCounts) = rownames(meta_fileRNASeq)
 # get RNA-Seq data ready for analysis
 
 ```{r}
-# source(paste0(data_dir, "/code/discovery/functions.R"))
+# source(paste0(data_dir, "/src/discovery/functions.R"))
 
 ## describe demographics
 meta_fileRNASeq2 = meta_file[meta_file$rnaseq_coreSet_biomarkerAnalysis=="Y",]

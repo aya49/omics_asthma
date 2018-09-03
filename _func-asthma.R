@@ -41,7 +41,9 @@ libr <- function(pkgs) {
   if ("CellCODE"%in%pkgs & !"CellCODE"%in%installed.packages())
     devtools::install_github("mchikina/CellCODE")
   
-
+  if ("ggmixOmics"%in%pkgs & !"ggmixOmics"%in%installed.packages())
+    devtools::install_github("cashoes/ggmixOmics")
+  
   if (length(setdiff(pkgs, rownames(installed.packages()))) > 0) 
     install.packages(setdiff(pkgs, rownames(installed.packages())), verbose=F)
   if (length(setdiff(pkgs, rownames(installed.packages()))) > 0) {
@@ -72,6 +74,7 @@ good_na = .75 #proportion of na more than this, then delete the column in matrix
 
 f1_bin = ""
 f1_bins = c("","01","12") # 01 make all 2s 1, 12 make all 0s 1
+feats = c("cell","metab","rna","dna")
 
 
 ## load things --------------------------------------
@@ -87,17 +90,17 @@ if (length(list.files(feat_dir, pattern=".Rdata", full.names=F))>0) {
   feat_types_annot = feat_types_annot[order(file.size(paste0(feat_dir,"/",feat_types_annot)))]
   feat_types_annot = feat_types_annot[!grepl(".raw",feat_types_annot)]
   feat_types_times = sapply(strsplit(feat_types_annot,"[.]"), function(x) x[2])
-  feat_types_names = sapply(strsplit(feat_types_annot,"[.]"), function(x) x[1])
+  feat_types_names = gsub("[0-9]","",sapply(strsplit(feat_types_annot,"[.]"), function(x) x[1]))
   
   feat_types_annots = list()
   for (ftai in 1:(length(feat_types_annot)-1)) {
     for (ftaj in (ftai+1):length(feat_types_annot)) {
       fta = feat_types_annot[c(ftai,ftaj)]
       ftt = feat_types_times[c(ftai,ftaj)]
-      ftn = feat_types_names[c(ftai,ftaj)]
-      if (all(grepl("rna",ftn)) | all(grepl("cell",ftn)) | ftn[1] == ftn[2]) next()
       if (all(!is.na(ftt)) & ftt[1]!=ftt[2]) next()
-      if (grepl("rna",ftn[1]) | grepl("dna",ftn[2])) fta = c(fta[2],fta[1])
+      ftn = feat_types_names[c(ftai,ftaj)]
+      if (any(sapply(feats, function(y) all(grepl(y,ftn))) | ftn[1]==ftn[2])) next()
+      if (grepl("rna",ftn[1]) | grepl("dna",ftn[2])) fta = c(fta[2],fta[1]) #change order
       feat_types_annots[[1+length(feat_types_annots)]] = fta
     }
   }

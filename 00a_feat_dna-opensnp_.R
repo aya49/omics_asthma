@@ -42,7 +42,7 @@ feat_dnagoodppl_dir = paste0(feat_dir,"/snp-file-dnagoodppl")
 ## libraries
 # source("https://bioconductor.org/biocLite.R")
 # biocLite(c("affy","derfinder"))
-source("code/_func.R")
+source("src/_func.R")
 libr("TxDb.Hsapiens.UCSC.hg19.knownGene")
 libr("org.Hs.eg.db") #org.* annotation packages; can forge own and interact with using library("AnnotationDbi")
 libr("gwascat") # interface to the [NHGRI's](http://www.genome.gov/) database of gwas

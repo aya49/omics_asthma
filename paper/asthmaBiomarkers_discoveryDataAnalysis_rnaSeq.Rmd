@@ -30,8 +30,8 @@ data_dir = paste0(root, "/data/RNAseq")
 ## output directory
 
 ## libraries
-source("code/_func.R")
-source("code/_func-classifiers.R")
+source("src/_func.R")
+source("src/_func-classifiers.R")
 libr("tidyverse")
 libr("limma")
 libr("igraph")

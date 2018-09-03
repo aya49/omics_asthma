@@ -6,10 +6,13 @@
 
 ## logistics
 root = "~/projects/asthma" # root directory, used for _dirs.R
-source(paste0(root, "/code/_dirs.R"))
-source(paste0(root, "/code/_func.R"))
-source(paste0(root, "/code/_func-asthma.R"))
+source(paste0(root, "/src/_dirs.R"))
+source(paste0(root, "/src/_func.R"))
+source(paste0(root, "/src/_func-asthma.R"))
 libr(append(c("qqman", "car","traseR","FunciSNP","SeqGSEA","DOSE","mygene","ggrepel","car","cowplot"), pkgs()))
+
+no_cores = 8 #detectCores()-6 #number of cores to use for parallel processing
+registerDoMC(no_cores)
 
 data(taSNP) #subset of below
 data(taSNPLD)
@@ -17,9 +20,9 @@ data(taSNPLD)
 data(CEU) #system("plink -file plink.file -freq -out chr"); to retrieve all SNPs withcorresponding MAF (minor allele frequency) from the CEU vcf files downloaded
 
 taSNP0 = as.data.frame(taSNP)
-write.csv(taSNP0, paste0(gwas_dir, "/taSNP.csv"))
+write.csv(taSNP0, paste0(result_dir, "/taSNP.csv"))
 taSNPLD0 = as.data.frame(taSNPLD)
-write.csv(taSNPLD0, paste0(gwas_dir, "/taSNPLD.csv"))
+write.csv(taSNPLD0, paste0(result_dir, "/taSNPLD.csv"))
 
 grch38_dt = get(load(paste0(grch38_dir,".Rdata")))
 
@@ -60,18 +63,20 @@ pval_paths = sort(gsub(".Rdata","",list.files(gwas_dir, pattern=".Rdata", full.n
 pval_filenames = fileNames(pval_paths)
 feat_types = sapply(str_split(pval_filenames,"[-]"), function(x) x[1])
 # feat_types = sapply(str_split(pval_filenames,"[-]"), function(x) paste(str_split(x[1],"[.]")[[1]][!str_split(x[1],"[.]")[[1]]%in%f1_bins[2:3]], collapse="."))
+feat_nams = sapply(str_split(feat_types,"[.]"), function(x) gsub("[0-9]","",x[1]))
 class_cols = sapply(str_extract(pval_filenames, "class-[a-zA-Z]+"), function(x) gsub("class-","", x))
 test_types = sapply(str_extract(pval_filenames, "test-[a-z]+"), function(x) gsub("test-","", x))
 file_ind_ns = sapply(str_extract(pval_filenames, "-[a-z]+X"), function(x) gsub("[-]|X","", x))
 
 class_coli = 1
 
-for (pi in 1:length(pval_paths)) { start = Sys.time(); try({
+foreach (pi = 1:length(pval_paths)) %dopar% { start = Sys.time(); try({
   
   # load names
-  pval_path = pval_paths[pi]
+  pval_path = pval_paths[pi]; dir.create(pval_path, showWarnings=F)
   pval_filename = pval_filenames[pi]
   feat_type = feat_types[pi]
+  feat_nam = feat_nams[pi]
   class_col = class_cols[pi]
   file_ind_n = file_ind_ns[pi]
   test = test_types[pi]
@@ -92,7 +97,7 @@ for (pi in 1:length(pval_paths)) { start = Sys.time(); try({
   class_names = levels(factor(meta_file[,class_col]))
   
   meta_col0 = meta_col = NULL
-  meta_col_path = paste0(meta_col_dir,strsplit(feat_type,"[.]")[[1]][1],".Rdata")
+  meta_col_path = paste0(meta_col_dir,feat_nam,".Rdata")
   mcf = file.exists(meta_col_path)
   if (mcf) {
     meta_col0 = as.data.frame(get(load(meta_col_path)))
@@ -128,7 +133,7 @@ for (pi in 1:length(pval_paths)) { start = Sys.time(); try({
   if(nplots>0) {
     ndim_r = ceiling(sqrt(nplots))
     
-    png(file=paste0(pval_path,"_reg.png"), width=300*3, height=200*3)
+    png(file=paste0(pval_path,"/reg.png"), width=300*3, height=200*3)
     par(mfrow=c(ndim_r,ndim_r))
     for (si in 1:nplots) {
       ptitle = paste0(test," unadj p: ", round(pvalt1[si],6))
@@ -172,7 +177,7 @@ for (pi in 1:length(pval_paths)) { start = Sys.time(); try({
   
   
   # qq plot :( not working, maybe)
-  png(paste0(pval_path,"_qq.png"), width=pcol*width, height=prow*height)
+  png(paste0(pval_path,"/qq.png"), width=pcol*width, height=prow*height)
   par(mfcol=c(prow,pcol))
   for (pvaln in sort(colnames(pval0)[grepl("_p_",colnames(pval0))])) { try({
     pvalt = pval0[,pvaln]
@@ -186,7 +191,7 @@ for (pi in 1:length(pval_paths)) { start = Sys.time(); try({
   
   # manhattan plot
   if (mcf) {
-    png(paste0(pval_path,"_manhattan.png"), width=pcol*width, height=prow*height)
+    png(paste0(pval_path,"/manhattan.png"), width=pcol*width, height=prow*height)
     par(mfcol=c(prow,pcol))
     
     for (pvaln in sort(colnames(pval0)[grepl("_p_",colnames(pval0))])) { try({
@@ -228,7 +233,7 @@ for (pi in 1:length(pval_paths)) { start = Sys.time(); try({
   # snp enrichment: traseR
   if (mcf & grepl("dna",feat_type) & grepl("Xall",pval_path)) {
     
-    png(paste0(pval_path,"_traseR.png"), width=width, height=height)
+    png(paste0(pval_path,"/traseR.png"), width=width, height=height)
     # par(mfcol=c(prow,pcol))
     
     pvaln = sort(colnames(pval0)[grepl("none", colnames(pval0))])
@@ -264,10 +269,10 @@ for (pi in 1:length(pval_paths)) { start = Sys.time(); try({
     x1$tb1$Trait = sapply(str_split(x1$tb1$Trait,"[(]"), function(x) x[1])
     x2$tb1$Trait = sapply(str_split(x2$tb1$Trait,"[(]"), function(x) x[1])
     
-    write.csv(x1$tb1, file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNP.csv"))
-    write.csv(x2$tb1, file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNPLD.csv"))
-    write.csv(x1$tb2, file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNP_class.csv"))
-    write.csv(x2$tb2, file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNPLD_class.csv"))
+    write.csv(x1$tb1, file=paste0(pval_path,"_",gsub("_","-",pvaln),"/traseenrichSNP.csv"))
+    write.csv(x2$tb1, file=paste0(pval_path,"_",gsub("_","-",pvaln),"/traseenrichSNPLD.csv"))
+    write.csv(x1$tb2, file=paste0(pval_path,"_",gsub("_","-",pvaln),"/traseenrichSNP_class.csv"))
+    write.csv(x2$tb2, file=paste0(pval_path,"_",gsub("_","-",pvaln),"/traseenrichSNPLD_class.csv"))
     
     x1tb1 = x1$tb1; x1tb1$trait_type = "trait";       x1tb1$ta_type = "taSNP"
     x1tb2 = x1$tb2; x1tb2$trait_type = "trait_class"; x1tb2$ta_type = "taSNP"
@@ -296,17 +301,17 @@ for (pi in 1:length(pval_paths)) { start = Sys.time(); try({
       ylab("point = -log10(p.value) & bar = # of hits") +
       theme(axis.text.x=element_text(angle=90,hjust=1))
     
-    png(file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNP.png"), width=width, height=height*2)
+    png(file=paste0(pval_path,"_",gsub("_","-",pvaln),"/traseenrichSNP.png"), width=width, height=height*2)
     print(p1a)
     graphics.off()
-    png(file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNP-total.png"), width=width, height=height*2)
+    png(file=paste0(pval_path,"_",gsub("_","-",pvaln),"/traseenrichSNP-total.png"), width=width, height=height*2)
     print(p1b)
     graphics.off()
     
-    png(file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNP_class.png"), width=width, height=height*2)
+    png(file=paste0(pval_path,"_",gsub("_","-",pvaln),"/traseenrichSNP_class.png"), width=width, height=height*2)
     print(p2a)
     graphics.off()
-    png(file=paste0(pval_path,"_",gsub("_","-",pvaln),"_traseenrichSNP_class-total.png"), width=width, height=height*2)
+    png(file=paste0(pval_path,"_",gsub("_","-",pvaln),"/traseenrichSNP_class-total.png"), width=width, height=height*2)
     print(p2b)
     graphics.off()
   }
@@ -324,8 +329,8 @@ for (pi in 1:length(pval_paths)) { start = Sys.time(); try({
     if (nrow(edsnps@result)>0) {
       edsnps_table = cbind(edsnps@result, t(sapply(edsnps@result$ID, function(x) c(length(edsnps@geneSets[[x]]), paste(edsnps@geneSets[[x]][edsnps@geneSets[[x]]%in%sig_snps], collapse="_")) )))
       
-      write.csv(edsnps_table,file=paste0(pval_path,"_dose-snp.csv"))
-      png(file=paste0(pval_path,"_dose-snp.png"), width=width, height=height)
+      write.csv(edsnps_table,file=paste0(pval_path,"/dose-snp.csv"))
+      png(file=paste0(pval_path,"/dose-snp.png"), width=width, height=height)
       enrichMap(edsnps)
       graphics.off()
     }
@@ -528,8 +533,8 @@ for (pi in 1:length(pval_paths)) { start = Sys.time(); try({
                               t(sapply(engenes@result$ID, function(x) 
                                 c(length(engenes@geneSets[[x]]), paste(grch38_dt$symbol[grch38_dt$entrez%in%engenes@geneSets[[x]]], collapse="_")) )))
         
-        write.csv(engenes_table,file=paste0(pval_path,"_dose-gene.csv"))
-        png(file=paste0(pval_path,"_dose-gene.png"), width=width, height=height)
+        write.csv(engenes_table,file=paste0(pval_path,"/dose-gene.csv"))
+        png(file=paste0(pval_path,"/dose-gene.png"), width=width, height=height)
         enrichMap(engenes)
         graphics.off()
       }

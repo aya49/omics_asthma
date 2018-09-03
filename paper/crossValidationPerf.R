@@ -18,7 +18,7 @@ require(mixOmics, quietly = TRUE)
 #----------------------------------------------------
 # Biomarker pipeline run in parallel (Main function)
 #----------------------------------------------------
-crossValidationPerf = function(X = X, Y = Y, folds = folds, nfolds = nfolds, topRanked = topRanked, covMat = NULL, alpha = alpha, cpus = cpus, file.path="~/Documents/RNA-SeqAnalysis/FinalAnalysis/code", file.name="crossValidationPerf.R", preSelectFolds = NULL){
+crossValidationPerf = function(X = X, Y = Y, folds = folds, nfolds = nfolds, topRanked = topRanked, covMat = NULL, alpha = alpha, cpus = cpus, file.path="~/Documents/RNA-SeqAnalysis/FinalAnalysis/src", file.name="crossValidationPerf.R", preSelectFolds = NULL){
   
   if(is.null(preSelectFolds)){
     folds.iter <- list()

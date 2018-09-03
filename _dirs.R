@@ -5,7 +5,7 @@
 
 ## HOW TO USE: in the main script, run the following to set home directory
 # root = "~/projects/asthma"
-# source(paste0(root, "/code/_dirs.R"))
+# source(paste0(root, "/src/_dirs.R"))
 
 
 ## root directory ---------------------------------------
@@ -14,15 +14,21 @@ setwd(root); cat("\nset directories: ", root)
 
 ## input directory ------------------------------------
 data_dir = paste0(root,"/data")
+cellseqgenes_dir = paste0(data_dir, "/cellseqgenes")
+dna_dir = paste0(data_dir, "/dna")
+metab_dir = paste0(data_dir,"/metab")
+mf_data_dir = paste0(data_dir, "/meta_file")
+other_dir = paste0(data_dir, "/other")
+rnaelements_dir = paste0(data_dir, "/rnaelements")
+rnapc_dir = paste0(data_dir, "/rnapancancer")
+rnaseq_dir = paste0(data_dir, "/rnaseq")
 
 # dna
-dna_dir = paste0(data_dir, "/dna")
 gt1_call_dir = paste0(dna_dir, "/AxiomGT1.calls.txt") # data
 meta_snp_temp_dir = paste0(dna_dir, "/Axiom_PMRA.na35.annot.csv") # feature snp annotations
 meta_snp_idrod_dir = paste0(dna_dir, "/rod/rod.csv")
 
 # rnaseq
-rnaseq_dir = paste0(data_dir,"/rnaseq")
 rsem_dir = paste0(rnaseq_dir,"/rsem")
 meta_col_temp_dir = paste0(rnaseq_dir,"/HuGene-2_1-st-v1.na36.hg19.transcript.csv")
 meta_col_tr_temp_dir = paste0(rnaseq_dir,"/HuGene-2_1-st-v1.na36.hg19.probeset.csv")
@@ -36,13 +42,12 @@ rnaseq_ucsc_dir = paste0(rnaseq_dir, "/geneCounts")
 rnaseq_iso_dir = paste0(rnaseq_dir, "/geneIsoCounts")
 rnaseq_trin_dir = paste0(rnaseq_dir, "/trinity")
 rnaseq_control_dir = paste0(rnaseq_dir, "/ERCC_Controls_Analysis.txt")
-rnaseq_grch38_dir = paste0(rnaseq_dir, "/ensembl/asthma.GRCh38_ERCC.gencode21.trimmedCounts.txt")
+rnaseq_grch38_dir = paste0(rnaseq_dir, "/ensembl/asthma.GRCh38_ERCC.gensrc21.trimmedCounts.txt")
 
 rnapc_preeperfcov_dir = paste0(rnaseq_dir, "/data/prePerfNoCov.rds")
 rnapc_panelperfresult_dir = paste0(rnaseq_dir, "/results/rnaseq_biomarkerPanelPerformanceResults.rds")
 
 # rnaelements nanostring rnaelements_data.Rmd
-rnaelements_dir = paste0(data_dir,"/rnaelements")
 rnaseq_to_ns_dir = paste0(rnaelements_dir, "/results/biomarkerCandidateSelection/rnaseq_to_nanoString_biomarkers.RDATA") # biomarker gene candidates
 hba_attenuation_discovery_dirs =
   paste0(rnaelements_dir, "/data/validation/HBA2_attenuation_rediscovery/",
@@ -72,7 +77,6 @@ hba_attenuation_confirmatory_demo_dir =
 asthma_templt_dir = paste0(rnaelements_dir, "/data/asthmaTestplate.Jan16_2015.csv")
 
 # rnapancancer
-rnapc_dir = paste0(data_dir, "/rnapancancer")
 rnapc_data_dir <- paste0(rnapc_dir, "/data/rawdata/nanoString/",
                          c("20150703_asingh - pancancer MAXset A_RCC",
                            "20150709_setB max fov - ykw n amrit_RCC",
@@ -87,11 +91,10 @@ dingo_dir = paste0(rnapc_dir, "/results/dingoResult.rds")
 
 # cell genes
 cell_pc_immune_dir = paste0(rnapc_dir, "/Cells_nCounter_Human_PanCancer_Immune_Profiling_Panel_Gene_List.csv")
-cell_gene_dir = paste0(data_dir,"/cellgene_dmap.iris.lm22.pc.Rdata")
-cell_gene2_dir = paste0(data_dir, "/LM22.txt")
+cell_gene_dir = paste0(cellseqgenes_dir,"/cellgene_dmap.iris.lm22.pc.Rdata")
+cell_gene2_dir = paste0(cellseqgenes_dir, "/LM22.txt")
 
 # metab
-metab_dir = paste0(data_dir,"/metab")
 metab_names_dir = paste0(metab_dir, "/data/metNames.csv")
 asthma_discov_dir = paste0(metab_dir, "/data/2015-02-10_Conc_asthmaDiscoveryPlateFeb10.2015.csv")
 
@@ -102,16 +105,14 @@ meta_file_extra_dir = paste0(rnaseq_dir, "/asthmaDemo_allsite.xlsx")
 gt1_meta_dir = paste0(dna_dir, "/additional_sample_data.txt")
 meta_file_temp_dir = paste0(dna_dir, "/meta_file_temp.csv")
 meta_file_rnapc_dir = paste0(rnaelements_dir,"/data/allsitesDemo_clean.rds")
-meta_file_temp3_dir = paste0(data_dir, "/allsitesDemo.csv")
-meta_file_rnaseqa_dir = paste0(data_dir, "/allsitesDemo.rds")
-meta_file_data_dir = paste0(data_dir,"/asthmaDemo_allsite_withSampleInfo_DH_v5.csv")
+meta_file_temp3_dir = paste0(mf_data_dir, "/allsitesDemo.csv")
+meta_file_rnaseqa_dir = paste0(mf_data_dir, "/allsitesDemo.rds")
+meta_file_data_dir = paste0(mf_data_dir,"/asthmaDemo_allsite_withSampleInfo_DH_v5.csv")
 
 meta_file_rnae_dir = paste0(rnaelements_dir, "/data/demo_eset_nanoString.RDATA")
 meta_hiseq_to_id_dir = paste0(rnaseq_dir, "/demo/rnaseqHiSeqInfo.csv")
 
 # other
-other_dir = paste0(data_dir, "/other")
-
 other_difbc_dir = paste0(other_dir, "/diffexp/BioCarta_2016_table.txt")
 other_difkegg_dir = paste0(other_dir, "/diffexp/KEGG_2016_table.txt")
 

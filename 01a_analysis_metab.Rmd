@@ -27,9 +27,9 @@ knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = FALSE, message = FAL
 ```{r import datasets, message=FALSE, warning=FALSE}
 ## logistics
 root = "~/projects/asthma" # root directory, used for _dirs.R
-source(paste0(root, "/code/_dirs.R"))
-source(paste0(root, "/code/_func.R"))
-source(paste0(root, "/code/_func-asthma.R"))
+source(paste0(root, "/src/_dirs.R"))
+source(paste0(root, "/src/_func.R"))
+source(paste0(root, "/src/_func-asthma.R"))
 libr(append(pkgs(),c("knitr","grid","gridExtra", "ggbiplot", "rafalib",
                      "GGally","NMF","ROCR","sva","mixOmics","iDINGO", "glmnet",
                      "RColorBrewer","igraph","pROC","OptimalCutpoints")))

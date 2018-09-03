@@ -116,7 +116,7 @@ delna <- function(m)
 # label.x: threshold; if there's more than label.x elements in val, label xx axis
 
 ## output: none; manhattan plot
-## adapted from http://bioinfo-mite.crb.wsu.edu/Rcode/wgplot.R
+## adapted from http://bioinfo-mite.crb.wsu.edu/Rsrc/wgplot.R
 
 manhattan_plot = function(val, chrom=rep(1,length(val)), pos=c(1:length(val)), label.x=40,
                           val_thres=-log(.025), val_max2=-log(1e-4), val_max1=-log(5e-8),
@@ -421,6 +421,15 @@ compVar= function (demo, eset, variables, ncomp = 10)
 
 ## by casey ------------------------------------------------------
 
+# helper remove nearZeroVar
+var_filter <- function(x) {
+  y <- mixOmics::nearZeroVar(x)
+  if(length(y$Position) > 0)
+    x[ , -y$Position]
+  else
+    x
+}
+
 ## input: vector of gene symbols
 ## output: simple enrichment
 sear = function (input, type = c("mrna", "mirna")) {
@@ -449,7 +458,7 @@ sear = function (input, type = c("mrna", "mirna")) {
 ## results/enrichr ----------------------------------
 
 
-#From http://bioinfo-mite.crb.wsu.edu/Rcode/wgplot.R
+#From http://bioinfo-mite.crb.wsu.edu/Rsrc/wgplot.R
 #See also https://stat.ethz.ch/pipermail/r-help/2008-November/180812.html
 ###############################################################################
 ###
@@ -479,7 +488,7 @@ sear = function (input, type = c("mrna", "mirna")) {
 ## ... 	results/enrichr options in compatible with the R plot function
 
 ## USAGE
-# source("http://bioinfo-mite.crb.wsu.edu/Rcode/wgplot.R")
+# source("http://bioinfo-mite.crb.wsu.edu/Rsrc/wgplot.R")
 ## fake example with Affy500k data
 # affy =c(40220, 41400, 33801, 32334, 32056, 31470, 25835, 27457, 22864, 28501, 26273,
 #          24954, 19188, 15721, 14356, 15309, 11281, 14881, 6399, 12400, 7125, 6207)
