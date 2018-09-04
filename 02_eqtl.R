@@ -20,12 +20,12 @@ source(paste0(root, "/src/_func-asthma.R"))
 source(paste0(root, "/src/_func-classifiers.R"))
 libr(append(pkgs(),c("qdapTools","MatrixEQTL"))) #parallelized
 
-# no_cores = 1#detectCores()-2 #number of cores to use for parallel processing
-# registerDoMC(no_cores)
+no_cores = 1#detectCores()-3 #number of cores to use for parallel processing
+registerDoMC(no_cores)
 
 
 ## options
-overwrite = T # overwrite if existing analysis eexists?
+overwrite = F # overwrite if existing analysis eexists?
 writecsv = T # write results as csv on top of Rdata?
 
 writetra = F # write all associations not only local ones
@@ -76,26 +76,36 @@ pthres_times = 500 # if includes all cell / metab features, both pthres will be 
 # #  SNPs within a gene are always considered local.
 # cisDist = 1e6;
 feat_type_sets = feat_types_annots
+feat_type_sets_ = feat_type_sets = feat_type_sets[order(sapply(feat_type_sets, function(x) x[1]))]
 feat_types = feat_types_annot
+
+feat_type_sets = append(feat_type_sets_[sapply(feat_type_sets_, function(x) 
+  (any(grepl("dna",x)) & any(grepl("rnaseq",x))))],
+  feat_type_sets_[sapply(feat_type_sets_, function(x) 
+    !(any(grepl("dna",x)) & any(grepl("rnaseq",x))))])
+feat_type_sets = append(
+  append(feat_type_sets [sapply(feat_type_sets , function(x) any(grepl("[.]pre", x)))],
+                        feat_type_sets [sapply(feat_type_sets , function(x) any(grepl("[.]post",x)))]),
+                        feat_type_sets [sapply(feat_type_sets , function(x) any(grepl("[.]diff",x)))])
+
 
 # load and trim all features
 source(paste0(root,"/src/_func-asthma_mset0-load.R"))
 
-  
+
 ## do eQTL ---------------------------------------------
 
 start = Sys.time()
 
+class_coli = 1
+col_ind_n = "all"
 # foreach (feat_type_set = feat_type_sets) %dopar% {
-for (feat_type_set in feat_type_sets[order(sapply(feat_type_sets, function(x) x[1]))]) {  
+for (feat_type_set in feat_type_sets) {  
   start1 = Sys.time()
   cat("\n",feat_type_set, " ", sep=" ")
   if (!all(feat_type_set%in%names(m0_inds))) next()
   
   feat_name = gsub("[0-9]|[.]pre|[.]post|[.]diff","",feat_type_set)
-  
-  class_coli = 1
-  col_ind_n = "all"
   for (file_ind_n in names(file_inds)) {
     if (!all(sapply(m0_inds[feat_type_set], function(x) any(names(x)%in%file_ind_n)))) next()
     
@@ -123,9 +133,9 @@ for (feat_type_set in feat_type_sets[order(sapply(feat_type_sets, function(x) x[
     # sd$FindRow("row1") # Find the row with name "row1" (it is second in the first slice)
     # show(sd) # Show the detail of the object (one slice again)
     
-    for (useModel_ in c("modelLINEAR", "modelLINEAR_CROSS")) { #"modelANOVA", 
-      for (interested_cols in list(c("response"), c("response","sex"))) {
-        for (cisDist in c(1e4,1e6)) { try({ #10000#
+    for (useModel_ in c("modelLINEAR_CROSS")) { #"modelANOVA", "modelLINEAR", 
+      for (interested_cols in list(c("response"))) {
+        for (cisDist in c(1e4)) { try({ #10000#
           
           # set model
           useModel = NULL
@@ -148,7 +158,7 @@ for (feat_type_set in feat_type_sets[order(sapply(feat_type_sets, function(x) x[
           print(fileNames(eqtl_cis_dir))
           if1 = file.exists(eqtl_cis_dir)
           if2 = T; if (!is.null(eqtl_tra_dir)) if2 = file.exists(eqtl_tra_dir)
-          if (if1 & if2 & !overwrite) { print("skipped"); next() }  
+          if (if1 & if2 & !overwrite) { cat(" skipped, don't overwrite "); next() }  
           
           # adjust p value
           cpval = all(grepl(paste0(pthres_times_stuff,collapse="|"),names(m_set)))
@@ -206,7 +216,7 @@ for (feat_type_set in feat_type_sets[order(sapply(feat_type_sets, function(x) x[
           
           ## Run the analysis
           me = NULL
-          filename = tempfile()
+          # filename = tempfile()
           me = Matrix_eQTL_main(
             snps = f1_sd,
             gene = f2_sd,
@@ -229,11 +239,10 @@ for (feat_type_set in feat_type_sets[order(sapply(feat_type_sets, function(x) x[
             min.pv.by.genesnp = T, # record the minimum p-value for each SNP and each gene in the returned object. The minimum p-values are recorded even if if they are above the corresponding thresholds of pvOutputThreshold and pvOutputThreshold.cis (faster if false)
             noFDRsaveMemory = F # save significant gene-SNP pairs directly to the output files, reduce memory footprint and skip FDR calculation. The eQTLs are not recorded
           )
-          unlink(filename)
+          # unlink(filename)
           
           # next if there's nothng significant
           if (is.null(me)) next()
-          time_output(start1, message=paste0("sig=",nrow(me$cis$eqtl)))
           if (me$all$neqtls==0) next()
           
           # merge cis and trans results
@@ -270,6 +279,7 @@ for (feat_type_set in feat_type_sets[order(sapply(feat_type_sets, function(x) x[
       } #interested_cols
     } #useModel_
   } #file_ind_n
+  time_output(start1, message=paste0("sig=",nrow(me$cis$eqtl)))
 } # feat_type_set
 
 time_output(start)

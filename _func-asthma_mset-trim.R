@@ -7,9 +7,9 @@ ftsri = Reduce(intersect,lapply(feat_type_set, function(x) m0_inds[[x]][[file_in
 if (length(ftsri)==0) next()
 m_set = NULL
 for(ftsi in 1:length(feat_type_set)) {
-  ftsi = feat_type_set[ftsi]
+  feat_type = feat_type_set[ftsi]
   fni = feat_name[ftsi]
-  m0 = m0s[[ftsi]][ftsri, m0_inds[[ftsi]][[file_ind_n]]$col_ind,drop=F]
+  m0 = m0s[[feat_type]][ftsri, m0_inds[[feat_type]][[file_ind_n]]$col_ind,drop=F]
   
   # get row/col indices
   m = m0[,apply(m0,2, function(x) length(unique(x[!is.na(x)]))>1)]
@@ -17,7 +17,7 @@ for(ftsi in 1:length(feat_type_set)) {
     m = m[,apply(m, 2,function(x) min(table(x))>good_col & length(table(x))>1)]
   if (ncol(m)==0) next()
   
-  m_set[[ftsi]] = m
+  m_set[[feat_type]] = m
 }
 
 

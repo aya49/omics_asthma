@@ -12,8 +12,8 @@ source(paste0(root, "/src/_func-asthma.R"))
 source(paste0(root, "/src/visualizationFunctions.R"))
 libr(append(pkgs(),c("pROC", "rafalib", "ROCR", "CellCODE", "GGally", "mixOmics"))) # other plots
 
-# no_cores = 5#detectCores()-3
-# registerDoMC(no_cores)
+no_cores = detectCores()-3
+registerDoMC(no_cores)
 
 
 ## options
@@ -163,111 +163,115 @@ source(paste0(root,"/src/_func-asthma_mset0-load.R"))
 
 start = Sys.time()
 
-for (feat_type_set in feat_type_sets) { try ({
-  start1 = Sys.time()
-  cat("\n",feat_type_set, " ", sep=" ")
-  if (!all(feat_type_set%in%names(m0_inds))) next()
-  
-  feat_name = gsub("[0-9]|[.]pre|[.]post|[.]diff","",feat_type_set)
-  
-  class_coli = 1
-  col_ind_n = "all"
-  for (file_ind_n in names(file_inds)) {
-    if (!all(sapply(m0_inds[feat_type_set], function(x) any(names(x)%in%file_ind_n)))) next()
+for (tune_ in c("","tune")) {
+  for (feat_type_set in feat_type_sets) { try ({
+    start1 = Sys.time()
+    cat("\n",feat_type_set, " ", sep=" ")
+    if (!all(feat_type_set%in%names(m0_inds))) next()
     
-    ## trim matrices
-    source(paste0(root,"/src/_func-asthma_mset-trim.R"))
-    if (length(m_set)<1) { cat(" skipped, no features left "); next() }
-    if (length(unique(meta_file[,class_col]))<2) { cat(" skipped, no variety in class "); next() } 
+    feat_name = gsub("[0-9]|[.]pre|[.]post|[.]diff","",feat_type_set)
     
-    # prepare meta data for samples (their classes)
-    Y = factor(meta_file[,class_col], levels=c("ER", "DR"))
-    names(Y) = meta_file[,id_col]
-    
-    # get col feature meta
-    meta_col_set = NULL
-    for (x in 1:length(feat_name)) {
-      if (is.null(m_col0s[[feat_name[x]]])) next()
-      meta_col_setx = m_col0s[[feat_name[x]]]
-      meta_col_set[[feat_type_set[x]]] = 
-        meta_col_setx[match(colnames(m_set[[feat_type_set[x]]]), meta_col_setx[,id_col]),]
-    }
-    cole = feat_type_set%in%names(meta_col_set)
-    
-    # prepare actual data
-    X0 = list()
-    for (xi in 1:length(m_set)) {
-      x = names(m_set)[xi]
-      mx = m_set[[x]]
-      if (grepl("dna",x) & dnasigonly) { #trim based on p value
-        gwf = list.files(gwas_dir, pattern=".Rdata", full.names=T)
-        pn = gwf[grepl(paste0(x,"-",file_ind_n,"Xall"),gwf)]
-        gwas_g = get(load(pn))
-        gwas_gl = gwas_g[match(colnames(mx),rownames(gwas_g)),grepl("none",colnames(gwas_g))]
-        names(gwas_gl) = rownames(gwas_g)[match(colnames(mx),rownames(gwas_g))]
-        mx = mx[,names(gwas_gl)[gwas_gl<pthres & !is.na(gwas_gl)]]
-        if (!is.null(dim(meta_col_set[[x]]))) meta_col_set[[x]] = meta_col_set[[x]][match(colnames(mx),meta_col_set[[x]][,id_col]),]
+    class_coli = 1
+    col_ind_n = "all"
+    for (file_ind_n in names(file_inds)) {
+      if (!all(sapply(m0_inds[feat_type_set], function(x) any(names(x)%in%file_ind_n)))) next()
+      
+      ## trim matrices
+      source(paste0(root,"/src/_func-asthma_mset-trim.R"))
+      if (length(m_set)<1) { cat(" skipped, no features left "); next() }
+      if (length(unique(meta_file[,class_col]))<2) { cat(" skipped, no variety in class "); next() } 
+      
+      # prepare meta data for samples (their classes)
+      Y = factor(meta_file[,class_col], levels=c("ER", "DR"))
+      names(Y) = meta_file[,id_col]
+      
+      # get col feature meta
+      meta_col_set = NULL
+      for (x in 1:length(feat_name)) {
+        if (is.null(m_col0s[[feat_name[x]]])) next()
+        meta_col_setx = m_col0s[[feat_name[x]]]
+        meta_col_set[[feat_type_set[x]]] = 
+          meta_col_setx[match(colnames(m_set[[feat_type_set[x]]]), meta_col_setx[,id_col]),]
       }
-      if (grepl("dna",x)) { nonars = !is.na(meta_col_set[[x]][,"dbSNP"])
-      colnames(mx)[nonars] = paste0(colnames(mx)[nonars], "_", meta_col_set[[x]][nonars,"dbSNP"])  } 
-      if (grepl("rna",x)) { nonasy = !is.na(meta_col_set[[x]][,"symbol"])
-      colnames(mx)[nonasy] = paste0(colnames(mx)[nonars], "_", meta_col_set[[x]][nonasy,"symbol"]) } 
-      # if (grepl("rna",x) | grepl("dna",x)) {
-      #   dupind = duplicated(colnames(mx), fromLast=F) | duplicated(colnames(mx), fromLast=T)
-      #   colnames(mx)[dupind] = paste0(colnames(mx)[dupind], "_", meta_col_set[[x]][dupind,id_col])
-      # }
-      X0[[x]] = mx
-    }
-    
-    # 0 has all the original feat
-    X = X0
-    meta_col_set0 = meta_col_set 
-    
-    
-    #get rid of rna genes that went into inferring cell count if cell count is used
-    if (sum(grepl("cellseqgenes",names(X)))>0 & sum(grepl("rna",names(X)))>0)
-      X[grepl("rna",names(X))] = lapply(X[grepl("rna",names(X))], function(X) x[,!colnames(x)%in%celldiff])
-    
-    #bind feat with same name together
-    dupfeat = feat_type_set[feat_type_set%in%names(X)]
-    dupfeat = dupfeat[duplicated(names(dupfeat)) | duplicated(names(dupfeat), fromLast=T)]
-    if (length(dupfeat)>0) {
-      for (duf in unique(names(dupfeat))) {
-        dupfeati = dupfeat[names(dupfeat)%in%duf]
-        Xrna = Reduce("cbind",X[dupfeati])
-        X = X[!names(X)%in%dupfeati]
-        X[[duf]] = Xrna
-        
-        meta_col_setrna = meta_col_set[names(meta_col_set)%in%dupfeati]
-        rnacols = Reduce(intersect, lapply(meta_col_setrna, colnames))
-        meta_col_setrna = Reduce(rbind, lapply(meta_col_setrna, function(x) x[,rnacols]))
-        meta_col_set = meta_col_set[!names(meta_col_set)%in%dupfeati]
-        meta_col_set[[duf]] = meta_col_setrna
+      cole = feat_type_set%in%names(meta_col_set)
+      
+      # prepare actual data
+      X0 = list()
+      for (xi in 1:length(m_set)) {
+        x = names(m_set)[xi]
+        mx = m_set[[x]]
+        if (grepl("dna",x) & dnasigonly) { #trim based on p value
+          gwf = list.files(gwas_dir, pattern=".Rdata", full.names=T)
+          pn = gwf[grepl(paste0(x,"-",file_ind_n,"Xall"),gwf)]
+          gwas_g = get(load(pn))
+          gwas_gl = gwas_g[match(colnames(mx),rownames(gwas_g)),grepl("none",colnames(gwas_g))]
+          names(gwas_gl) = rownames(gwas_g)[match(colnames(mx),rownames(gwas_g))]
+          mx = mx[,names(gwas_gl)[gwas_gl<pthres & !is.na(gwas_gl)]]
+          if (!is.null(dim(meta_col_set[[x]]))) meta_col_set[[x]] = meta_col_set[[x]][match(colnames(mx),meta_col_set[[x]][,id_col]),]
+        }
+        if (grepl("dna",x)) { nonars = !is.na(meta_col_set[[x]][,"dbSNP"])
+        colnames(mx)[nonars] = paste0(colnames(mx)[nonars], "_", meta_col_set[[x]][nonars,"dbSNP"])  } 
+        if (grepl("rna",x)) { nonasy = !is.na(meta_col_set[[x]][,"symbol"])
+        colnames(mx)[nonasy] = paste0(colnames(mx)[nonasy], "_", meta_col_set[[x]][nonasy,"symbol"]) } 
+        # if (grepl("rna",x) | grepl("dna",x)) {
+        #   dupind = duplicated(colnames(mx), fromLast=F) | duplicated(colnames(mx), fromLast=T)
+        #   colnames(mx)[dupind] = paste0(colnames(mx)[dupind], "_", meta_col_set[[x]][dupind,id_col])
+        # }
+        X0[[x]] = mx
       }
-    }
-    
-    
-    ## blocksplsda -------------------------------------
-    
-    for (constrains in c(0,.5,1)) { # how constrainsed is each feature type with each other)
-      for (tune_ in c("","tune")) {
+      
+      # 0 has all the original feat
+      X = X0
+      meta_col_set0 = meta_col_set 
+      
+      
+      #get rid of rna genes that went into inferring cell count if cell count is used
+      if (sum(grepl("cellseqgenes",names(X)))>0 & sum(grepl("rna",names(X)))>0)
+        X[grepl("rna",names(X))] = lapply(X[grepl("rna",names(X))], function(X) x[,!colnames(x)%in%celldiff])
+      
+      #bind feat with same name together
+      binded = F
+      dupfeat = feat_type_set[feat_type_set%in%names(X)]
+      dupfeat = dupfeat[duplicated(names(dupfeat)) | duplicated(names(dupfeat), fromLast=T)]
+      if (length(dupfeat)>0) {
+        for (duf in unique(names(dupfeat))) {
+          binded = T
+          dupfeati = dupfeat[names(dupfeat)%in%duf]
+          Xd = X[dupfeati]
+          Xd = lapply(names(Xd), function(xn) {x = Xd[[xn]]; colnames(x) = paste0(colnames(x),"_",xn); x})
+          Xrna = Reduce("cbind",Xd)
+          X = X[!names(X)%in%dupfeati]
+          X[[duf]] = Xrna
+          
+          meta_col_setrna = meta_col_set[names(meta_col_set)%in%dupfeati]
+          rnacols = Reduce(intersect, lapply(meta_col_setrna, colnames))
+          meta_col_setrna = Reduce(rbind, lapply(meta_col_setrna, function(x) x[,rnacols]))
+          meta_col_set = meta_col_set[!names(meta_col_set)%in%dupfeati]
+          meta_col_set[[duf]] = meta_col_setrna
+        }
+      }
+      
+      
+      ## blocksplsda -------------------------------------
+      
+      foreach (constrains = c(0,.5,1)) %dopar% { # how constrainsed is each feature type with each other)
         
         # prepare file name
         pname = paste0(blocksplsda_dir, "/", paste(feat_type_set,collapse="-"), "-",  file_ind_n, "Xall", 
                        "_class-", paste(class_col,collapse="."),"_", 
                        paste0(names(table(meta_file[,class_col])),table(meta_file[,class_col]), collapse="v"),
                        "_pthres-", pthres, ifelse(tune_=="","","_"),tune_,
-                       "_constrains-",constrains)
+                       "_constrains-",constrains,ifelse(binded,"_binded",""))
         # pname = paste0(blocksplsda_dir, "/", paste(feat_type_set,collapse="-"), ifelse(f1_bin=="","","."), f1_bin, "-",  file_ind_n, "Xall", "_class-", paste(interested_cols,collapse="."),"_", paste0(names(table(meta_file[,class_col])),table(meta_file[,class_col]), collapse="v"), "_pthres-", pthres,ifelse(tune_=="","","_"),tune_)
         
         if (overwrite & file.exists(paste0(pname,".Rdata"))) next()
         dir.create(pname,showWarnings=F)
         
         
-    # prepare how constrainsed each feature is with each other
-    design = matrix(constrains, nrow = length(X), ncol = length(X))
-    diag(design) = 0
-    
+        # prepare how constrainsed each feature is with each other
+        design = matrix(constrains, nrow = length(X), ncol = length(X))
+        diag(design) = 0
+        
         rown = Reduce(intersect,lapply(X,rownames))
         write.csv(rown,file=paste0(pname,"_id.csv"),row.names=F)
         
@@ -387,7 +391,7 @@ for (feat_type_set in feat_type_sets) { try ({
         
         # performance of splsda
         for (test in c("loo","Mfold")) {
-          cv = perf(result, validation=test)
+          cv = perf(result, validation=test, cpus=no_cores)
           cv$WeightedPredict.error.rate
           # cv$error.rate
           
@@ -455,9 +459,9 @@ for (feat_type_set in feat_type_sets) { try ({
           
         } #test
         
-      } #tune_
-    } #constrains
-  } #file_ind
-}) } #feat_type_set
+      } #constrains
+    } #file_ind
+  }) } #feat_type_set
+} #tune_
 
 time_output(start)

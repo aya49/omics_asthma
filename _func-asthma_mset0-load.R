@@ -12,7 +12,8 @@ m_col0s = lapply(feat_names, function(feat_name) {
 names(m_col0s) = feat_names
 
 # index all features
-m0_inds = lapply(m0s, function(m0) {
+m0_inds = lapply(names(m0s), function(feat_type) {
+  m0 = m0s[[feat_type]]
   fin = lapply(names(file_inds), function(file_ind_n) {
     file_ind = file_inds[[file_ind_n]]
     if (file_ind_n!="all" & all(rownames(m0)%in%file_ind)) nextm = T
