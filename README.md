@@ -50,7 +50,7 @@ folder structure: src, data
 |  | ├── gwas
 |  | └── eqtl
 |  └─+ supervised
-|  | └── blocksplsda
+|    └── blocksplsda
 ```
 
 using the scripts
