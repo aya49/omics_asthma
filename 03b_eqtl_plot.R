@@ -35,6 +35,20 @@ width = 500
 height = 300
 
 
+# load features
+m0s = lapply(feat_types, function(feat_type) get(load(paste0(feat_dir,"/",feat_type,".Rdata"))))
+names(m0s) = feat_types
+feat_names = unique(sapply(feat_types, function(x) gsub("[0-9]|[.]pre|[.]post|[.]diff","",x)))
+
+# load meta_cols
+m_col0s = lapply(feat_names, function(feat_name) {
+  fn = paste0(meta_col_dir,feat_name,".Rdata")
+  if (file.exists(fn)) return(get(load(fn)))
+  return(NULL)
+})
+names(m_col0s) = feat_names
+
+
 ## plot eQTL ---------------------------------------------
 
 start = Sys.time()
@@ -46,8 +60,10 @@ feat_type_sets = lapply(str_split(eqtl_names,"_"), function(x) gsub("[0-9]","", 
 feat_names = lapply(feat_type_sets, function(x) sapply(str_split(x,"[.]"), function(y) y[1]))
 
 class_coli = 1 # response
+class_col = class_cols[class_coli]
 
-foreach (ei = 1:length(eqtl_paths)) %dopar% { try({
+# for (ei in 1:length(eqtl_paths)) { try({
+a = foreach (ei = 1:length(eqtl_paths)) %dopar% { try({
   # a = foreach (ei = 1:length(eqtl_paths)) %dopar% {
   eqtl_path = eqtl_paths[ei]; dir.create(gsub(".Rdata","",eqtl_path), showWarnings=F)
   eqtl_name = eqtl_names[ei]
@@ -59,6 +75,7 @@ foreach (ei = 1:length(eqtl_paths)) %dopar% { try({
   #   feat_type_set[1] = gsub("[.]01|[.]12","",feat_type_set[1])
   # }
   feat_name = feat_names[[ei]]
+  file_ind_n = gsub("[-X]","",str_extract(eqtl_name,"-[a-z]+X"))
   
   file_ind = unlist(read.csv(gsub(".Rdata","_id.csv",eqtl_path)))
   # file_ind = file_inds[[file_ind_n]]
@@ -91,13 +108,12 @@ foreach (ei = 1:length(eqtl_paths)) %dopar% { try({
     }
     
     # load feature matrix
-    m_seti = get(load(paste0(feat_dir,"/",x,".Rdata")))
+    m_seti = m0s[[x]]
     m_set[[x]] = m_seti[file_ind,mecis[,xi]]
     
     # load meta_col & trim
-    file_name = paste0(meta_col_dir,feat_name[xi],".Rdata")
-    if (file.exists(file_name)) {
-      meta_col_setx = get(load(file_name))
+    if (!is.null(m_col0s[[feat_name[xi]]])) {
+      meta_col_setx = m_col0s[[feat_name[xi]]]
       meta_col_set[[x]] = meta_col_setx1 = meta_col_setx[match(mecis[,xi], meta_col_setx[,id_col]),,drop=F]
       
       colnames(meta_col_setx1) = paste0(colnames(meta_col_setx1),"_",feat_name[xi])

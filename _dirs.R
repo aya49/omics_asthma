@@ -142,7 +142,7 @@ meta_col_rnapc_dir = paste0(meta_col_dir,"rnapcgenes")
 meta_col_rnaseq_dir = paste0(meta_col_dir,"rnaseq")
 meta_col_rnaelements_dir = paste0(meta_col_dir,"rnaelements")
 meta_col_pretty_dir = paste0(meta_dir,"/meta_col_asthma_pretty.csv") # pretty-fied asthma related snps
-meta_col_rnacells_dir = paste0(meta_col_dir,"rnaseqstarensgenes_id_cell.Rdata") #genes indicitive of cell populations... derived from amrit's files, should be good
+meta_col_rnacells_dir = paste0(meta_col_dir,"rnaseqstarensisoforms_id_cell.Rdata") #genes indicitive of cell populations... derived from amrit's files, should be good
 
 # features
 feat_cell_dir = paste0(feat_dir,"/cell")

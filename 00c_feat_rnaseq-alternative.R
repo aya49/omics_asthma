@@ -21,7 +21,7 @@ expr_cutoff = 3
 load(rnaseqa_data_dir) # discovery only
 # load("~/projects/asthma/data/RNAseq/allRnaseqDatasets_normalized.RDATA")
 
-datalist = list(rnaseqstarensgenes=starEnsemblExp, rnaseqtrinisoforms=trinityGeneIsoCounts, rnasequcscgenes=ucscGeneCounts, rnasequcscisoforms=ucscGeneIsoCounts)
+datalist = list(rnaseqstarensisoforms=starEnsemblExp, rnaseqtrinisoforms=trinityGeneIsoCounts, rnasequcscgenes=ucscGeneCounts, rnasequcscisoforms=ucscGeneIsoCounts)
 
 
 ## import clinical datasets
@@ -54,7 +54,7 @@ for (expdata_n in names(datalist)) {
   expdata = datalist[[expdata_n]]
   dim(expdata); dim(demo)
   
-  if (expdata_n == "rnaseqstarensgenes")
+  if (expdata_n == "rnaseqstarensisoforms")
     # remove ERCC controls
     expdata = expdata[!grepl("ERCC-",rownames(expdata)),]
   
@@ -123,7 +123,7 @@ for (expdata_n in names(datalist)) {
     })
     colnames(meta_col)[1] = "id"
     
-  } else if (expdata_n == "rnaseqstarensgenes") {
+  } else if (expdata_n == "rnaseqstarensisoforms") {
     # features = sapply(strsplit(features,"[.]"), function(x) x[1])
     features_ = str_extract(features, "ENSG[0-9]+")
     colidn = 'ensembl_gene_id'

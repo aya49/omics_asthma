@@ -12,12 +12,12 @@ source(paste0(root, "/src/_func.R"))
 source(paste0(root, "/src/_func-asthma.R"))
 libr(pkgs())
 
-no_cores = detectCores()-6 #number of cores to use for parallel processing
+no_cores = 1#detectCores()-6 #number of cores to use for parallel processing
 registerDoMC(no_cores)
 
 
 ## options
-overwrite = T
+overwrite = F
 writecsv = T #write results as csv on top of Rdata?
 
 pthres = .01

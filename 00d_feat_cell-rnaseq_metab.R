@@ -253,4 +253,4 @@ write.csv(a, file=paste0(feat_cellseqgenes_dir,".diff.csv"))
 
 #genes that went into making cells
 celldiff = names(rowSums(Dat4)>0)
-save(celldiff, file=paste0(meta_col_dir,"rnaseqstarensgenes_id_cell.Rdata"))
+save(celldiff, file=paste0(meta_col_dir,"rnaseqstarensisoforms_id_cell.Rdata"))

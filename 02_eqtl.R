@@ -216,7 +216,7 @@ for (feat_type_set in feat_type_sets) {
           
           ## Run the analysis
           me = NULL
-          # filename = tempfile()
+          filename = tempfile()
           me = Matrix_eQTL_main(
             snps = f1_sd,
             gene = f2_sd,
@@ -239,7 +239,7 @@ for (feat_type_set in feat_type_sets) {
             min.pv.by.genesnp = T, # record the minimum p-value for each SNP and each gene in the returned object. The minimum p-values are recorded even if if they are above the corresponding thresholds of pvOutputThreshold and pvOutputThreshold.cis (faster if false)
             noFDRsaveMemory = F # save significant gene-SNP pairs directly to the output files, reduce memory footprint and skip FDR calculation. The eQTLs are not recorded
           )
-          # unlink(filename)
+          unlink(filename)
           
           # next if there's nothng significant
           if (is.null(me)) next()
