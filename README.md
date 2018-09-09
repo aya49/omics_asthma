@@ -1,13 +1,4 @@
----
-title: "asthma"
-author: "aya43@sfu.ca"
-output:
-  rmarkdown::github_document:
-  number_sections: true
-  # pandoc_args: [
-  #   "--output=README.md"
-  #   ]
----
+
 
 # asthma ER vs DR
 

@@ -1,15 +1,5 @@
----
-title: "asthma"
-author: "aya43@sfu.ca"
-output:
-  rmarkdown::github_document:
-  number_sections: true
-  # pandoc_args: [
-  #   "--output=README.md"
-  #   ]
----
 
-```
+```{r}
 # Cell Specific eQTL Analysis without Sorting Cells
 # y ~ g*c # y=rnaseq, g=dna, c=cells
 # NOTE: Yi = β0 + Xiβ1 + Ziβ2 + Wiβ3 + XiZiβ4 + XiWiβ5 + ZiWiβ6 + XiZiWiβ7 + ei
