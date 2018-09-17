@@ -161,6 +161,7 @@ feat_types = feat_types_annot
 # load and trim all features
 source(paste0(root,"/src/_func-asthma_mset0-load.R"))
 
+## block splsda ---------------------
 start = Sys.time()
 
 for (tune_ in c("","tune")) {
@@ -254,8 +255,8 @@ for (tune_ in c("","tune")) {
       
       ## blocksplsda -------------------------------------
       
-      foreach (constrains = c(0,.5,1)) %dopar% { # how constrainsed is each feature type with each other)
-        
+      # foreach (constrains = c(0,.5,1)) %dopar% { # how constrainsed is each feature type with each other)
+      for (constrains in c(0,.5,1)) {
         # prepare file name
         pname = paste0(blocksplsda_dir, "/", paste(feat_type_set,collapse="-"), "-",  file_ind_n, "Xall", 
                        "_class-", paste(class_col,collapse="."),"_", 
@@ -265,7 +266,7 @@ for (tune_ in c("","tune")) {
         # pname = paste0(blocksplsda_dir, "/", paste(feat_type_set,collapse="-"), ifelse(f1_bin=="","","."), f1_bin, "-",  file_ind_n, "Xall", "_class-", paste(interested_cols,collapse="."),"_", paste0(names(table(meta_file[,class_col])),table(meta_file[,class_col]), collapse="v"), "_pthres-", pthres,ifelse(tune_=="","","_"),tune_)
         
         if (overwrite & file.exists(paste0(pname,".Rdata"))) next()
-        dir.create(pname,showWarnings=F)
+        dir.create(pname, showWarnings=F)
         
         
         # prepare how constrainsed each feature is with each other
@@ -276,18 +277,16 @@ for (tune_ in c("","tune")) {
         write.csv(rown,file=paste0(pname,"_id.csv"),row.names=F)
         
         # prepare number of pls-da factors you want for each data
-        keepX = lapply(names(X), function(x) {
+        keepX = llply(names(X), function(x) {
           if (grepl("cell|metab",x)) return(rep(nfeat_short, ncomp))
           if (grepl("rna|dna",x)) return(rep(nfeat_long, ncomp))
         })
-        names(keepX) = names(X)
-        
+        # definition of the keepX value to be tested for each block mRNA miRNA and protein
+        # names of test.keepX must match the names of 'data'
+        test.keepX = llply(names(X), function(x) seq(5,20,5))
+        names(keepX) = names(test.keepX) = names(X)
+
         if (tune_=="tune") {
-          # definition of the keepX value to be tested for each block mRNA miRNA and protein
-          # names of test.keepX must match the names of 'data'
-          test.keepX = lapply(names(X), function(x) seq(5,20,5))
-          names(test.keepX) = names(X)
-          
           # the following may take some time to run, note that for through tuning
           # nrepeat should be > 1
           if (length(X)==1) {
@@ -398,6 +397,7 @@ for (tune_ in c("","tune")) {
           png(paste0(pname,"/predictscore-",test,".png"), height=(length(X))*height, width=width)
           par(mfrow=c(length(X)+1,1))
           for (feat in c(names(X),"avg")) {
+            if (feat=="avg" & length(X)==1) next() 
             
             # plot AUC
             if (length(X)>1) {
@@ -437,21 +437,26 @@ for (tune_ in c("","tune")) {
             }
             # write.csv(hk.known, paste0(pname, "/loading_", feat, ".csv"))
             
-            loading = result$loadings[[feat]]
+            feat_ = feat
+            if (length(X)==1) feat_ = "X"
+            
+            loading = result$loadings[[feat_]] 
             loading = loading[apply(loading,1,function(x) any(x)>1),]
             if (nrow(loading)>0) write.csv(loading, paste0(pname, "/loading_", feat, ".csv"))
             
-            comp = result$variates[[feat]]
-            write.csv(comp, paste0(pname, "/component_", feat, ".csv"))
+            comp = result$variates[[feat_]]
+            write.csv(comp, file=paste0(pname, "/component_", feat, ".csv"))
             
-            ev = result$explained_variance[[feat]]
-            write.csv(ev, paste0(pname, "/ev_", feat, ".csv"))
+            ev = result$explained_variance[[feat_]]
+            write.csv(ev, file=paste0(pname, "/ev_", feat, ".csv"))
             
             # save perf
-            biomarkerGenescv = 
-              unlist(lapply(strsplit(names(unlist(
-                ifelse (length(X)==1, cv$features$stable, cv$features$stable$nrep1[[feat]])
-              )), "[.]"), function(i) i[2]))
+            if (length(X)==1) {
+              bmg = cv$features$stable
+            } else {
+              bmg = cv$features$stable$nrep1[[feat]]
+            }
+            biomarkerGenescv = unlist(lapply(strsplit(names(unlist(bmg)), "[.]"), function(i) i[2]))
             write.csv(biomarkerGenescv, paste0(pname, "/perf_",feat,".csv"))
             
           } #feat

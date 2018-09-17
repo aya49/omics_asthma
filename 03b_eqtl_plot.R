@@ -24,6 +24,7 @@ interested_cols = c("response")
 # interested_cols = c("age","bmi","sex","centre","batch","race","response") 
 # interested_cont_cols = ""
 
+max_rows = 100000 #max number of trans results to print as csv
 
 useModels = c("modelLINEAR", "modelANOVA", "modelLINEAR_CROSS")
 
@@ -97,14 +98,16 @@ a = foreach (ei = 1:length(eqtl_paths)) %dopar% { try({
     
     # load gwas
     pn = pval_paths[grepl(paste0(x,"-",file_ind_n,"Xall"),pval_paths)]
-    if (file.exists(pn)) {
-      pvali = get(load(pn))
-      pvalt[[x]] = pvalti = pvali[match(mecis[,xi],rownames(pvali)), grepl("none$",colnames(pvali))]
-      names(pvalti) = rownames(mecis)
-      # if (length(pvalti)==0) {
-      mecis_extra = cbind(mecis_extra, pvalti)
-      colnames(mecis_extra)[ncol(mecis_extra)] = paste0("gwas.p_",x)
-      # }
+    if (length(pn)>0) {
+      if (file.exists(pn)) {
+        pvali = get(load(pn))
+        pvalt[[x]] = pvalti = pvali[match(mecis[,xi],rownames(pvali)), grepl("none$",colnames(pvali))]
+        names(pvalti) = rownames(mecis)
+        # if (length(pvalti)==0) {
+        mecis_extra = cbind(mecis_extra, pvalti)
+        colnames(mecis_extra)[ncol(mecis_extra)] = paste0("gwas.p_",x)
+        # }
+      }
     }
     
     # load feature matrix
@@ -114,7 +117,11 @@ a = foreach (ei = 1:length(eqtl_paths)) %dopar% { try({
     # load meta_col & trim
     if (!is.null(m_col0s[[feat_name[xi]]])) {
       meta_col_setx = m_col0s[[feat_name[xi]]]
-      meta_col_set[[x]] = meta_col_setx1 = meta_col_setx[match(mecis[,xi], meta_col_setx[,id_col]),,drop=F]
+      meta_col_setx1 = meta_col_setx[match(mecis[,xi], meta_col_setx[,id_col]),,drop=F]
+      if (grepl("rna",feat_name[xi])) meta_col_setx1 = meta_col_setx1[,c("gene","symbol","chr","start","end")]
+      if (grepl("dna",feat_name[xi])) meta_col_setx1 = meta_col_setx1[,c("dbSNP","Associated Gene","chromosome","pos_phys","EBI DISEASE/TRAIT","EBI PUBMEDID", "EBI MAPPED_TRAIT","ClinVar GeneSymbol")]
+      
+      meta_col_set[[x]] = meta_col_setx1
       
       colnames(meta_col_setx1) = paste0(colnames(meta_col_setx1),"_",feat_name[xi])
       mecis_extra = cbind(mecis_extra,meta_col_setx1)
@@ -133,8 +140,10 @@ a = foreach (ei = 1:length(eqtl_paths)) %dopar% { try({
   class_n = as.character(meta_file[,class_col])
 
   # save eqtl as table
+  mecis_extra1 = mecis_extra
+  if (nrow(mecis_extra)>max_rows) mecis_extra1 = mecis_extra1[1:max_rows,]
   # write.csv(mecis, file=gsub(".Rdata",".csv",eqtl_path))
-  write.csv(mecis_extra, file=gsub(".Rdata",".csv",eqtl_path))
+  write.csv(mecis_extra1, file=gsub(".Rdata",".csv",eqtl_path))
   
   # plot the histogram of local and distant p-values
   # png(gsub(".Rdata","_qq.png",eqtl_path), width=width, height=height)
@@ -143,7 +152,8 @@ a = foreach (ei = 1:length(eqtl_paths)) %dopar% { try({
   
   # plot out eqtl one by one; make labels symbol or rs numbers if possible
   dir.create(gsub(".Rdata","",eqtl_path), showWarnings=F)
-  id1 = mecis[,1]; id2 = mecis[,2]
+  id1 = mecis[,1]
+  id2 = mecis[,2]
   if (grepl("dna", feat_type_set[1])) {
     id1 = meta_col_set[[feat_type_set[1]]][,"dbSNP"]
     id1[is.na(id1)] = mecis[is.na(id1),1]
@@ -173,8 +183,11 @@ a = foreach (ei = 1:length(eqtl_paths)) %dopar% { try({
         paste0("\n", paste(gsub(paste0("_",feat_name[2]),"",colnames(mecis_extra)[f2_colind]), collapse="/"),
                ": ", paste(mecis_extra[i,f2_colind], collapse=" / "))
     } 
-    xlab_ = paste0(feat_type_set[1],": ", id1[i], "\nunadj.p = ", round(pvalt[[1]][i],4), xlab_more)
-    ylab_ = paste0(feat_type_set[2],": ", id2[i], "\nunadj.p = ", round(pvalt[[2]][i],4), ylab_more)
+    pvalue1 = pvalue2 = NA
+    if (feat_type_set[1]%in%names(pvalt)) pvalue1 = round(pvalt[[feat_type_set[1]]][i],4)
+    if (feat_type_set[2]%in%names(pvalt)) pvalue2 = round(pvalt[[feat_type_set[2]]][i],4)
+    xlab_ = paste0(feat_type_set[1],": ", id1[i], "\nunadj.p = ", pvalue1, xlab_more)
+    ylab_ = paste0(feat_type_set[2],": ", id2[i], "\nunadj.p = ", pvalue2, ylab_more)
     
     # plot
     if (grepl("dna",feat_type_set[2]) ) {
