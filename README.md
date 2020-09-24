@@ -2,7 +2,7 @@
 
 # asthma ER vs DR
 
-midterm [poster](./20180808_poster.pdf), [presentation](./20180723_presentation.pdf), [follow up paper](201806_prelim-abstract.doc)
+[midterm poster](./20180808_poster.pdf), [midterm presentation](./20180723_presentation.pdf), [abstract](201806_prelim-abstract.doc), DOI: 10.1183/23120541.00107-2019
 
 **purpose**: human asthma patients experience an asthma attack or constriction in their airways upon contact with allergens. a subgroup of these patients will recover after their initial attack. however, some will suffer from inflammation some hours later.
 - hence this project aims to find biomarkers that differentiates between patents who
