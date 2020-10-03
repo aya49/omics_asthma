@@ -4,7 +4,7 @@
 
 [midterm poster](./20180808_poster.pdf), [midterm presentation](./20180723_presentation.pdf), [abstract](201806_prelim-abstract.doc), follow up paper DOI: 10.1183/23120541.00107-2019
 
-**purpose**: human asthma patients experience an asthma attack or constriction in their airways upon contact with allergens. a subgroup of these patients will recover after their initial attack. however, some will suffer from inflammation some hours later.
+**Purpose**: human asthma patients experience an asthma attack or constriction in their airways upon contact with allergens. a subgroup of these patients will recover after their initial attack. however, some will suffer from inflammation some hours later.
 - hence this project aims to find biomarkers that differentiates between patents who
   - will (dual response DR) and
   - will not suffer from this second wave of inflammation (early response ER)
@@ -12,7 +12,7 @@
   - before allergen contact and
   - a few hours after the initial asthma attack (theoretically some time before a possible second wave of inflammation).
   
-note some terms:
+Note some terms:
 - class: phenotype
 - flippers: people who have been tested to be ER and DR at some point and therefore have uncertain phenotypes
 - features: columns of feature matrices in folder ```feat```
@@ -20,7 +20,7 @@ note some terms:
 - scripts / src / code: a .R/.Rmd file in this project
 - paper / amrits' paper: see ```src/paper```
 
-folder structure: src, data
+Folder structure: src, data
 
 ```{bash}
 ├─── src (source code)
@@ -46,21 +46,23 @@ folder structure: src, data
 |    └── blocksplsda
 ```
 
-using the scripts
+Using the scripts:
 - all code files are labelled with a number indicating the order in which it should be ran
 - set variable ```root``` on all scripts to this directory
 
 
-## prepare data: import, normalize, format
+## Prepare data: import, normalize, format
 
-scripts starting with ```00``` imports raw data and normalize/reshape them into feature matrices (feat); each feature has two meta matrices that describe its row (file / sample / subject) and columns (col / feature)
+Scripts starting with ```00``` imports raw data and normalize/reshape them into feature matrices (feat); each feature has two meta matrices that describe its row (file / sample / subject) and columns (col / feature)
 
 **input**: ```data```
 
 **output**: ```result/meta/file```, ```result/meta/col-<feature type>```, ```result/feat/<feature type>.<time>```
 
 
-### meta/file
+### `meta/file`
+
+This section documents definitions in the `meta/file`.
 
 ```result/meta/file``` (subject x subject meta data); columns include:
 - ```id``` = row names of feature matrices: indicates subject name and is unique; all duplicate samples are removed, those removed are samples with the least amount of feature types made on it and its response does not conform with a majority of the samples made on that patient
@@ -83,7 +85,9 @@ scripts starting with ```00``` imports raw data and normalize/reshape them into 
 - ```all```: everyone!
 
 
-### meta/col(s)
+### `meta/col(s)`
+
+This section documents definitions in the `meta/col(s)`.
 
 ```result/meta/col-<feature>``` (feature x feature meta data); feature meta data
 - ```id``` = column names of feature matrices
@@ -100,6 +104,8 @@ scripts starting with ```00``` imports raw data and normalize/reshape them into 
 
 ### feat(ures)
 
+This section documents the features generated for each data set.
+
 - ```result/feat/<feature>.<pre/post/diff>``` (subject x feature): feature matrices with row/colnames coinciding with the 'id' column of meta/file and meta/col; split into whether samples were collected **pre**/**post** allergen test; **diff** is the difference between the two times; 
   - features are split into ```.<pre/post>``` indicating whether the sample was taken before or after the asthma allergen challenge based on availability
 
@@ -114,25 +120,29 @@ below lists the feature types
 - ```cellseqgenes``` (32 subjects x 82 cell types): cell counts derived from rnaseq data, see paper for more details (related genes are removed if rnaseq and cellseqgenes are analyzed together)
 
 
-## old analysis
+## Previous pilot analysis
+
+The following folder contains results from a previous pilot project on the same research topic.
 
 **output**: ```result/<script name>.html```, ```result/data```
 
 scripts starting with ```01``` are mostly analyses done by amrit for each data type and on the meta/file from his paper; see html files for more details
 
 
-## calculate statistics and plot
+## Calculate statistics and plot
 
 **input**: ```result/meta```, ```result/feat```
 
 **output**: ```result/stat```, ```result/supervised```
 
-### pca
+### PCA
+
+Dimensionality reduction on the features are done using PCA.
 
 ```result/stat/pca/<feature type>-<meta/file index>X<meta/col index>_pca-iso```: PCA plots for some demographic features for each subject to see if any confounding factors should be removed, overall subjects are pretty homogenous
 
 
-### association studies
+### Association studies
 
 ```result/stat/gwas/<feature type>-<meta/file index>X<meta/col index>_class-response_DR<# of DRs>vER<# of ER>_test-<chi2/lmbayes type of test used>_<cauc/none -- caucasians only or all races>```: each feature is compared to our class to see if there are any associations (chi2 test done for categorical features, linear monel done for continuous features)
 - ```..._id.csv```: subjects used
@@ -149,15 +159,15 @@ the main ```.csv``` files' columns include:
 - ...other meta data
 
 
-### quantitative trait loci
+### Quantitative trait loci
 
-note: only most significant p values are shown
+Note: only most significant p values are shown
 
 ```result/stat/eqtl/<feature type 1>-<feature type 2>-<meta/file index>X<meta/col index>_class-response<could also be sex etc, indicates additional interactions>_DR<# of DRs>vER<# of ER>_<model used>_cisdist-<within how many bases is counted as 'local'>``` (optional: significant features in common between different times ```_<pre/post/diff><# of significant features of the time>v<pre/post/diff><# of significant features of the time>```): just look at the ```modelLINEAR_CROSS```
 - ```..._id.csv```: subjects used
 - ```.../qq```: qq plot for unadjusted p values
 
-the main ```.csv``` files' columns include:
+The main ```.csv``` files' columns include:
 - ```<stat test>_p_<p value adjustment method>```: p values calculated using what test and adjusted using what method
 - ```<feature type 1>```: id for feature type 1
 - ```<feature type 2>```: id for feature type 2
@@ -172,7 +182,7 @@ the main ```.csv``` files' columns include:
 
 
 
-### blocksplsda (diablo): sparse partial least squares differential analysis using regression
+### Blocksplsda (diablo): sparse partial least squares differential analysis using regression
 
 ```result/supervised/blocksplsda/<feature type 1...n>-<meta/file index>X<meta/col index>_class-response>_DR<# of DRs>vER<# of ER>_<model used>_pthres-<p value threshold for dna, only significant snps are included>_<tune - is number of factors tuned?>_constrains-<from 0 - 1 how constrained should each feature type be with each other>_<bind/none; binded means that every feature of the same type (e.g. rnaseq, rna pancancer) are merged into the same block>``` :
 - ```..._id.csv```: subjects used
@@ -186,8 +196,8 @@ the main ```.csv``` files' columns include:
 - ```.../predictscore-<test type: loo=leave one out, Mfold = 10 fold cross validation>```: performance of a feature set in the model
 - ```.../tune```: number of factors used vs error rate (tries all number of factors to tune out best number of factors to use); only exists if model was tuned
 
-other plots: blue = ERs, orange = DRs (see sections in [mixOmics](https://cran.r-project.org/web/packages/mixOmics/mixOmics.pdf) for details)
-- ```.../arrows``` plotArrow(): each sample is plotted as an arrow, start/end of arrow is its position in factors of feature type 1/2 (if there's more than 2 feature types: start/end of arrow is its position as calculated by the median of factors of all feature types / factors of each block); short arrows mean strong agreement between feature types :)
+Other plots: blue = ERs, orange = DRs (see sections in [mixOmics](https://cran.r-project.org/web/packages/mixOmics/mixOmics.pdf) for details)
+- ```.../arrows``` plotArrow(): each sample is plotted as an arrow, start/end of arrow is its position in factors of feature type 1/2 (if there's more than 2 feature Types: start/end of arrow is its position as calculated by the median of factors of all feature types / factors of each block); short arrows mean strong agreement between feature types :)
 - ```.../circos``` circosPlot(): indicates whether or not features between feature types are correlated
 - ```.../heatmap``` cim(): rows = class, columns = feature type; features can be found in the loading csv
 - ```.../loadings``` plotLoadings): indicates contribution / coefficient of each feature towards model
