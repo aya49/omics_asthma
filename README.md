@@ -20,7 +20,7 @@ Note some terms:
 - scripts / src / code: a .R/.Rmd file in this project
 - paper / amrits' paper: see ```src/paper```
 
-Folder structure: src, data (download: https://vault.sfu.ca/index.php/s/x1jV2ky6WKxvIBR)
+Folder structure: src, data (download: https://doi.org/10.5281/zenodo.7108741)
 
 ```{bash}
 ├─── src (source code)
