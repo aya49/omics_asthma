@@ -20,7 +20,7 @@ Note some terms:
 - scripts / src / code: a .R/.Rmd file in this project
 - paper / amrits' paper: see ```src/paper```
 
-Folder structure: src, data (download: https://doi.org/10.5281/zenodo.7108741)
+Folder structure: src, data (download: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7108741.svg)](https://doi.org/10.5281/zenodo.7108741))
 
 ```{bash}
 ├─── src (source code)
